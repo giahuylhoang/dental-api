@@ -1,3 +1,8 @@
 .vercel
 .env.*
 .env
+
+# Google / service account JSON (never commit)
+gen-lang-client*.json
+*-credentials*.json
+*service*account*.json
