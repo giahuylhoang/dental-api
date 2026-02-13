@@ -158,7 +158,11 @@ class AppointmentDetailResponse(BaseModel):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for FastAPI app."""
-    # Database already exists; no init_db() on startup
+    try:
+        init_db()
+        logger.info("Database tables ready")
+    except Exception as e:
+        logger.warning("Database init failed: %s", e)
     yield
     # Shutdown: cleanup if needed
     pass

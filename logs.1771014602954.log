@@ -1,0 +1,788 @@
+2026-02-13T20:20:20.000000000Z [inf]  Starting Container
+2026-02-13T20:20:22.326585026Z [err]  INFO __main__ Loaded full api.main app
+2026-02-13T20:20:22.326591481Z [err]  INFO __main__ Starting uvicorn on 0.0.0.0:8080
+2026-02-13T20:20:22.326598009Z [err]  INFO:     Started server process [1]
+2026-02-13T20:20:22.326604363Z [err]  INFO:     Waiting for application startup.
+2026-02-13T20:20:22.326610870Z [err]  INFO:     Application startup complete.
+2026-02-13T20:20:22.326617762Z [err]  INFO:     Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)
+2026-02-13T20:20:22.326625202Z [inf]  INFO:     100.64.0.2:41763 - "GET /health HTTP/1.1" 200 OK
+2026-02-13T20:24:45.329555926Z [inf]  INFO:     100.64.0.5:24286 - "GET /health HTTP/1.1" 200 OK
+2026-02-13T20:24:45.329561104Z [inf]  INFO:     100.64.0.4:22778 - "GET /api/doctors HTTP/1.1" 500 Internal Server Error
+2026-02-13T20:24:45.329566643Z [err]  ERROR:    Exception in ASGI application
+2026-02-13T20:24:45.329574037Z [err]  Traceback (most recent call last):
+2026-02-13T20:24:45.329580783Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+2026-02-13T20:24:45.329585961Z [err]      self.dialect.do_execute(
+2026-02-13T20:24:45.329638621Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+2026-02-13T20:24:45.329647239Z [err]      cursor.execute(statement, parameters)
+2026-02-13T20:24:45.329652514Z [err]  sqlite3.OperationalError: no such table: doctors
+2026-02-13T20:24:45.329658485Z [err]  
+2026-02-13T20:24:45.329664505Z [err]  The above exception was the direct cause of the following exception:
+2026-02-13T20:24:45.329670125Z [err]  
+2026-02-13T20:24:45.329675980Z [err]  Traceback (most recent call last):
+2026-02-13T20:24:45.329681496Z [err]    File "/usr/local/lib/python3.11/site-packages/uvicorn/protocols/http/httptools_impl.py", line 416, in run_asgi
+2026-02-13T20:24:45.329686674Z [err]      result = await app(  # type: ignore[func-returns-value]
+2026-02-13T20:24:45.329693978Z [err]               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:45.329700103Z [err]    File "/usr/local/lib/python3.11/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+2026-02-13T20:24:45.329706336Z [err]      return await self.app(scope, receive, send)
+2026-02-13T20:24:45.329711472Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:45.329716614Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/applications.py", line 1134, in __call__
+2026-02-13T20:24:45.332496408Z [err]      await app(scope, receive, sender)
+2026-02-13T20:24:45.332538937Z [err]      await self.middleware_stack(scope, receive, send)
+2026-02-13T20:24:45.332548322Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/middleware/errors.py", line 186, in __call__
+2026-02-13T20:24:45.332557908Z [err]      raise exc
+2026-02-13T20:24:45.332566093Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/middleware/errors.py", line 164, in __call__
+2026-02-13T20:24:45.332580190Z [err]      await self.app(scope, receive, _send)
+2026-02-13T20:24:45.332580362Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+2026-02-13T20:24:45.332591898Z [err]      await self.app(scope, receive, send)
+2026-02-13T20:24:45.332596404Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+2026-02-13T20:24:45.332602730Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 716, in __call__
+2026-02-13T20:24:45.332605460Z [err]      await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+2026-02-13T20:24:45.332610064Z [err]      await self.middleware_stack(scope, receive, send)
+2026-02-13T20:24:45.332620307Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 736, in app
+2026-02-13T20:24:45.332623684Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+2026-02-13T20:24:45.332633874Z [err]      raise exc
+2026-02-13T20:24:45.332641705Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+2026-02-13T20:24:45.332678118Z [err]      await super().__call__(scope, receive, send)
+2026-02-13T20:24:45.332684916Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/applications.py", line 107, in __call__
+2026-02-13T20:24:45.336338209Z [err]      await route.handle(scope, receive, send)
+2026-02-13T20:24:45.336341808Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 290, in handle
+2026-02-13T20:24:45.336345604Z [err]      await self.app(scope, receive, send)
+2026-02-13T20:24:45.336349277Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 119, in app
+2026-02-13T20:24:45.336353670Z [err]      await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+2026-02-13T20:24:45.336358627Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+2026-02-13T20:24:45.336362365Z [err]      raise exc
+2026-02-13T20:24:45.336366067Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+2026-02-13T20:24:45.336369554Z [err]      await app(scope, receive, sender)
+2026-02-13T20:24:45.336373611Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 105, in app
+2026-02-13T20:24:45.336377251Z [err]      response = await f(request)
+2026-02-13T20:24:45.336381087Z [err]                 ^^^^^^^^^^^^^^^^
+2026-02-13T20:24:45.336384515Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 424, in app
+2026-02-13T20:24:45.336676615Z [err]                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:45.336677019Z [err]      return meth(
+2026-02-13T20:24:45.336688383Z [err]             ^^^^^
+2026-02-13T20:24:45.336695632Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/sql/elements.py", line 527, in _execute_on_connection
+2026-02-13T20:24:45.336719348Z [err]                                                    ^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:45.336733929Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2351, in execute
+2026-02-13T20:24:45.336749517Z [err]      return self._execute_internal(
+2026-02-13T20:24:45.336757215Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:45.336765357Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2249, in _execute_internal
+2026-02-13T20:24:45.336773286Z [err]      result: Result[Any] = compile_state_cls.orm_execute_statement(
+2026-02-13T20:24:45.336778401Z [err]                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:45.336788335Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/query.py", line 2704, in all
+2026-02-13T20:24:45.336788552Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/context.py", line 306, in orm_execute_statement
+2026-02-13T20:24:45.336795319Z [err]      result = conn.execute(
+2026-02-13T20:24:45.336798340Z [err]      return self._iter().all()  # type: ignore
+2026-02-13T20:24:45.336801747Z [err]               ^^^^^^^^^^^^^
+2026-02-13T20:24:45.336810608Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+2026-02-13T20:24:45.336871807Z [err]             ^^^^^^^^^^^^
+2026-02-13T20:24:45.336878772Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/query.py", line 2857, in _iter
+2026-02-13T20:24:45.336884411Z [err]      result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
+2026-02-13T20:24:45.337032883Z [err]      raw_response = await run_endpoint_function(
+2026-02-13T20:24:45.337037560Z [err]                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:45.337042191Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 312, in run_endpoint_function
+2026-02-13T20:24:45.337049352Z [err]      return await dependant.call(**values)
+2026-02-13T20:24:45.337053918Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:45.337058254Z [err]    File "/app/api/main.py", line 1318, in list_doctors
+2026-02-13T20:24:45.337062515Z [err]      doctors = db.query(Doctor).filter(Doctor.is_active == True).all()
+2026-02-13T20:24:45.339236403Z [err]      return connection._execute_clauseelement(
+2026-02-13T20:24:45.339241872Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:45.339246939Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+2026-02-13T20:24:45.339252050Z [err]      ret = self._execute_context(
+2026-02-13T20:24:45.339257762Z [err]            ^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:45.339262806Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
+2026-02-13T20:24:45.339267625Z [err]      return self._exec_single_context(
+2026-02-13T20:24:45.339272148Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:45.339277248Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
+2026-02-13T20:24:45.339282247Z [err]      self._handle_dbapi_exception(
+2026-02-13T20:24:45.339286789Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2363, in _handle_dbapi_exception
+2026-02-13T20:24:45.339291129Z [err]      raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+2026-02-13T20:24:45.339295986Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+2026-02-13T20:24:45.339300624Z [err]      self.dialect.do_execute(
+2026-02-13T20:24:45.339305396Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+2026-02-13T20:24:45.339312118Z [err]      cursor.execute(statement, parameters)
+2026-02-13T20:24:45.339316948Z [err]  sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such table: doctors
+2026-02-13T20:24:45.339321802Z [err]  [SQL: SELECT doctors.id AS doctors_id, doctors.name AS doctors_name, doctors.specialty AS doctors_specialty, doctors.is_active AS doctors_is_active 
+2026-02-13T20:24:45.341735238Z [err]      result = await app(  # type: ignore[func-returns-value]
+2026-02-13T20:24:45.341745780Z [err]               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:45.341752383Z [err]    File "/usr/local/lib/python3.11/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+2026-02-13T20:24:45.341759171Z [err]      return await self.app(scope, receive, send)
+2026-02-13T20:24:45.341765824Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:45.341797009Z [err]  FROM doctors 
+2026-02-13T20:24:45.341803540Z [err]  WHERE doctors.is_active = 1]
+2026-02-13T20:24:45.341810221Z [err]  (Background on this error at: https://sqlalche.me/e/20/e3q8)
+2026-02-13T20:24:45.341816880Z [inf]  INFO:     100.64.0.4:22786 - "GET /api/services HTTP/1.1" 500 Internal Server Error
+2026-02-13T20:24:45.341823456Z [err]  ERROR:    Exception in ASGI application
+2026-02-13T20:24:45.341830181Z [err]  Traceback (most recent call last):
+2026-02-13T20:24:45.341836812Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+2026-02-13T20:24:45.341841734Z [err]      self.dialect.do_execute(
+2026-02-13T20:24:45.341846693Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+2026-02-13T20:24:45.341852271Z [err]      cursor.execute(statement, parameters)
+2026-02-13T20:24:45.341858064Z [err]  sqlite3.OperationalError: no such table: services
+2026-02-13T20:24:45.341864328Z [err]  
+2026-02-13T20:24:45.341869686Z [err]  The above exception was the direct cause of the following exception:
+2026-02-13T20:24:45.341875936Z [err]  
+2026-02-13T20:24:45.341880911Z [err]  Traceback (most recent call last):
+2026-02-13T20:24:45.341886145Z [err]    File "/usr/local/lib/python3.11/site-packages/uvicorn/protocols/http/httptools_impl.py", line 416, in run_asgi
+2026-02-13T20:24:45.344613061Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/applications.py", line 1134, in __call__
+2026-02-13T20:24:45.344617670Z [err]      await super().__call__(scope, receive, send)
+2026-02-13T20:24:45.344621300Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/applications.py", line 107, in __call__
+2026-02-13T20:24:45.344624739Z [err]      await self.middleware_stack(scope, receive, send)
+2026-02-13T20:24:45.344628611Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/middleware/errors.py", line 186, in __call__
+2026-02-13T20:24:45.344632477Z [err]      raise exc
+2026-02-13T20:24:45.344636232Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/middleware/errors.py", line 164, in __call__
+2026-02-13T20:24:45.344640130Z [err]      await self.app(scope, receive, _send)
+2026-02-13T20:24:45.344643993Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+2026-02-13T20:24:45.344648101Z [err]      await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+2026-02-13T20:24:45.344652307Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+2026-02-13T20:24:45.344656995Z [err]      raise exc
+2026-02-13T20:24:45.344660838Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+2026-02-13T20:24:45.344664696Z [err]      await app(scope, receive, sender)
+2026-02-13T20:24:45.344668698Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+2026-02-13T20:24:45.344672885Z [err]      await self.app(scope, receive, send)
+2026-02-13T20:24:45.344676599Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 716, in __call__
+2026-02-13T20:24:45.344680765Z [err]      await self.middleware_stack(scope, receive, send)
+2026-02-13T20:24:45.349056617Z [err]      await app(scope, receive, sender)
+2026-02-13T20:24:45.349067361Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 105, in app
+2026-02-13T20:24:45.349074427Z [err]      raise exc
+2026-02-13T20:24:45.349076619Z [err]      response = await f(request)
+2026-02-13T20:24:45.349082616Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 736, in app
+2026-02-13T20:24:45.349082786Z [err]      await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+2026-02-13T20:24:45.349085006Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+2026-02-13T20:24:45.349089644Z [err]      await self.app(scope, receive, send)
+2026-02-13T20:24:45.349092542Z [err]      await route.handle(scope, receive, send)
+2026-02-13T20:24:45.349095968Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+2026-02-13T20:24:45.349100146Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 119, in app
+2026-02-13T20:24:45.349103159Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 290, in handle
+2026-02-13T20:24:45.350934083Z [err]                 ^^^^^^^^^^^^^^^^
+2026-02-13T20:24:45.350945300Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 424, in app
+2026-02-13T20:24:45.350951356Z [err]      raw_response = await run_endpoint_function(
+2026-02-13T20:24:45.350957899Z [err]                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:45.350964510Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 312, in run_endpoint_function
+2026-02-13T20:24:45.350971440Z [err]      return await dependant.call(**values)
+2026-02-13T20:24:45.350977552Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:45.350984283Z [err]    File "/app/api/main.py", line 1344, in list_services
+2026-02-13T20:24:45.351895937Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/sql/elements.py", line 527, in _execute_on_connection
+2026-02-13T20:24:45.351904988Z [err]      result: Result[Any] = compile_state_cls.orm_execute_statement(
+2026-02-13T20:24:45.351915136Z [err]      services = query.all()
+2026-02-13T20:24:45.351918959Z [err]                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:45.351924789Z [err]                 ^^^^^^^^^^^
+2026-02-13T20:24:45.351934236Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/query.py", line 2704, in all
+2026-02-13T20:24:45.351934300Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/context.py", line 306, in orm_execute_statement
+2026-02-13T20:24:45.351942208Z [err]      return self._iter().all()  # type: ignore
+2026-02-13T20:24:45.351944079Z [err]      result = conn.execute(
+2026-02-13T20:24:45.351950142Z [err]             ^^^^^^^^^^^^
+2026-02-13T20:24:45.351952217Z [err]               ^^^^^^^^^^^^^
+2026-02-13T20:24:45.351956593Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/query.py", line 2857, in _iter
+2026-02-13T20:24:45.351961326Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+2026-02-13T20:24:45.351962737Z [err]      result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
+2026-02-13T20:24:45.351967396Z [err]                                                    ^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:45.351972445Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2351, in execute
+2026-02-13T20:24:45.351974231Z [err]      return meth(
+2026-02-13T20:24:45.351977780Z [err]      return self._execute_internal(
+2026-02-13T20:24:45.351982683Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:45.351986691Z [err]             ^^^^^
+2026-02-13T20:24:45.351988123Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2249, in _execute_internal
+2026-02-13T20:24:45.355748849Z [err]  [SQL: SELECT services.id AS services_id, services.name AS services_name, services.description AS services_description, services.duration_min AS services_duration_min, services.base_price AS services_base_price 
+2026-02-13T20:24:45.355767842Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+2026-02-13T20:24:45.355774905Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2363, in _handle_dbapi_exception
+2026-02-13T20:24:45.355776495Z [err]      self.dialect.do_execute(
+2026-02-13T20:24:45.355785366Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+2026-02-13T20:24:45.355793600Z [err]      cursor.execute(statement, parameters)
+2026-02-13T20:24:45.355796233Z [err]      raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+2026-02-13T20:24:45.355801781Z [err]  sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such table: services
+2026-02-13T20:24:45.355813312Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:45.355820010Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
+2026-02-13T20:24:45.355826913Z [err]      self._handle_dbapi_exception(
+2026-02-13T20:24:45.355857800Z [err]      return connection._execute_clauseelement(
+2026-02-13T20:24:45.355863632Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:45.355869261Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+2026-02-13T20:24:45.355875871Z [err]      ret = self._execute_context(
+2026-02-13T20:24:45.355881407Z [err]            ^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:45.355887234Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
+2026-02-13T20:24:45.355892097Z [err]      return self._exec_single_context(
+2026-02-13T20:24:45.358605800Z [err]      result = await app(  # type: ignore[func-returns-value]
+2026-02-13T20:24:45.358616435Z [err]               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:45.358621972Z [err]    File "/usr/local/lib/python3.11/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+2026-02-13T20:24:45.358626191Z [err]      return await self.app(scope, receive, send)
+2026-02-13T20:24:45.358632517Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:45.358642277Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/applications.py", line 1134, in __call__
+2026-02-13T20:24:45.358649053Z [err]  sqlite3.OperationalError: no such table: patients
+2026-02-13T20:24:45.358664797Z [err]  
+2026-02-13T20:24:45.358676289Z [err]  ERROR:    Exception in ASGI application
+2026-02-13T20:24:45.358676529Z [err]  The above exception was the direct cause of the following exception:
+2026-02-13T20:24:45.358684996Z [err]  FROM services]
+2026-02-13T20:24:45.358685477Z [err]  
+2026-02-13T20:24:45.358693527Z [err]  (Background on this error at: https://sqlalche.me/e/20/e3q8)
+2026-02-13T20:24:45.358700095Z [err]  Traceback (most recent call last):
+2026-02-13T20:24:45.358701746Z [err]  Traceback (most recent call last):
+2026-02-13T20:24:45.358703017Z [inf]  INFO:     100.64.0.6:30488 - "GET /api/patients HTTP/1.1" 500 Internal Server Error
+2026-02-13T20:24:45.358712128Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+2026-02-13T20:24:45.358712475Z [err]    File "/usr/local/lib/python3.11/site-packages/uvicorn/protocols/http/httptools_impl.py", line 416, in run_asgi
+2026-02-13T20:24:45.358720717Z [err]      self.dialect.do_execute(
+2026-02-13T20:24:45.358727697Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+2026-02-13T20:24:45.358736318Z [err]      cursor.execute(statement, parameters)
+2026-02-13T20:24:45.361987059Z [err]      await super().__call__(scope, receive, send)
+2026-02-13T20:24:45.361993307Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/applications.py", line 107, in __call__
+2026-02-13T20:24:45.362000838Z [err]      await self.middleware_stack(scope, receive, send)
+2026-02-13T20:24:45.362007606Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/middleware/errors.py", line 186, in __call__
+2026-02-13T20:24:45.362015038Z [err]      raise exc
+2026-02-13T20:24:45.362022672Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/middleware/errors.py", line 164, in __call__
+2026-02-13T20:24:45.362029529Z [err]      await self.app(scope, receive, _send)
+2026-02-13T20:24:45.362036682Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+2026-02-13T20:24:45.362043496Z [err]      await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+2026-02-13T20:24:45.362052614Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+2026-02-13T20:24:45.362059839Z [err]      raise exc
+2026-02-13T20:24:45.362065988Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+2026-02-13T20:24:45.362073290Z [err]      await app(scope, receive, sender)
+2026-02-13T20:24:45.362079618Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+2026-02-13T20:24:45.362086821Z [err]      await self.app(scope, receive, send)
+2026-02-13T20:24:45.362093459Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 716, in __call__
+2026-02-13T20:24:45.362101470Z [err]      await self.middleware_stack(scope, receive, send)
+2026-02-13T20:24:45.362110074Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 736, in app
+2026-02-13T20:24:45.365182934Z [err]                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:45.365198034Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 312, in run_endpoint_function
+2026-02-13T20:24:45.365207063Z [err]      return await dependant.call(**values)
+2026-02-13T20:24:45.365215045Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:45.365223309Z [err]    File "/app/api/main.py", line 483, in list_patients
+2026-02-13T20:24:45.365236684Z [err]      patients = query.all()
+2026-02-13T20:24:45.365309169Z [err]      await route.handle(scope, receive, send)
+2026-02-13T20:24:45.365316029Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 290, in handle
+2026-02-13T20:24:45.365322203Z [err]      await self.app(scope, receive, send)
+2026-02-13T20:24:45.365328387Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 119, in app
+2026-02-13T20:24:45.365334975Z [err]      await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+2026-02-13T20:24:45.365342760Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+2026-02-13T20:24:45.365350017Z [err]      raise exc
+2026-02-13T20:24:45.365355722Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+2026-02-13T20:24:45.365362687Z [err]      await app(scope, receive, sender)
+2026-02-13T20:24:45.365368796Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 105, in app
+2026-02-13T20:24:45.365373468Z [err]      response = await f(request)
+2026-02-13T20:24:45.365380178Z [err]                 ^^^^^^^^^^^^^^^^
+2026-02-13T20:24:45.365384658Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 424, in app
+2026-02-13T20:24:45.365395176Z [err]      raw_response = await run_endpoint_function(
+2026-02-13T20:24:45.368078941Z [err]               ^^^^^^^^^^^^^
+2026-02-13T20:24:45.368086871Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+2026-02-13T20:24:45.368092017Z [err]      return meth(
+2026-02-13T20:24:45.368097979Z [err]             ^^^^^
+2026-02-13T20:24:45.368102614Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/sql/elements.py", line 527, in _execute_on_connection
+2026-02-13T20:24:45.368128025Z [err]                 ^^^^^^^^^^^
+2026-02-13T20:24:45.368136278Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/query.py", line 2704, in all
+2026-02-13T20:24:45.368141725Z [err]      return self._iter().all()  # type: ignore
+2026-02-13T20:24:45.368148335Z [err]             ^^^^^^^^^^^^
+2026-02-13T20:24:45.368156740Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/query.py", line 2857, in _iter
+2026-02-13T20:24:45.368167486Z [err]      result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
+2026-02-13T20:24:45.368181071Z [err]                                                    ^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:45.368186564Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2351, in execute
+2026-02-13T20:24:45.368191532Z [err]      return self._execute_internal(
+2026-02-13T20:24:45.368200687Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:45.368206690Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2249, in _execute_internal
+2026-02-13T20:24:45.368214009Z [err]      result: Result[Any] = compile_state_cls.orm_execute_statement(
+2026-02-13T20:24:45.368222889Z [err]                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:45.368273119Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/context.py", line 306, in orm_execute_statement
+2026-02-13T20:24:45.368284062Z [err]      result = conn.execute(
+2026-02-13T20:24:46.293308323Z [err]      return connection._execute_clauseelement(
+2026-02-13T20:24:46.293312957Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:46.293318036Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+2026-02-13T20:24:46.293322922Z [err]      ret = self._execute_context(
+2026-02-13T20:24:46.293327870Z [err]            ^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:46.293333298Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
+2026-02-13T20:24:46.293340086Z [err]      return self._exec_single_context(
+2026-02-13T20:24:46.293345279Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:46.293350716Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
+2026-02-13T20:24:46.293356192Z [err]      self._handle_dbapi_exception(
+2026-02-13T20:24:46.293362627Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2363, in _handle_dbapi_exception
+2026-02-13T20:24:46.293367668Z [err]      raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+2026-02-13T20:24:46.293373114Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+2026-02-13T20:24:46.293378120Z [err]      self.dialect.do_execute(
+2026-02-13T20:24:46.293386879Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+2026-02-13T20:24:46.293393194Z [err]      cursor.execute(statement, parameters)
+2026-02-13T20:24:46.293399671Z [err]  sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such table: patients
+2026-02-13T20:24:46.293415948Z [err]  [SQL: SELECT patients.id AS patients_id, patients.first_name AS patients_first_name, patients.last_name AS patients_last_name, patients.dob AS patients_dob, patients.phone AS patients_phone, patients.email AS patients_email, patients.insurance_provider AS patients_insurance_provider, patients.is_minor AS patients_is_minor, patients.guardian_name AS patients_guardian_name, patients.guardian_contact AS patients_guardian_contact, patients.consent_approved AS patients_consent_approved, patients.created_at AS patients_created_at 
+2026-02-13T20:24:46.293484685Z [err]      return await self.app(scope, receive, send)
+2026-02-13T20:24:46.293491494Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:46.293497533Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/applications.py", line 1134, in __call__
+2026-02-13T20:24:46.293556490Z [err]  
+2026-02-13T20:24:46.293582626Z [err]               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:46.293596665Z [inf]  INFO:     100.64.0.7:36668 - "GET /api/appointments HTTP/1.1" 500 Internal Server Error
+2026-02-13T20:24:46.293600225Z [err]    File "/usr/local/lib/python3.11/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+2026-02-13T20:24:46.293610089Z [err]  ERROR:    Exception in ASGI application
+2026-02-13T20:24:46.293623061Z [err]  Traceback (most recent call last):
+2026-02-13T20:24:46.293628595Z [err]  Traceback (most recent call last):
+2026-02-13T20:24:46.293636391Z [err]      cursor.execute(statement, parameters)
+2026-02-13T20:24:46.293645544Z [err]    File "/usr/local/lib/python3.11/site-packages/uvicorn/protocols/http/httptools_impl.py", line 416, in run_asgi
+2026-02-13T20:24:46.293646097Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+2026-02-13T20:24:46.293649915Z [err]  sqlite3.OperationalError: no such table: appointments
+2026-02-13T20:24:46.293662389Z [err]      self.dialect.do_execute(
+2026-02-13T20:24:46.293663078Z [err]  
+2026-02-13T20:24:46.293676494Z [err]  The above exception was the direct cause of the following exception:
+2026-02-13T20:24:46.293677206Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+2026-02-13T20:24:46.293710001Z [err]  FROM patients]
+2026-02-13T20:24:46.293713508Z [err]      result = await app(  # type: ignore[func-returns-value]
+2026-02-13T20:24:46.293719780Z [err]  (Background on this error at: https://sqlalche.me/e/20/e3q8)
+2026-02-13T20:24:46.295970641Z [err]      await super().__call__(scope, receive, send)
+2026-02-13T20:24:46.295977025Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/applications.py", line 107, in __call__
+2026-02-13T20:24:46.295982932Z [err]      await self.middleware_stack(scope, receive, send)
+2026-02-13T20:24:46.295988510Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/middleware/errors.py", line 186, in __call__
+2026-02-13T20:24:46.295993538Z [err]      raise exc
+2026-02-13T20:24:46.296013191Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/middleware/errors.py", line 164, in __call__
+2026-02-13T20:24:46.296019529Z [err]      await self.app(scope, receive, _send)
+2026-02-13T20:24:46.296026352Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+2026-02-13T20:24:46.296031743Z [err]      await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+2026-02-13T20:24:46.296038110Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+2026-02-13T20:24:46.296044398Z [err]      raise exc
+2026-02-13T20:24:46.296050497Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+2026-02-13T20:24:46.296077249Z [err]      await route.handle(scope, receive, send)
+2026-02-13T20:24:46.296083105Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 290, in handle
+2026-02-13T20:24:46.296104207Z [err]      await app(scope, receive, sender)
+2026-02-13T20:24:46.296110472Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+2026-02-13T20:24:46.296116387Z [err]      await self.app(scope, receive, send)
+2026-02-13T20:24:46.296121864Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 716, in __call__
+2026-02-13T20:24:46.296127560Z [err]      await self.middleware_stack(scope, receive, send)
+2026-02-13T20:24:46.296133229Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 736, in app
+2026-02-13T20:24:46.296141596Z [err]      await self.app(scope, receive, send)
+2026-02-13T20:24:46.296148825Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 119, in app
+2026-02-13T20:24:46.296154182Z [err]      await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+2026-02-13T20:24:46.296160569Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+2026-02-13T20:24:46.296166151Z [err]      raise exc
+2026-02-13T20:24:46.296171835Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+2026-02-13T20:24:46.296177213Z [err]      await app(scope, receive, sender)
+2026-02-13T20:24:46.296184327Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 105, in app
+2026-02-13T20:24:46.296191328Z [err]      response = await f(request)
+2026-02-13T20:24:46.296197915Z [err]                 ^^^^^^^^^^^^^^^^
+2026-02-13T20:24:46.296203432Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 424, in app
+2026-02-13T20:24:46.296208803Z [err]      raw_response = await run_endpoint_function(
+2026-02-13T20:24:46.296214560Z [err]                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:46.296220193Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 312, in run_endpoint_function
+2026-02-13T20:24:46.296225972Z [err]      return await dependant.call(**values)
+2026-02-13T20:24:46.296263297Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:46.296269802Z [err]    File "/app/api/main.py", line 719, in list_appointments
+2026-02-13T20:24:46.296276089Z [err]      appointments = query.order_by(Appointment.start_time).all()
+2026-02-13T20:24:46.299965449Z [err]                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:46.299972378Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/query.py", line 2704, in all
+2026-02-13T20:24:46.299978451Z [err]      return self._iter().all()  # type: ignore
+2026-02-13T20:24:46.299984557Z [err]             ^^^^^^^^^^^^
+2026-02-13T20:24:46.299989142Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/query.py", line 2857, in _iter
+2026-02-13T20:24:46.299994179Z [err]      result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
+2026-02-13T20:24:46.299999990Z [err]                                                    ^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:46.300055121Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2351, in execute
+2026-02-13T20:24:46.300063878Z [err]      return self._execute_internal(
+2026-02-13T20:24:46.300070726Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:46.300079027Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2249, in _execute_internal
+2026-02-13T20:24:46.300086157Z [err]      result: Result[Any] = compile_state_cls.orm_execute_statement(
+2026-02-13T20:24:46.300551078Z [err]                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:46.300557191Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/context.py", line 306, in orm_execute_statement
+2026-02-13T20:24:46.300563929Z [err]      result = conn.execute(
+2026-02-13T20:24:46.300569223Z [err]               ^^^^^^^^^^^^^
+2026-02-13T20:24:46.300574875Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+2026-02-13T20:24:46.300580309Z [err]      return meth(
+2026-02-13T20:24:46.300585493Z [err]             ^^^^^
+2026-02-13T20:24:46.300590684Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/sql/elements.py", line 527, in _execute_on_connection
+2026-02-13T20:24:46.306864651Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
+2026-02-13T20:24:46.306875095Z [err]      return self._exec_single_context(
+2026-02-13T20:24:46.306877005Z [err]  [SQL: SELECT appointments.id AS appointments_id, appointments.patient_id AS appointments_patient_id, appointments.doctor_id AS appointments_doctor_id, appointments.service_id AS appointments_service_id, appointments.start_time AS appointments_start_time, appointments.end_time AS appointments_end_time, appointments.reason_note AS appointments_reason_note, appointments.status AS appointments_status, appointments.calendar_event_id AS appointments_calendar_event_id, appointments.created_at AS appointments_created_at, appointments.updated_at AS appointments_updated_at 
+2026-02-13T20:24:46.306882426Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:46.306897577Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
+2026-02-13T20:24:46.306905004Z [err]      self._handle_dbapi_exception(
+2026-02-13T20:24:46.306915331Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2363, in _handle_dbapi_exception
+2026-02-13T20:24:46.306922770Z [err]      raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+2026-02-13T20:24:46.306929399Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+2026-02-13T20:24:46.306938374Z [err]      self.dialect.do_execute(
+2026-02-13T20:24:46.306944669Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+2026-02-13T20:24:46.306952950Z [err]      cursor.execute(statement, parameters)
+2026-02-13T20:24:46.306957675Z [err]      return connection._execute_clauseelement(
+2026-02-13T20:24:46.306962574Z [err]  sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such table: appointments
+2026-02-13T20:24:46.306976743Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:46.306981936Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+2026-02-13T20:24:46.306986817Z [err]      ret = self._execute_context(
+2026-02-13T20:24:46.306993898Z [err]            ^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:24:46.309903030Z [err]  FROM appointments ORDER BY appointments.start_time]
+2026-02-13T20:24:46.309908120Z [err]  (Background on this error at: https://sqlalche.me/e/20/e3q8)
+2026-02-13T20:29:32.533655920Z [inf]  INFO:     100.64.0.3:27988 - "GET /health HTTP/1.1" 200 OK
+2026-02-13T20:29:32.533661873Z [inf]  INFO:     100.64.0.8:22668 - "GET /api/doctors HTTP/1.1" 500 Internal Server Error
+2026-02-13T20:29:32.533667391Z [err]  ERROR:    Exception in ASGI application
+2026-02-13T20:29:32.533674262Z [err]  Traceback (most recent call last):
+2026-02-13T20:29:32.533680222Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+2026-02-13T20:29:32.533687314Z [err]      self.dialect.do_execute(
+2026-02-13T20:29:32.533693303Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+2026-02-13T20:29:32.533699570Z [err]      cursor.execute(statement, parameters)
+2026-02-13T20:29:32.533705910Z [err]  sqlite3.OperationalError: no such table: doctors
+2026-02-13T20:29:32.533775867Z [err]  
+2026-02-13T20:29:32.533782452Z [err]  The above exception was the direct cause of the following exception:
+2026-02-13T20:29:32.533788026Z [err]  
+2026-02-13T20:29:32.533795981Z [err]  Traceback (most recent call last):
+2026-02-13T20:29:32.533801619Z [err]    File "/usr/local/lib/python3.11/site-packages/uvicorn/protocols/http/httptools_impl.py", line 416, in run_asgi
+2026-02-13T20:29:32.533808099Z [err]      result = await app(  # type: ignore[func-returns-value]
+2026-02-13T20:29:32.533814389Z [err]               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:32.533824944Z [err]    File "/usr/local/lib/python3.11/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+2026-02-13T20:29:32.533831443Z [err]      return await self.app(scope, receive, send)
+2026-02-13T20:29:32.533837668Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:32.533843590Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/applications.py", line 1134, in __call__
+2026-02-13T20:29:33.433206282Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+2026-02-13T20:29:33.433219668Z [err]      raise exc
+2026-02-13T20:29:33.433228799Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+2026-02-13T20:29:33.433236333Z [err]      await app(scope, receive, sender)
+2026-02-13T20:29:33.433244665Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+2026-02-13T20:29:33.433248326Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 716, in __call__
+2026-02-13T20:29:33.433252553Z [err]      await self.app(scope, receive, send)
+2026-02-13T20:29:33.433260047Z [err]      await self.middleware_stack(scope, receive, send)
+2026-02-13T20:29:33.433265551Z [err]      await super().__call__(scope, receive, send)
+2026-02-13T20:29:33.433275708Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 736, in app
+2026-02-13T20:29:33.433278193Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/applications.py", line 107, in __call__
+2026-02-13T20:29:33.433287644Z [err]      await self.middleware_stack(scope, receive, send)
+2026-02-13T20:29:33.433296101Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/middleware/errors.py", line 186, in __call__
+2026-02-13T20:29:33.433304501Z [err]      raise exc
+2026-02-13T20:29:33.433313289Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/middleware/errors.py", line 164, in __call__
+2026-02-13T20:29:33.433328463Z [err]      await self.app(scope, receive, _send)
+2026-02-13T20:29:33.433336043Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+2026-02-13T20:29:33.433349042Z [err]      await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+2026-02-13T20:29:33.437945095Z [err]      await route.handle(scope, receive, send)
+2026-02-13T20:29:33.437951641Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 290, in handle
+2026-02-13T20:29:33.437962846Z [err]      await self.app(scope, receive, send)
+2026-02-13T20:29:33.437969533Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 119, in app
+2026-02-13T20:29:33.437977295Z [err]      await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+2026-02-13T20:29:33.437985066Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+2026-02-13T20:29:33.437991228Z [err]      raise exc
+2026-02-13T20:29:33.437999564Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+2026-02-13T20:29:33.438008108Z [err]      await app(scope, receive, sender)
+2026-02-13T20:29:33.438015008Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 105, in app
+2026-02-13T20:29:33.438021509Z [err]      response = await f(request)
+2026-02-13T20:29:33.438028321Z [err]                 ^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.438037098Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 424, in app
+2026-02-13T20:29:33.438043988Z [err]      raw_response = await run_endpoint_function(
+2026-02-13T20:29:33.438050341Z [err]                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.438056378Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 312, in run_endpoint_function
+2026-02-13T20:29:33.438063541Z [err]      return await dependant.call(**values)
+2026-02-13T20:29:33.438070339Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.438077286Z [err]    File "/app/api/main.py", line 1318, in list_doctors
+2026-02-13T20:29:33.438084903Z [err]      doctors = db.query(Doctor).filter(Doctor.is_active == True).all()
+2026-02-13T20:29:33.444118742Z [err]                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.444124485Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/query.py", line 2704, in all
+2026-02-13T20:29:33.444130800Z [err]      return self._iter().all()  # type: ignore
+2026-02-13T20:29:33.444136662Z [err]             ^^^^^^^^^^^^
+2026-02-13T20:29:33.444142998Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/query.py", line 2857, in _iter
+2026-02-13T20:29:33.444149245Z [err]      result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
+2026-02-13T20:29:33.444154695Z [err]                                                    ^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.444159738Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2351, in execute
+2026-02-13T20:29:33.444165139Z [err]      return self._execute_internal(
+2026-02-13T20:29:33.444170317Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.444176059Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2249, in _execute_internal
+2026-02-13T20:29:33.444182678Z [err]      result: Result[Any] = compile_state_cls.orm_execute_statement(
+2026-02-13T20:29:33.444190038Z [err]                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.444198893Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/context.py", line 306, in orm_execute_statement
+2026-02-13T20:29:33.444204781Z [err]      result = conn.execute(
+2026-02-13T20:29:33.444210384Z [err]               ^^^^^^^^^^^^^
+2026-02-13T20:29:33.444216871Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+2026-02-13T20:29:33.444222410Z [err]      return meth(
+2026-02-13T20:29:33.444227834Z [err]             ^^^^^
+2026-02-13T20:29:33.444252219Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/sql/elements.py", line 527, in _execute_on_connection
+2026-02-13T20:29:33.448556829Z [err]      return connection._execute_clauseelement(
+2026-02-13T20:29:33.448563199Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.448570150Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+2026-02-13T20:29:33.448576799Z [err]      ret = self._execute_context(
+2026-02-13T20:29:33.448586435Z [err]            ^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.448593449Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
+2026-02-13T20:29:33.448598642Z [err]      return self._exec_single_context(
+2026-02-13T20:29:33.448603512Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.448610031Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
+2026-02-13T20:29:33.448616117Z [err]      self._handle_dbapi_exception(
+2026-02-13T20:29:33.448622476Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2363, in _handle_dbapi_exception
+2026-02-13T20:29:33.448627926Z [err]      raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+2026-02-13T20:29:33.448634159Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+2026-02-13T20:29:33.448640463Z [err]      self.dialect.do_execute(
+2026-02-13T20:29:33.448646904Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+2026-02-13T20:29:33.448654557Z [err]      cursor.execute(statement, parameters)
+2026-02-13T20:29:33.448661674Z [err]  sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such table: doctors
+2026-02-13T20:29:33.448667419Z [err]  [SQL: SELECT doctors.id AS doctors_id, doctors.name AS doctors_name, doctors.specialty AS doctors_specialty, doctors.is_active AS doctors_is_active 
+2026-02-13T20:29:33.449426417Z [err]  FROM doctors 
+2026-02-13T20:29:33.449435105Z [err]  WHERE doctors.is_active = 1]
+2026-02-13T20:29:33.449442448Z [err]  (Background on this error at: https://sqlalche.me/e/20/e3q8)
+2026-02-13T20:29:33.449449885Z [inf]  INFO:     100.64.0.3:27988 - "GET /api/services HTTP/1.1" 500 Internal Server Error
+2026-02-13T20:29:33.449455419Z [err]  ERROR:    Exception in ASGI application
+2026-02-13T20:29:33.449467315Z [err]  Traceback (most recent call last):
+2026-02-13T20:29:33.449473405Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+2026-02-13T20:29:33.449480326Z [err]      self.dialect.do_execute(
+2026-02-13T20:29:33.449486133Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+2026-02-13T20:29:33.449491986Z [err]      cursor.execute(statement, parameters)
+2026-02-13T20:29:33.449498146Z [err]  sqlite3.OperationalError: no such table: services
+2026-02-13T20:29:33.449505942Z [err]  
+2026-02-13T20:29:33.449512967Z [err]  The above exception was the direct cause of the following exception:
+2026-02-13T20:29:33.449517599Z [err]  
+2026-02-13T20:29:33.449522040Z [err]  Traceback (most recent call last):
+2026-02-13T20:29:33.449526700Z [err]    File "/usr/local/lib/python3.11/site-packages/uvicorn/protocols/http/httptools_impl.py", line 416, in run_asgi
+2026-02-13T20:29:33.449532393Z [err]      result = await app(  # type: ignore[func-returns-value]
+2026-02-13T20:29:33.449537813Z [err]               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.449545146Z [err]    File "/usr/local/lib/python3.11/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+2026-02-13T20:29:33.449552288Z [err]      return await self.app(scope, receive, send)
+2026-02-13T20:29:33.449558873Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.453337106Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+2026-02-13T20:29:33.453358985Z [err]      await self.app(scope, receive, send)
+2026-02-13T20:29:33.453369390Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 716, in __call__
+2026-02-13T20:29:33.453378507Z [err]      await self.middleware_stack(scope, receive, send)
+2026-02-13T20:29:33.453468376Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/applications.py", line 1134, in __call__
+2026-02-13T20:29:33.453476222Z [err]      await super().__call__(scope, receive, send)
+2026-02-13T20:29:33.453485250Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/applications.py", line 107, in __call__
+2026-02-13T20:29:33.453495316Z [err]      await self.middleware_stack(scope, receive, send)
+2026-02-13T20:29:33.453504429Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/middleware/errors.py", line 186, in __call__
+2026-02-13T20:29:33.453512538Z [err]      raise exc
+2026-02-13T20:29:33.453520288Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/middleware/errors.py", line 164, in __call__
+2026-02-13T20:29:33.453528313Z [err]      await self.app(scope, receive, _send)
+2026-02-13T20:29:33.453536031Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+2026-02-13T20:29:33.453546666Z [err]      await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+2026-02-13T20:29:33.453554513Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+2026-02-13T20:29:33.453563407Z [err]      raise exc
+2026-02-13T20:29:33.453570652Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+2026-02-13T20:29:33.453578414Z [err]      await app(scope, receive, sender)
+2026-02-13T20:29:33.458581857Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.458587530Z [err]    File "/app/api/main.py", line 1344, in list_services
+2026-02-13T20:29:33.458640900Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 736, in app
+2026-02-13T20:29:33.458647226Z [err]      await route.handle(scope, receive, send)
+2026-02-13T20:29:33.458659358Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 290, in handle
+2026-02-13T20:29:33.458666740Z [err]      await self.app(scope, receive, send)
+2026-02-13T20:29:33.458674501Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 119, in app
+2026-02-13T20:29:33.458682865Z [err]      await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+2026-02-13T20:29:33.458690339Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+2026-02-13T20:29:33.458697116Z [err]      raise exc
+2026-02-13T20:29:33.458703934Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+2026-02-13T20:29:33.458711498Z [err]      await app(scope, receive, sender)
+2026-02-13T20:29:33.458716960Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 105, in app
+2026-02-13T20:29:33.458723660Z [err]      response = await f(request)
+2026-02-13T20:29:33.458730424Z [err]                 ^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.458737835Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 424, in app
+2026-02-13T20:29:33.458743902Z [err]      raw_response = await run_endpoint_function(
+2026-02-13T20:29:33.458750342Z [err]                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.458758421Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 312, in run_endpoint_function
+2026-02-13T20:29:33.458765551Z [err]      return await dependant.call(**values)
+2026-02-13T20:29:33.463419655Z [err]      services = query.all()
+2026-02-13T20:29:33.463425816Z [err]                 ^^^^^^^^^^^
+2026-02-13T20:29:33.463430415Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/query.py", line 2704, in all
+2026-02-13T20:29:33.463438419Z [err]      return self._iter().all()  # type: ignore
+2026-02-13T20:29:33.463442973Z [err]             ^^^^^^^^^^^^
+2026-02-13T20:29:33.463447287Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/query.py", line 2857, in _iter
+2026-02-13T20:29:33.463452154Z [err]      result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
+2026-02-13T20:29:33.463456702Z [err]                                                    ^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.463462078Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2351, in execute
+2026-02-13T20:29:33.463467720Z [err]      return self._execute_internal(
+2026-02-13T20:29:33.463474179Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.463478655Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2249, in _execute_internal
+2026-02-13T20:29:33.463483280Z [err]      result: Result[Any] = compile_state_cls.orm_execute_statement(
+2026-02-13T20:29:33.463487419Z [err]                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.463491302Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/context.py", line 306, in orm_execute_statement
+2026-02-13T20:29:33.463494961Z [err]      result = conn.execute(
+2026-02-13T20:29:33.463498989Z [err]               ^^^^^^^^^^^^^
+2026-02-13T20:29:33.463506018Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+2026-02-13T20:29:33.463511781Z [err]      return meth(
+2026-02-13T20:29:33.463517270Z [err]             ^^^^^
+2026-02-13T20:29:33.463522732Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/sql/elements.py", line 527, in _execute_on_connection
+2026-02-13T20:29:33.468118201Z [err]      return connection._execute_clauseelement(
+2026-02-13T20:29:33.468118658Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+2026-02-13T20:29:33.468133820Z [err]      cursor.execute(statement, parameters)
+2026-02-13T20:29:33.468134927Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.468148521Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+2026-02-13T20:29:33.468150647Z [err]  sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such table: services
+2026-02-13T20:29:33.468170852Z [err]      ret = self._execute_context(
+2026-02-13T20:29:33.468171507Z [err]  [SQL: SELECT services.id AS services_id, services.name AS services_name, services.description AS services_description, services.duration_min AS services_duration_min, services.base_price AS services_base_price 
+2026-02-13T20:29:33.468182471Z [err]            ^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.468197669Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
+2026-02-13T20:29:33.468207499Z [err]      return self._exec_single_context(
+2026-02-13T20:29:33.468215774Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.468223621Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
+2026-02-13T20:29:33.468280945Z [err]      self._handle_dbapi_exception(
+2026-02-13T20:29:33.468283504Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2363, in _handle_dbapi_exception
+2026-02-13T20:29:33.468305755Z [err]      raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+2026-02-13T20:29:33.468316863Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+2026-02-13T20:29:33.468327640Z [err]      self.dialect.do_execute(
+2026-02-13T20:29:33.473046688Z [err]  FROM services]
+2026-02-13T20:29:33.473060079Z [err]  (Background on this error at: https://sqlalche.me/e/20/e3q8)
+2026-02-13T20:29:33.473107264Z [inf]  INFO:     100.64.0.6:10936 - "GET /api/patients HTTP/1.1" 500 Internal Server Error
+2026-02-13T20:29:33.473117348Z [err]  ERROR:    Exception in ASGI application
+2026-02-13T20:29:33.473124057Z [err]  Traceback (most recent call last):
+2026-02-13T20:29:33.473130205Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+2026-02-13T20:29:33.473136453Z [err]      self.dialect.do_execute(
+2026-02-13T20:29:33.473142548Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+2026-02-13T20:29:33.473184034Z [err]      cursor.execute(statement, parameters)
+2026-02-13T20:29:33.473190955Z [err]  sqlite3.OperationalError: no such table: patients
+2026-02-13T20:29:33.473197329Z [err]  
+2026-02-13T20:29:33.473203298Z [err]  The above exception was the direct cause of the following exception:
+2026-02-13T20:29:33.473209088Z [err]  
+2026-02-13T20:29:33.473214524Z [err]  Traceback (most recent call last):
+2026-02-13T20:29:33.473220746Z [err]    File "/usr/local/lib/python3.11/site-packages/uvicorn/protocols/http/httptools_impl.py", line 416, in run_asgi
+2026-02-13T20:29:33.473226392Z [err]      result = await app(  # type: ignore[func-returns-value]
+2026-02-13T20:29:33.473232628Z [err]               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.473238087Z [err]    File "/usr/local/lib/python3.11/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+2026-02-13T20:29:33.473243266Z [err]      return await self.app(scope, receive, send)
+2026-02-13T20:29:33.473249018Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.473254896Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/applications.py", line 1134, in __call__
+2026-02-13T20:29:33.476537129Z [err]      await self.app(scope, receive, _send)
+2026-02-13T20:29:33.476583974Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/applications.py", line 107, in __call__
+2026-02-13T20:29:33.476592994Z [err]      await self.middleware_stack(scope, receive, send)
+2026-02-13T20:29:33.476595921Z [err]      await super().__call__(scope, receive, send)
+2026-02-13T20:29:33.476600752Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/middleware/errors.py", line 186, in __call__
+2026-02-13T20:29:33.476609083Z [err]      raise exc
+2026-02-13T20:29:33.476617155Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/middleware/errors.py", line 164, in __call__
+2026-02-13T20:29:33.476664626Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+2026-02-13T20:29:33.476677304Z [err]      await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+2026-02-13T20:29:33.476685326Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+2026-02-13T20:29:33.476692036Z [err]      raise exc
+2026-02-13T20:29:33.476700111Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+2026-02-13T20:29:33.476711603Z [err]      await app(scope, receive, sender)
+2026-02-13T20:29:33.476718143Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+2026-02-13T20:29:33.476724027Z [err]      await self.app(scope, receive, send)
+2026-02-13T20:29:33.476732012Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 716, in __call__
+2026-02-13T20:29:33.476738747Z [err]      await self.middleware_stack(scope, receive, send)
+2026-02-13T20:29:33.476745171Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 736, in app
+2026-02-13T20:29:33.479442431Z [err]      await route.handle(scope, receive, send)
+2026-02-13T20:29:33.479448337Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 290, in handle
+2026-02-13T20:29:33.479456075Z [err]      await self.app(scope, receive, send)
+2026-02-13T20:29:33.479463753Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 119, in app
+2026-02-13T20:29:33.479470680Z [err]      await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+2026-02-13T20:29:33.479477302Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+2026-02-13T20:29:33.479483333Z [err]      raise exc
+2026-02-13T20:29:33.479488983Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+2026-02-13T20:29:33.479494886Z [err]      await app(scope, receive, sender)
+2026-02-13T20:29:33.479502209Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 105, in app
+2026-02-13T20:29:33.479508782Z [err]      response = await f(request)
+2026-02-13T20:29:33.479520150Z [err]                 ^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.479526888Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 424, in app
+2026-02-13T20:29:33.479538424Z [err]      raw_response = await run_endpoint_function(
+2026-02-13T20:29:33.479545186Z [err]                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.479553194Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 312, in run_endpoint_function
+2026-02-13T20:29:33.479559564Z [err]      return await dependant.call(**values)
+2026-02-13T20:29:33.479566885Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.479573493Z [err]    File "/app/api/main.py", line 483, in list_patients
+2026-02-13T20:29:33.479586062Z [err]      patients = query.all()
+2026-02-13T20:29:33.483069959Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+2026-02-13T20:29:33.483077926Z [err]      return meth(
+2026-02-13T20:29:33.483089382Z [err]             ^^^^^
+2026-02-13T20:29:33.483089732Z [err]             ^^^^^^^^^^^^
+2026-02-13T20:29:33.483095288Z [err]                                                    ^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.483100387Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/sql/elements.py", line 527, in _execute_on_connection
+2026-02-13T20:29:33.483104601Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2351, in execute
+2026-02-13T20:29:33.483106550Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/query.py", line 2857, in _iter
+2026-02-13T20:29:33.483120260Z [err]      return self._execute_internal(
+2026-02-13T20:29:33.483123143Z [err]      result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
+2026-02-13T20:29:33.483126305Z [err]      result: Result[Any] = compile_state_cls.orm_execute_statement(
+2026-02-13T20:29:33.483141426Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.483141823Z [err]                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.483147939Z [err]      result = conn.execute(
+2026-02-13T20:29:33.483148417Z [err]                 ^^^^^^^^^^^
+2026-02-13T20:29:33.483160659Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/context.py", line 306, in orm_execute_statement
+2026-02-13T20:29:33.483161314Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2249, in _execute_internal
+2026-02-13T20:29:33.483163278Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/query.py", line 2704, in all
+2026-02-13T20:29:33.483168164Z [err]               ^^^^^^^^^^^^^
+2026-02-13T20:29:33.483175418Z [err]      return self._iter().all()  # type: ignore
+2026-02-13T20:29:33.487416073Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
+2026-02-13T20:29:33.487421012Z [err]  sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such table: patients
+2026-02-13T20:29:33.487427899Z [err]      return self._exec_single_context(
+2026-02-13T20:29:33.487436088Z [err]  [SQL: SELECT patients.id AS patients_id, patients.first_name AS patients_first_name, patients.last_name AS patients_last_name, patients.dob AS patients_dob, patients.phone AS patients_phone, patients.email AS patients_email, patients.insurance_provider AS patients_insurance_provider, patients.is_minor AS patients_is_minor, patients.guardian_name AS patients_guardian_name, patients.guardian_contact AS patients_guardian_contact, patients.consent_approved AS patients_consent_approved, patients.created_at AS patients_created_at 
+2026-02-13T20:29:33.487440501Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.487445934Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
+2026-02-13T20:29:33.487455106Z [err]      self._handle_dbapi_exception(
+2026-02-13T20:29:33.487461812Z [err]      raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+2026-02-13T20:29:33.487468343Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2363, in _handle_dbapi_exception
+2026-02-13T20:29:33.487475508Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+2026-02-13T20:29:33.487483424Z [err]      self.dialect.do_execute(
+2026-02-13T20:29:33.487495223Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+2026-02-13T20:29:33.487503947Z [err]      cursor.execute(statement, parameters)
+2026-02-13T20:29:33.487513222Z [err]      return connection._execute_clauseelement(
+2026-02-13T20:29:33.487521901Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.487530469Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+2026-02-13T20:29:33.487537793Z [err]      ret = self._execute_context(
+2026-02-13T20:29:33.487544859Z [err]            ^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.493951695Z [err]      self.dialect.do_execute(
+2026-02-13T20:29:33.493964235Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+2026-02-13T20:29:33.493972649Z [err]      cursor.execute(statement, parameters)
+2026-02-13T20:29:33.493979081Z [err]  sqlite3.OperationalError: no such table: appointments
+2026-02-13T20:29:33.493985611Z [err]  
+2026-02-13T20:29:33.493992080Z [err]  The above exception was the direct cause of the following exception:
+2026-02-13T20:29:33.494066142Z [err]  
+2026-02-13T20:29:33.494081193Z [err]  Traceback (most recent call last):
+2026-02-13T20:29:33.494091075Z [err]    File "/usr/local/lib/python3.11/site-packages/uvicorn/protocols/http/httptools_impl.py", line 416, in run_asgi
+2026-02-13T20:29:33.494098726Z [err]      result = await app(  # type: ignore[func-returns-value]
+2026-02-13T20:29:33.494106335Z [err]               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.494113646Z [err]    File "/usr/local/lib/python3.11/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+2026-02-13T20:29:33.494123407Z [err]      return await self.app(scope, receive, send)
+2026-02-13T20:29:33.494128912Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.494134328Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/applications.py", line 1134, in __call__
+2026-02-13T20:29:33.494185380Z [err]  FROM patients]
+2026-02-13T20:29:33.494192382Z [err]  (Background on this error at: https://sqlalche.me/e/20/e3q8)
+2026-02-13T20:29:33.494200532Z [inf]  INFO:     100.64.0.3:27994 - "GET /api/appointments HTTP/1.1" 500 Internal Server Error
+2026-02-13T20:29:33.494209322Z [err]  ERROR:    Exception in ASGI application
+2026-02-13T20:29:33.494220794Z [err]  Traceback (most recent call last):
+2026-02-13T20:29:33.494229440Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+2026-02-13T20:29:33.497599033Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+2026-02-13T20:29:33.497642042Z [err]      raise exc
+2026-02-13T20:29:33.497642131Z [err]      await super().__call__(scope, receive, send)
+2026-02-13T20:29:33.497651608Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/applications.py", line 107, in __call__
+2026-02-13T20:29:33.497655670Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/middleware/errors.py", line 164, in __call__
+2026-02-13T20:29:33.497659661Z [err]      await self.middleware_stack(scope, receive, send)
+2026-02-13T20:29:33.497665046Z [err]      await self.app(scope, receive, _send)
+2026-02-13T20:29:33.497670004Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/middleware/errors.py", line 186, in __call__
+2026-02-13T20:29:33.497694130Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+2026-02-13T20:29:33.497711343Z [err]      await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+2026-02-13T20:29:33.497722525Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+2026-02-13T20:29:33.497730840Z [err]      raise exc
+2026-02-13T20:29:33.497764252Z [err]      await app(scope, receive, sender)
+2026-02-13T20:29:33.497784020Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+2026-02-13T20:29:33.497795794Z [err]      await self.app(scope, receive, send)
+2026-02-13T20:29:33.497804815Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 716, in __call__
+2026-02-13T20:29:33.497812971Z [err]      await self.middleware_stack(scope, receive, send)
+2026-02-13T20:29:33.497821457Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 736, in app
+2026-02-13T20:29:33.505281915Z [err]                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.505290955Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 312, in run_endpoint_function
+2026-02-13T20:29:33.505297648Z [err]      return await dependant.call(**values)
+2026-02-13T20:29:33.505305074Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.505314716Z [err]    File "/app/api/main.py", line 719, in list_appointments
+2026-02-13T20:29:33.505319868Z [err]      appointments = query.order_by(Appointment.start_time).all()
+2026-02-13T20:29:33.505325171Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 290, in handle
+2026-02-13T20:29:33.505342234Z [err]      await self.app(scope, receive, send)
+2026-02-13T20:29:33.505350793Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 119, in app
+2026-02-13T20:29:33.505358737Z [err]      await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+2026-02-13T20:29:33.505374834Z [err]      response = await f(request)
+2026-02-13T20:29:33.505380201Z [err]      await route.handle(scope, receive, send)
+2026-02-13T20:29:33.505387661Z [err]                 ^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.505394992Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 424, in app
+2026-02-13T20:29:33.505405277Z [err]      raw_response = await run_endpoint_function(
+2026-02-13T20:29:33.506014803Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+2026-02-13T20:29:33.506028448Z [err]      raise exc
+2026-02-13T20:29:33.506035883Z [err]    File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+2026-02-13T20:29:33.506047249Z [err]      await app(scope, receive, sender)
+2026-02-13T20:29:33.506055836Z [err]    File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 105, in app
+2026-02-13T20:29:33.506612637Z [err]                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.506620980Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/query.py", line 2704, in all
+2026-02-13T20:29:33.506629264Z [err]      return self._iter().all()  # type: ignore
+2026-02-13T20:29:33.506642124Z [err]             ^^^^^^^^^^^^
+2026-02-13T20:29:33.506651199Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/query.py", line 2857, in _iter
+2026-02-13T20:29:33.506660035Z [err]      result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
+2026-02-13T20:29:33.506667665Z [err]                                                    ^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.506675637Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2351, in execute
+2026-02-13T20:29:33.506683429Z [err]      return self._execute_internal(
+2026-02-13T20:29:33.506693678Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.506702955Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2249, in _execute_internal
+2026-02-13T20:29:33.506712235Z [err]      result: Result[Any] = compile_state_cls.orm_execute_statement(
+2026-02-13T20:29:33.506720189Z [err]                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.506728625Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/context.py", line 306, in orm_execute_statement
+2026-02-13T20:29:33.506736836Z [err]      result = conn.execute(
+2026-02-13T20:29:33.506745166Z [err]               ^^^^^^^^^^^^^
+2026-02-13T20:29:33.506752720Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+2026-02-13T20:29:33.506761116Z [err]      return meth(
+2026-02-13T20:29:33.506769141Z [err]             ^^^^^
+2026-02-13T20:29:33.506776242Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/sql/elements.py", line 527, in _execute_on_connection
+2026-02-13T20:29:33.512844002Z [err]      cursor.execute(statement, parameters)
+2026-02-13T20:29:33.512855062Z [err]  sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such table: appointments
+2026-02-13T20:29:33.512860942Z [err]      return connection._execute_clauseelement(
+2026-02-13T20:29:33.512871928Z [err]  [SQL: SELECT appointments.id AS appointments_id, appointments.patient_id AS appointments_patient_id, appointments.doctor_id AS appointments_doctor_id, appointments.service_id AS appointments_service_id, appointments.start_time AS appointments_start_time, appointments.end_time AS appointments_end_time, appointments.reason_note AS appointments_reason_note, appointments.status AS appointments_status, appointments.calendar_event_id AS appointments_calendar_event_id, appointments.created_at AS appointments_created_at, appointments.updated_at AS appointments_updated_at 
+2026-02-13T20:29:33.512873196Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.512882096Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+2026-02-13T20:29:33.512892336Z [err]            ^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.512893306Z [err]      ret = self._execute_context(
+2026-02-13T20:29:33.512902284Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
+2026-02-13T20:29:33.512910574Z [err]      return self._exec_single_context(
+2026-02-13T20:29:33.512918936Z [err]             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-02-13T20:29:33.512919381Z [err]      self._handle_dbapi_exception(
+2026-02-13T20:29:33.512926273Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
+2026-02-13T20:29:33.512930065Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2363, in _handle_dbapi_exception
+2026-02-13T20:29:33.512938437Z [err]      raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+2026-02-13T20:29:33.512945285Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+2026-02-13T20:29:33.512952710Z [err]      self.dialect.do_execute(
+2026-02-13T20:29:33.512959590Z [err]    File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+2026-02-13T20:29:33.516918840Z [err]  FROM appointments ORDER BY appointments.start_time]
+2026-02-13T20:29:33.516923917Z [err]  (Background on this error at: https://sqlalche.me/e/20/e3q8)
