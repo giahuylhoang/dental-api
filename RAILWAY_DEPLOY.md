@@ -52,11 +52,29 @@ railway run python scripts/init_database.py
 - **Nixpacks (default)** – Railway uses the **Procfile** and installs deps from `requirements.txt`. No Docker needed.
 - **Dockerfile** – In the service **Settings** → **Build**, you can choose **Dockerfile** so Railway builds and runs the **Dockerfile** in this repo (uses `$PORT` automatically).
 
+## Troubleshooting
+
+### `Invalid value for '--port': '$PORT' is not a valid integer`
+
+Railway is using a **custom Start Command** that passes the literal `$PORT` to uvicorn (the variable isn’t being expanded).
+
+**Fix:** In Railway → your service → **Settings** → **Deploy** (or **Build & Deploy**):
+
+- Find **Start Command** / **Custom start command**.
+- Either **clear it** (so Railway uses the Procfile: `python run_api.py`), or set it to:
+  ```bash
+  python run_api.py
+  ```
+- Redeploy.
+
+`run_api.py` reads `PORT` from the environment and defaults to 8000, so the app will start correctly.
+
 ## Quick reference
 
 | Step | Action |
 |------|--------|
 | New project | Railway → New Project → Deploy from GitHub → select repo |
 | Env vars | Variables → add `DATABASE_URL`, `GOOGLE_SERVICE_ACCOUNT_JSON` |
+| Start command | Leave empty or set to `python run_api.py` (do not use `uvicorn ... --port $PORT`) |
 | URL | Settings → Networking → Generate domain |
 | Health check | `curl https://YOUR-APP.up.railway.app/health` |
