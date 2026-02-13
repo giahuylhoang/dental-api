@@ -1,0 +1,32 @@
+# Git and env
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+
+# Python
+.venv
+venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.mypy_cache
+.ruff_cache
+
+# Local DB and docs
+*.db
+*.md
+!README.md
+
+# Tests and scripts (not needed at runtime)
+tests/
+test_*.py
+test_*.sh
+scripts/
+
+# IDE and OS
+.vercel
+.cursor
+.DS_Store
+*.zip

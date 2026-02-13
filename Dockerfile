@@ -23,12 +23,13 @@ RUN useradd -m -u 1000 appuser && \
 
 USER appuser
 
-# Expose port
+# Railway sets PORT; default 8000 for local runs
+ENV PORT=8000
 EXPOSE 8000
 
-# Health check
+# Health check (uses PORT)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:8000/health || exit 1
+  CMD curl -f http://localhost:${PORT}/health || exit 1
 
-# Run API service
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run API (use PORT so Railway/cloud platforms work)
+CMD ["sh", "-c", "uvicorn api.main:app --host 0.0.0.0 --port ${PORT}"]

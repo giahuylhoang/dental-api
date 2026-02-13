@@ -1,7 +1,9 @@
 #!/bin/bash
 # Test Vercel API endpoints
+# Usage: ./test_vercel_api.sh [BASE_URL]
+# Example: ./test_vercel_api.sh https://dental-api-xxx.vercel.app
 
-API_URL="https://dental-api-ochre.vercel.app"
+API_URL="${1:-https://dental-api-ochre.vercel.app}"
 
 echo "🧪 Testing Vercel API: $API_URL"
 echo "=" | head -c 60 && echo ""

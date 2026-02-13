@@ -2,13 +2,11 @@
   "buildCommand": "echo 'Build complete'",
   "outputDirectory": ".",
   "framework": null,
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/api"
+  "rewrites": [{"source": "/(.*)", "destination": "/api"}],
+  "env": {"PYTHONUNBUFFERED": "1"},
+  "functions": {
+    "api/**/*.py": {
+      "excludeFiles": "**/tests/**,**/__pycache__/**,**/*.md,**/scripts/**,**/test_*.py,**/*.db,.venv/**"
     }
-  ],
-  "env": {
-    "PYTHONUNBUFFERED": "1"
   }
 }

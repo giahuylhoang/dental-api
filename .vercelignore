@@ -1,0 +1,44 @@
+# Virtual env (Vercel installs deps from requirements.txt)
+.venv
+venv
+env
+
+# Git
+.git
+.gitignore
+
+# Python cache
+__pycache__
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache
+.mypy_cache
+.ruff_cache
+
+# Local env and secrets
+.env
+.env.*
+!.env.example
+
+# Local SQLite DB (production uses Postgres)
+*.db
+dental_clinic.db
+
+# Docs and scripts not needed at runtime
+*.md
+!README.md
+scripts/
+tests/
+test_*.py
+test_*.sh
+*.sh
+
+# Lock file (large; Vercel uses requirements.txt)
+uv.lock
+
+# IDE and OS
+.vercel
+.cursor
+.DS_Store
+*.zip
