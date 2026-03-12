@@ -8,30 +8,32 @@ Archived files (tests, frontend, extra scripts, other platforms) live under `tmp
 
 ```
 dental-api/
-├── api/                     # API-specific code
-│   ├── main.py             # FastAPI app
-│   ├── models.py           # Pydantic request/response models
-│   └── routes/             # API route handlers (optional)
-├── database/               # Database layer
+├── api/
+│   └── main.py             # FastAPI app
+├── database/
 │   ├── connection.py       # Database connection and session management
-│   ├── models.py           # SQLAlchemy models
-│   └── schema.py           # Database schema
-├── services/               # Business logic
-│   └── calendar_service.py # Wrapper around calendar_tools
-├── tools/                  # Calendar integration tools
-│   ├── calendar_tools.py
-│   ├── doctor_calendars.py
-│   └── event_template.py
-├── scripts/                # Database scripts
-│   ├── init_database.py
-│   └── sync_db_calendar.py
-├── app.py                  # Vercel entrypoint
-├── vercel.json             # Vercel configuration
+│   └── models.py           # SQLAlchemy models
+├── tools/
+│   └── slot_utils.py       # Calendar slot logic
+├── scripts/
+│   ├── sync_db.py          # Initialize schema and seed data
+│   ├── init_database.py    # Seed logic (doctors, services)
+│   ├── service_descriptions.py
+│   └── migrate_add_clinics.py
+├── run_api.py              # Container entrypoint
 ├── pyproject.toml
 ├── requirements.txt
 ├── Dockerfile
 └── README.md
 ```
+
+## Multi-clinic (multi-tenant)
+
+The API supports multiple clinics with a single deployment. All data is scoped by clinic.
+
+- **Tenant identification:** Send `X-Clinic-Id: clinic-id` on each request. Omit it (or use `"default"`) to use the default clinic.
+- **Per-clinic config:** Each clinic has its own timezone, working hours, and name in the `clinics` table.
+- **Frontend:** Build with `VITE_CLINIC_ID=clinic-a` so the frontend sends `X-Clinic-Id: clinic-a` on all API calls.
 
 ## Dependencies
 
@@ -39,48 +41,37 @@ dental-api/
 - uvicorn
 - sqlalchemy
 - psycopg2-binary (PostgreSQL)
-- google-api-python-client
-- google-auth-oauthlib
-- httpx
 - pydantic
+- httpx
 - pytz
+- python-dotenv
 
 ## Environment Variables
 
-Required:
-- `DATABASE_URL` - PostgreSQL connection string (e.g., `postgresql://user:pass@host:5432/db`)
+Required for API:
+- `DATABASE_URL` - PostgreSQL connection string (or SQLite `sqlite:///./dental_clinic.db` for local dev)
 
-Google Calendar (choose one):
-- `GOOGLE_SERVICE_ACCOUNT_JSON` - Service account JSON (recommended for production)
-- OR `GOOGLE_TOKEN_JSON` + `GOOGLE_CREDENTIALS_JSON` - OAuth credentials (for development)
-
-Optional:
-- `CALENDAR_API_PORT` - API port (defaults to 8000)
+Optional for frontend builds (`tmp/dental-calendar/`):
+- `VITE_API_URL` - API base URL (default: `http://localhost:8000`)
+- `VITE_CLINIC_ID` - Clinic ID sent as `X-Clinic-Id` (default: `"default"`)
 
 ## Setup
 
-1. Copy `.env.example` to `.env` and fill in your configuration
-2. Install dependencies: `uv sync` or `pip install -r requirements.txt`
-3. Initialize database: `python scripts/init_database.py`
-4. Run locally: `uvicorn api.main:app --reload`
+1. Install dependencies: `uv sync` or `pip install -r requirements.txt`
+2. Initialize database: `DATABASE_URL=sqlite:///./dental_clinic.db python scripts/sync_db.py`
+3. Run locally: `uvicorn api.main:app --reload --port 8001`
+
+API requests default to clinic `"default"` unless you send `X-Clinic-Id`.
 
 ## Deployment
 
-### Vercel
+Primary target: **Google Cloud Run** — see [DEPLOY_GOOGLE_CLOUD.md](DEPLOY_GOOGLE_CLOUD.md) for full DB + app deployment and multi-clinic setup.
 
-Deploy to Vercel using the provided `vercel.json` and `app.py`:
-
-```bash
-vercel deploy
-```
-
-### Docker
-
-Build and run with Docker:
+Docker:
 
 ```bash
 docker build -t dental-api .
-docker run -p 8000:8000 --env-file .env dental-api
+docker run -p 8000:8000 -e DATABASE_URL=postgresql://... dental-api
 ```
 
 ## API Endpoints
@@ -121,19 +112,23 @@ docker run -p 8000:8000 --env-file .env dental-api
 - `PUT /api/leads/{id}` - Update lead
 - `PUT /api/leads/{id}/status` - Update lead status
 
+### Clinics
+- `POST /api/clinics` - Create clinic
+- `GET /api/clinics/me` - Get current clinic config (from `X-Clinic-Id` header)
+
 ### Health
 - `GET /health` - Health check endpoint
 
 ## Database
 
-The API uses SQLAlchemy with PostgreSQL (or SQLite for development). Database models are defined in `database/models.py`.
+The API uses SQLAlchemy with PostgreSQL (Cloud Run) or SQLite (local dev). Models are in `database/models.py`.
 
-To initialize the database:
+Initialize schema and seed data:
 ```bash
-python scripts/init_database.py
+DATABASE_URL=postgresql://... python scripts/sync_db.py
 ```
 
-To sync database with Google Calendar:
+For existing DBs adding multi-clinic support:
 ```bash
-python scripts/sync_db_calendar.py
+DATABASE_URL=postgresql://... python scripts/migrate_add_clinics.py
 ```
