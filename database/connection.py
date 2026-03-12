@@ -83,5 +83,5 @@ def get_db() -> Session:
 
 def init_db():
     """Initialize database - create all tables."""
-    from database.models import Patient, Appointment, Doctor, Service
+    from database.models import Patient, Appointment, Doctor, Service, Clinic, Lead
     Base.metadata.create_all(bind=engine)

@@ -1,6 +1,8 @@
 # Dental API - FastAPI Service
 
-FastAPI service for database and calendar operations, deployed on Vercel or other providers.
+FastAPI service for database and calendar operations. Primary deployment target: Google Cloud Run (see [DEPLOY_GOOGLE_CLOUD.md](DEPLOY_GOOGLE_CLOUD.md)).
+
+Archived files (tests, frontend, extra scripts, other platforms) live under `tmp/`. See [tmp/README.md](tmp/README.md) for structure.
 
 ## Project Structure
 

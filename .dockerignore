@@ -24,6 +24,7 @@ tests/
 test_*.py
 test_*.sh
 scripts/
+tmp/
 
 # IDE and OS
 .vercel

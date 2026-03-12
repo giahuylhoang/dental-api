@@ -34,12 +34,35 @@ class LeadStatus(str, PyEnum):
     LOST = "LOST"
 
 
+DEFAULT_CLINIC_ID = "default"
+
+
+class Clinic(Base):
+    """Clinic model - multi-tenant config per clinic."""
+    __tablename__ = "clinics"
+
+    id = Column(String, primary_key=True, default=DEFAULT_CLINIC_ID)
+    name = Column(String, nullable=False)
+    timezone = Column(String, default="America/Edmonton")
+    working_hour_start = Column(Integer, default=9)
+    working_hour_end = Column(Integer, default=17)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    patients = relationship("Patient", back_populates="clinic")
+    doctors = relationship("Doctor", back_populates="clinic")
+    services = relationship("Service", back_populates="clinic")
+    appointments = relationship("Appointment", back_populates="clinic")
+    leads = relationship("Lead", back_populates="clinic")
+
 
 class Patient(Base):
     """Patient model - stores customer profile data."""
     __tablename__ = "patients"
-    
+
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    clinic_id = Column(String, ForeignKey("clinics.id"), nullable=False, default=DEFAULT_CLINIC_ID)
     first_name = Column(String, nullable=True)
     last_name = Column(String, nullable=True)
     dob = Column(Date, nullable=True)
@@ -53,41 +76,47 @@ class Patient(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationships
+    clinic = relationship("Clinic", back_populates="patients")
     appointments = relationship("Appointment", back_populates="patient")
 
 
 class Doctor(Base):
     """Doctor model - stores provider information."""
     __tablename__ = "doctors"
-    
+
     id = Column(Integer, primary_key=True, autoincrement=True)
+    clinic_id = Column(String, ForeignKey("clinics.id"), nullable=False, default=DEFAULT_CLINIC_ID)
     name = Column(String, nullable=False)
     specialty = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
     
     # Relationships
+    clinic = relationship("Clinic", back_populates="doctors")
     appointments = relationship("Appointment", back_populates="doctor")
 
 
 class Service(Base):
     """Service model - stores available services menu."""
     __tablename__ = "services"
-    
+
     id = Column(Integer, primary_key=True, autoincrement=True)
+    clinic_id = Column(String, ForeignKey("clinics.id"), nullable=False, default=DEFAULT_CLINIC_ID)
     name = Column(String, nullable=False)
     description = Column(Text, nullable=True)  # Detailed description of the service
     duration_min = Column(Integer, nullable=True)  # Duration in minutes
     base_price = Column(DECIMAL(10, 2), nullable=True)
     
     # Relationships
+    clinic = relationship("Clinic", back_populates="services")
     appointments = relationship("Appointment", back_populates="service")
 
 
 class Appointment(Base):
     """Appointment model - links Patient, Doctor, and Service."""
     __tablename__ = "appointments"
-    
+
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    clinic_id = Column(String, ForeignKey("clinics.id"), nullable=False, default=DEFAULT_CLINIC_ID)
     patient_id = Column(String, ForeignKey("patients.id"), nullable=False)
     doctor_id = Column(Integer, ForeignKey("doctors.id"), nullable=False)
     service_id = Column(Integer, ForeignKey("services.id"), nullable=True)
@@ -100,6 +129,7 @@ class Appointment(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
+    clinic = relationship("Clinic", back_populates="appointments")
     patient = relationship("Patient", back_populates="appointments")
     doctor = relationship("Doctor", back_populates="appointments")
     service = relationship("Service", back_populates="appointments")
@@ -108,8 +138,9 @@ class Appointment(Base):
 class Lead(Base):
     """Lead model - stores lead information from ad campaigns."""
     __tablename__ = "leads"
-    
+
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    clinic_id = Column(String, ForeignKey("clinics.id"), nullable=False, default=DEFAULT_CLINIC_ID)
     name = Column(String, nullable=True)
     phone = Column(String, nullable=True)
     email = Column(String, nullable=True)
@@ -118,3 +149,5 @@ class Lead(Base):
     notes = Column(Text, nullable=True)  # Qualification notes, needs, budget, timeline, etc.
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    clinic = relationship("Clinic", back_populates="leads")

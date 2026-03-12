@@ -8,7 +8,7 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
 from database.connection import init_db, SessionLocal
-from database.models import Doctor, Service
+from database.models import Doctor, Service, Clinic, DEFAULT_CLINIC_ID
 from scripts.service_descriptions import SERVICE_DESCRIPTIONS
 
 
@@ -21,8 +21,21 @@ def seed_initial_data():
         if existing_doctors > 0:
             print("Database already has data. Skipping seed.")
             return
+
+        # Ensure default clinic exists (required for clinic_id FK)
+        default_clinic = db.query(Clinic).filter(Clinic.id == DEFAULT_CLINIC_ID).first()
+        if not default_clinic:
+            default_clinic = Clinic(
+                id=DEFAULT_CLINIC_ID,
+                name="Default Clinic",
+                timezone="America/Edmonton",
+                working_hour_start=9,
+                working_hour_end=17,
+            )
+            db.add(default_clinic)
+            db.flush()
         
-        # Seed Doctors (matching doctor_calendars.py names)
+        # Seed Doctors
         doctors = [
             Doctor(id=1, name="Dr. Johnson", specialty="General", is_active=True),
             Doctor(id=2, name="Dr. Smith", specialty="General", is_active=True),

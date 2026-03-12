@@ -1,6 +1,17 @@
 .vercel
 .env.*
+!.env.example
 .env
+
+# Python cache and local temp
+tmp/
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache
+.mypy_cache
+.ruff_cache
+*.log
 
 # Google / service account JSON (never commit)
 gen-lang-client*.json
