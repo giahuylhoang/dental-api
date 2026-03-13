@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Depends, Query, Request
+from fastapi import FastAPI, HTTPException, Depends, Query, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -20,6 +20,11 @@ from sqlalchemy.orm import Session
 from database.connection import get_db, init_db
 from database.models import Patient, Appointment, Doctor, Service, AppointmentStatus, Lead, LeadStatus, Clinic, DEFAULT_CLINIC_ID
 from tools.slot_utils import get_available_slots
+from clients.sms_client import (
+    send_booking_sms_delayed,
+    send_cancellation_sms_delayed,
+    send_reschedule_sms_delayed,
+)
 import pytz
 import logging
 
@@ -232,6 +237,7 @@ async def get_calendar_slots(
 @app.post("/api/calendar/events")
 async def create_calendar_event(
     request: AppointmentCreateRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     clinic: Clinic = Depends(get_clinic),
 ):
@@ -339,6 +345,31 @@ async def create_calendar_event(
     db.add(appointment)
     db.commit()
     db.refresh(appointment)
+
+    # Schedule SMS confirmation (background; configurable delay)
+    if patient.phone:
+        try:
+            tz = pytz.timezone(clinic.timezone or "America/Edmonton")
+            start_local = start_time_dt.astimezone(tz) if start_time_dt.tzinfo else tz.localize(start_time_dt)
+            date_str = start_local.strftime("%Y-%m-%d")
+            time_str = start_local.strftime("%I:%M %p")
+            patient_name = " ".join(filter(None, [patient.first_name, patient.last_name])) or "Patient"
+            svc = db.query(Service).filter(Service.id == request.service_id, Service.clinic_id == clinic.id).first() if request.service_id else None
+            service_name = (svc.name if svc else None) or request.service_name
+            background_tasks.add_task(
+                send_booking_sms_delayed,
+                patient.phone,
+                patient_name,
+                date_str,
+                time_str,
+                doctor.name,
+                service_name,
+                clinic.name,
+            )
+        except Exception as e:
+            logger.warning("SMS confirmation skipped: %s", e)
+    else:
+        logger.info("No patient phone; skipping SMS confirmation")
 
     return AppointmentResponse(
         appointment_id=appointment.id,
@@ -731,6 +762,7 @@ async def delete_appointment(
 @app.put("/api/appointments/{appointment_id}/cancel")
 async def cancel_appointment(
     appointment_id: str,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     clinic: Clinic = Depends(get_clinic),
 ):
@@ -746,7 +778,31 @@ async def cancel_appointment(
     appointment.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(appointment)
-    
+
+    # Schedule cancellation SMS (background; configurable delay)
+    patient = db.query(Patient).filter(Patient.id == appointment.patient_id, Patient.clinic_id == clinic.id).first()
+    doctor = db.query(Doctor).filter(Doctor.id == appointment.doctor_id, Doctor.clinic_id == clinic.id).first()
+    if patient and patient.phone and doctor:
+        try:
+            tz = pytz.timezone(clinic.timezone or "America/Edmonton")
+            start_local = appointment.start_time.astimezone(tz) if appointment.start_time.tzinfo else tz.localize(appointment.start_time)
+            date_str = start_local.strftime("%Y-%m-%d")
+            time_str = start_local.strftime("%I:%M %p")
+            patient_name = " ".join(filter(None, [patient.first_name, patient.last_name])) or "Patient"
+            background_tasks.add_task(
+                send_cancellation_sms_delayed,
+                patient.phone,
+                patient_name,
+                date_str,
+                time_str,
+                doctor.name,
+                clinic.name,
+            )
+        except Exception as e:
+            logger.warning("Cancellation SMS skipped: %s", e)
+    elif patient and not patient.phone:
+        logger.info("No patient phone; skipping cancellation SMS")
+
     return AppointmentDetailResponse(
         id=appointment.id,
         patient_id=appointment.patient_id,
@@ -802,6 +858,7 @@ async def update_appointment_status(
 async def reschedule_appointment(
     appointment_id: str,
     request: AppointmentCreateRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     clinic: Clinic = Depends(get_clinic),
 ):
@@ -880,6 +937,33 @@ async def reschedule_appointment(
         db.commit()
         db.refresh(new_appointment)
         db.refresh(old_appointment)
+
+        # Schedule reschedule confirmation SMS (background; configurable delay)
+        patient = db.query(Patient).filter(Patient.id == request.patient_id, Patient.clinic_id == clinic.id).first()
+        doctor = db.query(Doctor).filter(Doctor.id == request.doctor_id, Doctor.clinic_id == clinic.id).first()
+        svc = db.query(Service).filter(Service.id == request.service_id, Service.clinic_id == clinic.id).first() if request.service_id else None
+        service_name = (svc.name if svc else None) or request.service_name
+        if patient and patient.phone and doctor:
+            try:
+                tz = pytz.timezone(clinic.timezone or "America/Edmonton")
+                new_local = new_start_time.astimezone(tz) if new_start_time.tzinfo else tz.localize(new_start_time)
+                date_str = new_local.strftime("%Y-%m-%d")
+                time_str = new_local.strftime("%I:%M %p")
+                patient_name = " ".join(filter(None, [patient.first_name, patient.last_name])) or "Patient"
+                background_tasks.add_task(
+                    send_reschedule_sms_delayed,
+                    patient.phone,
+                    patient_name,
+                    date_str,
+                    time_str,
+                    doctor.name,
+                    service_name,
+                    clinic.name,
+                )
+            except Exception as e:
+                logger.warning("Reschedule SMS skipped: %s", e)
+        elif patient and not patient.phone:
+            logger.info("No patient phone; skipping reschedule SMS")
 
         return {
             "old_appointment_id": old_appointment.id,

@@ -6,3 +6,4 @@ pydantic>=2.12.5
 httpx>=0.25.0
 pytz>=2025.2
 python-dotenv>=1.0.0
+twilio>=9.0.0

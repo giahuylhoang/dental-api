@@ -26,11 +26,11 @@ for env_file in env_files:
 # Priority: Vercel Postgres variables → DATABASE_URL → SQLite default
 # Vercel Postgres automatically provides POSTGRES_URL and POSTGRES_PRISMA_URL
 DATABASE_URL = (
-    os.getenv("POSTGRES_URL") or           # Vercel Postgres direct connection
-    os.getenv("POSTGRES_PRISMA_URL") or    # Vercel Postgres Prisma connection
+    os.getenv("POSTGRES_URL") or             # Vercel Postgres direct connection
+    os.getenv("POSTGRES_PRISMA_URL") or      # Vercel Postgres Prisma connection
     os.getenv("POSTGRES_URL_NON_POOLING") or # Vercel Postgres non-pooling
-    os.getenv("DATABASE_URL") or            # Custom DATABASE_URL (for Supabase, etc.)
-    "sqlite:///./dental_clinic.db"          # Fallback to SQLite for local dev
+    os.getenv("DATABASE_URL") or             # Custom DATABASE_URL (for Supabase, etc.)
+    "sqlite:////tmp/dental_clinic.db"        # Fallback to SQLite for local dev (writable)
 )
 
 # Normalize postgres:// to postgresql:// (SQLAlchemy requires postgresql://)
