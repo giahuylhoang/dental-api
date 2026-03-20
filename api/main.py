@@ -15,10 +15,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Depends, Query, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from database.connection import get_db, init_db
-from database.models import Patient, Appointment, Doctor, Service, AppointmentStatus, Lead, LeadStatus, Clinic, DEFAULT_CLINIC_ID
+from database.models import Patient, Appointment, Provider, Service, AppointmentStatus, Lead, LeadStatus, Clinic, DEFAULT_CLINIC_ID
 from tools.slot_utils import get_available_slots
 from clients.sms_client import (
     send_booking_sms_delayed,
@@ -53,7 +53,7 @@ class AppointmentCreateRequest(BaseModel):
     start_time: str = Field(..., description="ISO datetime string")
     end_time: str = Field(..., description="ISO datetime string")
     patient_id: str
-    doctor_id: int
+    provider_id: int
     service_id: Optional[int] = None
     patient_name: str
     service_name: str
@@ -155,13 +155,36 @@ class AppointmentDetailResponse(BaseModel):
     """Detailed appointment response."""
     id: str
     patient_id: str
-    doctor_id: int
+    provider_id: int
     service_id: Optional[int] = None
+    provider_name: Optional[str] = None
+    service_name: Optional[str] = None
     start_time: datetime
     end_time: datetime
     reason_note: Optional[str] = None
     status: str
     calendar_event_id: Optional[str] = None
+
+
+def _to_appointment_detail(apt: Appointment) -> AppointmentDetailResponse:
+    """Build AppointmentDetailResponse with provider_name and service_name."""
+    provider_name = None
+    if apt.provider:
+        provider_name = " ".join(filter(None, [apt.provider.title, apt.provider.name])).strip() or apt.provider.name
+    service_name = apt.service.name if apt.service else None
+    return AppointmentDetailResponse(
+        id=apt.id,
+        patient_id=apt.patient_id,
+        provider_id=apt.provider_id,
+        service_id=apt.service_id,
+        provider_name=provider_name,
+        service_name=service_name,
+        start_time=apt.start_time,
+        end_time=apt.end_time,
+        reason_note=apt.reason_note,
+        status=apt.status.value,
+        calendar_event_id=apt.calendar_event_id,
+    )
 
 
 @asynccontextmanager
@@ -205,8 +228,8 @@ app.add_middleware(
 async def get_calendar_slots(
     start_datetime: str = Query(..., description="ISO datetime string"),
     end_datetime: str = Query(..., description="ISO datetime string"),
-    doctor_id: Optional[int] = Query(None, description="Doctor ID for filtering"),
-    doctor_name: Optional[str] = Query(None, description="Doctor name for filtering"),
+    provider_id: Optional[int] = Query(None, description="Provider ID for filtering"),
+    provider_name: Optional[str] = Query(None, description="Provider name for filtering"),
     slot_minutes: int = Query(30, description="Slot duration in minutes"),
     db: Session = Depends(get_db),
     clinic: Clinic = Depends(get_clinic),
@@ -220,15 +243,15 @@ async def get_calendar_slots(
             db=db,
             start_datetime=start_datetime,
             end_datetime=end_datetime,
-            doctor_id=doctor_id,
-            doctor_name=doctor_name,
+            provider_id=provider_id,
+            provider_name=provider_name,
             slot_minutes=slot_minutes,
             clinic_id=clinic.id,
             timezone_str=clinic.timezone,
             hour_start=clinic.working_hour_start,
             hour_end=clinic.working_hour_end,
         )
-        return {"slots": slots}
+        return slots
     except Exception as e:
         logger.error(f"Error in get_calendar_slots: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -271,10 +294,12 @@ async def create_calendar_event(
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
     
-    # Validate doctor_id exists and belongs to clinic
-    doctor = db.query(Doctor).filter(Doctor.id == request.doctor_id, Doctor.clinic_id == clinic.id).first()
-    if not doctor:
-        raise HTTPException(status_code=404, detail="Doctor not found")
+    # Validate provider_id exists and belongs to clinic
+    provider = db.query(Provider).filter(
+        Provider.id == request.provider_id, Provider.clinic_id == clinic.id
+    ).first()
+    if not provider:
+        raise HTTPException(status_code=404, detail="Provider not found")
     
     # Validate service_id exists and belongs to clinic (if provided)
     if request.service_id is not None:
@@ -282,14 +307,14 @@ async def create_calendar_event(
         if not service:
             raise HTTPException(status_code=404, detail="Service not found")
     
-    # Check for conflicting appointments with the same doctor
+    # Check for conflicting appointments with the same provider
     # An appointment conflicts if:
-    # 1. Same doctor_id
+    # 1. Same provider_id
     # 2. Time ranges overlap (new_start < existing_end AND new_end > existing_start)
     # 3. Status is SCHEDULED, CONFIRMED, or PENDING_SYNC (not CANCELLED, RESCHEDULED, COMPLETED, NO_SHOW)
     conflicting_appointments = db.query(Appointment).filter(
         Appointment.clinic_id == clinic.id,
-        Appointment.doctor_id == request.doctor_id,
+        Appointment.provider_id == request.provider_id,
         Appointment.status.in_([
             AppointmentStatus.SCHEDULED,
             AppointmentStatus.CONFIRMED,
@@ -313,7 +338,7 @@ async def create_calendar_event(
             })
         
         logger.warning(
-            f"Appointment conflict detected for doctor_id {request.doctor_id} "
+            f"Appointment conflict detected for provider_id {request.provider_id} "
             f"at {start_time_dt.isoformat()} - {end_time_dt.isoformat()}. "
             f"Found {len(conflicting_appointments)} conflicting appointment(s)."
         )
@@ -322,7 +347,7 @@ async def create_calendar_event(
             status_code=409,  # Conflict status code
             detail={
                 "error": "Appointment conflict",
-                "message": f"Doctor already has an appointment scheduled during this time slot.",
+                "message": "Provider already has an appointment scheduled during this time slot.",
                 "requested_time": {
                     "start_time": start_time_dt.isoformat(),
                     "end_time": end_time_dt.isoformat()
@@ -335,7 +360,7 @@ async def create_calendar_event(
     appointment = Appointment(
         clinic_id=clinic.id,
         patient_id=request.patient_id,
-        doctor_id=request.doctor_id,
+        provider_id=request.provider_id,
         service_id=request.service_id,
         start_time=start_time_dt,
         end_time=end_time_dt,
@@ -349,6 +374,7 @@ async def create_calendar_event(
     # Schedule SMS confirmation (background; configurable delay)
     if patient.phone:
         try:
+            provider_display_name = " ".join(filter(None, [provider.title, provider.name])).strip() or provider.name
             tz = pytz.timezone(clinic.timezone or "America/Edmonton")
             start_local = start_time_dt.astimezone(tz) if start_time_dt.tzinfo else tz.localize(start_time_dt)
             date_str = start_local.strftime("%Y-%m-%d")
@@ -362,7 +388,7 @@ async def create_calendar_event(
                 patient_name,
                 date_str,
                 time_str,
-                doctor.name,
+                provider_display_name,
                 service_name,
                 clinic.name,
             )
@@ -522,7 +548,7 @@ async def update_patient(
 async def list_appointments(
     appointment_id: Optional[str] = Query(None, description="Filter by specific appointment ID"),
     patient_id: Optional[str] = Query(None, description="Filter by patient ID"),
-    doctor_id: Optional[int] = Query(None, description="Filter by doctor ID"),
+    provider_id: Optional[int] = Query(None, description="Filter by provider ID"),
     service_id: Optional[int] = Query(None, description="Filter by service ID"),
     status: Optional[str] = Query(None, description="Filter by status (SCHEDULED, CANCELLED, COMPLETED, NO_SHOW, PENDING)"),
     start_date: Optional[str] = Query(None, description="Filter appointments starting from this date (ISO format: YYYY-MM-DD)"),
@@ -530,7 +556,7 @@ async def list_appointments(
     start_datetime: Optional[str] = Query(None, description="Filter appointments starting from this datetime (ISO format)"),
     end_datetime: Optional[str] = Query(None, description="Filter appointments ending before this datetime (ISO format)"),
     date: Optional[str] = Query(None, description="Filter appointments on a specific date (ISO format: YYYY-MM-DD)"),
-    doctor_name: Optional[str] = Query(None, description="Filter by doctor name (e.g., 'Dr. Smith')"),
+    provider_name: Optional[str] = Query(None, description="Filter by provider name"),
     patient_name: Optional[str] = Query(None, description="Filter by patient name (searches first_name and last_name)"),
     db: Session = Depends(get_db),
     clinic: Clinic = Depends(get_clinic),
@@ -541,16 +567,20 @@ async def list_appointments(
     Supports filtering by:
     - appointment_id: Get specific appointment
     - patient_id: All appointments for a patient
-    - doctor_id: All appointments for a doctor
+    - provider_id: All appointments for a provider
     - service_id: All appointments for a service
     - status: Filter by appointment status
     - start_date/end_date: Date range filtering
     - start_datetime/end_datetime: Datetime range filtering
     - date: Appointments on a specific date
-    - doctor_name: Filter by doctor name
+    - provider_name: Filter by provider name
     - patient_name: Filter by patient name (partial match)
     """
-    query = db.query(Appointment).filter(Appointment.clinic_id == clinic.id)
+    query = (
+        db.query(Appointment)
+        .filter(Appointment.clinic_id == clinic.id)
+        .options(joinedload(Appointment.provider), joinedload(Appointment.service))
+    )
 
     # Filter by appointment ID (returns single result if found)
     if appointment_id:
@@ -560,9 +590,9 @@ async def list_appointments(
     if patient_id:
         query = query.filter(Appointment.patient_id == patient_id)
     
-    # Filter by doctor ID
-    if doctor_id:
-        query = query.filter(Appointment.doctor_id == doctor_id)
+    # Filter by provider ID
+    if provider_id:
+        query = query.filter(Appointment.provider_id == provider_id)
     
     # Filter by service ID
     if service_id:
@@ -576,13 +606,15 @@ async def list_appointments(
         except ValueError:
             raise HTTPException(status_code=400, detail=f"Invalid status: {status}. Valid values: SCHEDULED, CANCELLED, COMPLETED, NO_SHOW, PENDING")
     
-    # Filter by doctor name (scoped to clinic)
-    if doctor_name:
-        doctor = db.query(Doctor).filter(Doctor.clinic_id == clinic.id, Doctor.name.ilike(f"%{doctor_name}%")).first()
-        if doctor:
-            query = query.filter(Appointment.doctor_id == doctor.id)
+    # Filter by provider name (scoped to clinic)
+    if provider_name:
+        provider = db.query(Provider).filter(
+            Provider.clinic_id == clinic.id, Provider.name.ilike(f"%{provider_name}%")
+        ).first()
+        if provider:
+            query = query.filter(Appointment.provider_id == provider.id)
         else:
-            # Return empty list if doctor not found
+            # Return empty list if provider not found
             return []
     
     # Filter by patient name (scoped to clinic)
@@ -643,17 +675,7 @@ async def list_appointments(
             raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
     
     appointments = query.order_by(Appointment.start_time).all()
-    return [AppointmentDetailResponse(
-        id=apt.id,
-        patient_id=apt.patient_id,
-        doctor_id=apt.doctor_id,
-        service_id=apt.service_id,
-        start_time=apt.start_time,
-        end_time=apt.end_time,
-        reason_note=apt.reason_note,
-        status=apt.status.value,
-        calendar_event_id=apt.calendar_event_id
-    ) for apt in appointments]
+    return [_to_appointment_detail(apt) for apt in appointments]
 
 
 @app.get("/api/appointments/{appointment_id}", response_model=AppointmentDetailResponse)
@@ -663,30 +685,26 @@ async def get_appointment(
     clinic: Clinic = Depends(get_clinic),
 ):
     """Get appointment by ID."""
-    appointment = db.query(Appointment).filter(Appointment.id == appointment_id, Appointment.clinic_id == clinic.id).first()
+    appointment = (
+        db.query(Appointment)
+        .options(joinedload(Appointment.provider), joinedload(Appointment.service))
+        .filter(Appointment.id == appointment_id, Appointment.clinic_id == clinic.id)
+        .first()
+    )
     if not appointment:
         raise HTTPException(status_code=404, detail="Appointment not found")
-    return AppointmentDetailResponse(
-        id=appointment.id,
-        patient_id=appointment.patient_id,
-        doctor_id=appointment.doctor_id,
-        service_id=appointment.service_id,
-        start_time=appointment.start_time,
-        end_time=appointment.end_time,
-        reason_note=appointment.reason_note,
-        status=appointment.status.value,
-        calendar_event_id=appointment.calendar_event_id
-    )
+    return _to_appointment_detail(appointment)
 
 
 @app.post("/api/appointments", response_model=AppointmentResponse)
 async def create_appointment(
     request: AppointmentCreateRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     clinic: Clinic = Depends(get_clinic),
 ):
     """Create appointment (also creates calendar event)."""
-    return await create_calendar_event(request, db, clinic)
+    return await create_calendar_event(request, background_tasks, db, clinic)
 
 
 @app.put("/api/appointments/{appointment_id}", response_model=AppointmentDetailResponse)
@@ -697,7 +715,12 @@ async def update_appointment(
     clinic: Clinic = Depends(get_clinic),
 ):
     """Update appointment in database."""
-    appointment = db.query(Appointment).filter(Appointment.id == appointment_id, Appointment.clinic_id == clinic.id).first()
+    appointment = (
+        db.query(Appointment)
+        .options(joinedload(Appointment.provider), joinedload(Appointment.service))
+        .filter(Appointment.id == appointment_id, Appointment.clinic_id == clinic.id)
+        .first()
+    )
     if not appointment:
         raise HTTPException(status_code=404, detail="Appointment not found")
 
@@ -715,18 +738,7 @@ async def update_appointment(
     appointment.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(appointment)
-
-    return AppointmentDetailResponse(
-        id=appointment.id,
-        patient_id=appointment.patient_id,
-        doctor_id=appointment.doctor_id,
-        service_id=appointment.service_id,
-        start_time=appointment.start_time,
-        end_time=appointment.end_time,
-        reason_note=appointment.reason_note,
-        status=appointment.status.value,
-        calendar_event_id=appointment.calendar_event_id
-    )
+    return _to_appointment_detail(appointment)
 
 
 @app.delete("/api/appointments/{appointment_id}")
@@ -770,7 +782,12 @@ async def cancel_appointment(
     Cancel appointment (marks as CANCELLED but keeps record).
     Use DELETE endpoint if you want to permanently remove the appointment.
     """
-    appointment = db.query(Appointment).filter(Appointment.id == appointment_id, Appointment.clinic_id == clinic.id).first()
+    appointment = (
+        db.query(Appointment)
+        .options(joinedload(Appointment.provider), joinedload(Appointment.service))
+        .filter(Appointment.id == appointment_id, Appointment.clinic_id == clinic.id)
+        .first()
+    )
     if not appointment:
         raise HTTPException(status_code=404, detail="Appointment not found")
 
@@ -781,9 +798,10 @@ async def cancel_appointment(
 
     # Schedule cancellation SMS (background; configurable delay)
     patient = db.query(Patient).filter(Patient.id == appointment.patient_id, Patient.clinic_id == clinic.id).first()
-    doctor = db.query(Doctor).filter(Doctor.id == appointment.doctor_id, Doctor.clinic_id == clinic.id).first()
-    if patient and patient.phone and doctor:
+    provider = db.query(Provider).filter(Provider.id == appointment.provider_id, Provider.clinic_id == clinic.id).first()
+    if patient and patient.phone and provider:
         try:
+            provider_display_name = " ".join(filter(None, [provider.title, provider.name])).strip() or provider.name
             tz = pytz.timezone(clinic.timezone or "America/Edmonton")
             start_local = appointment.start_time.astimezone(tz) if appointment.start_time.tzinfo else tz.localize(appointment.start_time)
             date_str = start_local.strftime("%Y-%m-%d")
@@ -795,7 +813,7 @@ async def cancel_appointment(
                 patient_name,
                 date_str,
                 time_str,
-                doctor.name,
+                provider_display_name,
                 clinic.name,
             )
         except Exception as e:
@@ -803,24 +821,15 @@ async def cancel_appointment(
     elif patient and not patient.phone:
         logger.info("No patient phone; skipping cancellation SMS")
 
-    return AppointmentDetailResponse(
-        id=appointment.id,
-        patient_id=appointment.patient_id,
-        doctor_id=appointment.doctor_id,
-        service_id=appointment.service_id,
-        start_time=appointment.start_time,
-        end_time=appointment.end_time,
-        reason_note=appointment.reason_note,
-        status=appointment.status.value,
-        calendar_event_id=appointment.calendar_event_id
-    )
+    return _to_appointment_detail(appointment)
 
 
 @app.put("/api/appointments/{appointment_id}/status", response_model=AppointmentDetailResponse)
 async def update_appointment_status(
     appointment_id: str,
     request: AppointmentStatusUpdateRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    clinic: Clinic = Depends(get_clinic),
 ):
     """Update appointment status in database."""
     try:
@@ -832,7 +841,12 @@ async def update_appointment_status(
             detail=f"Invalid status: {request.status}. Valid values: {', '.join(valid_statuses)}",
         )
 
-    appointment = db.query(Appointment).filter(Appointment.id == appointment_id, Appointment.clinic_id == clinic.id).first()
+    appointment = (
+        db.query(Appointment)
+        .options(joinedload(Appointment.provider), joinedload(Appointment.service))
+        .filter(Appointment.id == appointment_id, Appointment.clinic_id == clinic.id)
+        .first()
+    )
     if not appointment:
         raise HTTPException(status_code=404, detail="Appointment not found")
 
@@ -840,18 +854,8 @@ async def update_appointment_status(
     appointment.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(appointment)
-    
-    return AppointmentDetailResponse(
-        id=appointment.id,
-        patient_id=appointment.patient_id,
-        doctor_id=appointment.doctor_id,
-        service_id=appointment.service_id,
-        start_time=appointment.start_time,
-        end_time=appointment.end_time,
-        reason_note=appointment.reason_note,
-        status=appointment.status.value,
-        calendar_event_id=appointment.calendar_event_id
-    )
+
+    return _to_appointment_detail(appointment)
 
 
 @app.put("/api/appointments/{appointment_id}/reschedule")
@@ -882,7 +886,7 @@ async def reschedule_appointment(
 
         conflicting_appointments = db.query(Appointment).filter(
             Appointment.clinic_id == clinic.id,
-            Appointment.doctor_id == request.doctor_id,
+            Appointment.provider_id == request.provider_id,
             Appointment.id != appointment_id,
             Appointment.status.in_([
                 AppointmentStatus.SCHEDULED,
@@ -909,7 +913,7 @@ async def reschedule_appointment(
                 status_code=409,
                 detail={
                     "error": "Appointment conflict",
-                    "message": "Doctor already has an appointment scheduled during the requested time slot.",
+                    "message": "Provider already has an appointment scheduled during the requested time slot.",
                     "requested_time": {
                         "start_time": new_start_time.isoformat(),
                         "end_time": new_end_time.isoformat(),
@@ -921,7 +925,7 @@ async def reschedule_appointment(
         new_appointment = Appointment(
             clinic_id=clinic.id,
             patient_id=request.patient_id,
-            doctor_id=request.doctor_id,
+            provider_id=request.provider_id,
             service_id=request.service_id,
             start_time=new_start_time,
             end_time=new_end_time,
@@ -940,23 +944,26 @@ async def reschedule_appointment(
 
         # Schedule reschedule confirmation SMS (background; configurable delay)
         patient = db.query(Patient).filter(Patient.id == request.patient_id, Patient.clinic_id == clinic.id).first()
-        doctor = db.query(Doctor).filter(Doctor.id == request.doctor_id, Doctor.clinic_id == clinic.id).first()
+        provider = db.query(Provider).filter(
+            Provider.id == request.provider_id, Provider.clinic_id == clinic.id
+        ).first()
         svc = db.query(Service).filter(Service.id == request.service_id, Service.clinic_id == clinic.id).first() if request.service_id else None
         service_name = (svc.name if svc else None) or request.service_name
-        if patient and patient.phone and doctor:
+        if patient and patient.phone and provider:
             try:
                 tz = pytz.timezone(clinic.timezone or "America/Edmonton")
                 new_local = new_start_time.astimezone(tz) if new_start_time.tzinfo else tz.localize(new_start_time)
                 date_str = new_local.strftime("%Y-%m-%d")
                 time_str = new_local.strftime("%I:%M %p")
                 patient_name = " ".join(filter(None, [patient.first_name, patient.last_name])) or "Patient"
+                provider_display_name = " ".join(filter(None, [provider.title, provider.name])).strip() or provider.name
                 background_tasks.add_task(
                     send_reschedule_sms_delayed,
                     patient.phone,
                     patient_name,
                     date_str,
                     time_str,
-                    doctor.name,
+                    provider_display_name,
                     service_name,
                     clinic.name,
                 )
@@ -979,30 +986,49 @@ async def reschedule_appointment(
 
 
 # ============================================================================
-# Database CRUD Endpoints - Doctors
+# Database CRUD Endpoints - Providers
 # ============================================================================
 
-@app.get("/api/doctors")
-async def list_doctors(
+@app.get("/api/providers")
+async def list_providers(
     db: Session = Depends(get_db),
     clinic: Clinic = Depends(get_clinic),
 ):
-    """List all doctors."""
-    doctors = db.query(Doctor).filter(Doctor.clinic_id == clinic.id, Doctor.is_active == True).all()
-    return [{"id": d.id, "name": d.name, "specialty": d.specialty} for d in doctors]
+    """List all active providers."""
+    providers = db.query(Provider).filter(
+        Provider.clinic_id == clinic.id, Provider.is_active == True
+    ).all()
+    return [
+        {
+            "id": p.id,
+            "name": p.name,
+            "title": p.title,
+            "specialty": p.specialty,
+            "is_active": p.is_active,
+        }
+        for p in providers
+    ]
 
 
-@app.get("/api/doctors/{doctor_id}")
-async def get_doctor(
-    doctor_id: int,
+@app.get("/api/providers/{provider_id}")
+async def get_provider(
+    provider_id: int,
     db: Session = Depends(get_db),
     clinic: Clinic = Depends(get_clinic),
 ):
-    """Get doctor by ID."""
-    doctor = db.query(Doctor).filter(Doctor.id == doctor_id, Doctor.clinic_id == clinic.id).first()
-    if not doctor:
-        raise HTTPException(status_code=404, detail="Doctor not found")
-    return {"id": doctor.id, "name": doctor.name, "specialty": doctor.specialty, "is_active": doctor.is_active}
+    """Get provider by ID."""
+    provider = db.query(Provider).filter(
+        Provider.id == provider_id, Provider.clinic_id == clinic.id
+    ).first()
+    if not provider:
+        raise HTTPException(status_code=404, detail="Provider not found")
+    return {
+        "id": provider.id,
+        "name": provider.name,
+        "title": provider.title,
+        "specialty": provider.specialty,
+        "is_active": provider.is_active,
+    }
 
 
 # ============================================================================
@@ -1101,7 +1127,7 @@ async def delete_appointments_by_date_endpoint(
                 {
                     "id": apt.id,
                     "patient_id": apt.patient_id,
-                    "doctor_id": apt.doctor_id,
+                    "provider_id": apt.provider_id,
                     "start_time": apt.start_time.isoformat(),
                     "status": apt.status.value,
                 }
@@ -1325,7 +1351,7 @@ async def health_check():
 @app.get("/api/debug/db-info")
 async def debug_db_info(db: Session = Depends(get_db)):
     """
-    Debug: which database we're connected to and doctor count.
+    Debug: which database we're connected to and provider count.
     Use this to verify Railway is hitting the same Supabase as the dashboard.
     """
     from database.connection import engine
@@ -1333,11 +1359,11 @@ async def debug_db_info(db: Session = Depends(get_db)):
     # Safe to expose: host and db name only (no password)
     db_host = url.host if hasattr(url, "host") else ("sqlite" if "sqlite" in str(url) else "unknown")
     db_name = url.database if hasattr(url, "database") else None
-    doctor_count = db.query(Doctor).count()
+    provider_count = db.query(Provider).count()
     return {
         "database_host": db_host,
         "database_name": db_name,
-        "doctor_count": doctor_count,
+        "provider_count": provider_count,
     }
 
 

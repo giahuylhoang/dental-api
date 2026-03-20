@@ -15,6 +15,7 @@ from database.models import Clinic, DEFAULT_CLINIC_ID
 import database.models  # noqa: F401
 
 from api.main import app
+from scripts.init_database import seed_market_mall_denture
 
 SQLITE_TEST_URL = "sqlite:///:memory:"
 
@@ -75,3 +76,11 @@ def client(db_engine):
     finally:
         app.dependency_overrides.clear()
         session.close()
+
+
+@pytest.fixture(scope="function")
+def client_market_mall(client, db_session):
+    """Client with market-mall-denture clinic seeded (providers 101/102, busy blocks, service 700)."""
+    seed_market_mall_denture(db_session)
+    db_session.commit()
+    yield client

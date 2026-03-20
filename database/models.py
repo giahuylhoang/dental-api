@@ -51,7 +51,7 @@ class Clinic(Base):
 
     # Relationships
     patients = relationship("Patient", back_populates="clinic")
-    doctors = relationship("Doctor", back_populates="clinic")
+    providers = relationship("Provider", back_populates="clinic")
     services = relationship("Service", back_populates="clinic")
     appointments = relationship("Appointment", back_populates="clinic")
     leads = relationship("Lead", back_populates="clinic")
@@ -80,19 +80,54 @@ class Patient(Base):
     appointments = relationship("Appointment", back_populates="patient")
 
 
-class Doctor(Base):
-    """Doctor model - stores provider information."""
-    __tablename__ = "doctors"
+class Provider(Base):
+    """Provider model - generic service provider (doctor, assistant, etc.)."""
+    __tablename__ = "providers"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     clinic_id = Column(String, ForeignKey("clinics.id"), nullable=False, default=DEFAULT_CLINIC_ID)
     name = Column(String, nullable=False)
+    title = Column(String, nullable=True)  # e.g. "Mr", "Dr"
     specialty = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
     
     # Relationships
-    clinic = relationship("Clinic", back_populates="doctors")
-    appointments = relationship("Appointment", back_populates="doctor")
+    clinic = relationship("Clinic", back_populates="providers")
+    appointments = relationship("Appointment", back_populates="provider")
+
+
+class ProviderAvailability(Base):
+    """Provider availability windows (per weekday) for scheduling slots."""
+    __tablename__ = "provider_availability"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    clinic_id = Column(String, ForeignKey("clinics.id"), nullable=False, default=DEFAULT_CLINIC_ID)
+    provider_id = Column(Integer, ForeignKey("providers.id"), nullable=False)
+    # 0=Mon ... 6=Sun
+    weekday = Column(Integer, nullable=False)
+    start_hour = Column(Integer, nullable=False)
+    start_minute = Column(Integer, nullable=False, default=0)
+    end_hour = Column(Integer, nullable=False)
+    end_minute = Column(Integer, nullable=False, default=0)
+
+    provider = relationship("Provider")
+
+
+class ProviderBusyBlock(Base):
+    """Recurring busy block for a provider (weekday/time window)."""
+    __tablename__ = "provider_busy_blocks"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    clinic_id = Column(String, ForeignKey("clinics.id"), nullable=False, default=DEFAULT_CLINIC_ID)
+    provider_id = Column(Integer, ForeignKey("providers.id"), nullable=False)
+    # 0=Mon ... 6=Sun
+    weekday = Column(Integer, nullable=False)
+    start_hour = Column(Integer, nullable=False)
+    start_minute = Column(Integer, nullable=False, default=0)
+    end_hour = Column(Integer, nullable=False)
+    end_minute = Column(Integer, nullable=False, default=0)
+
+    provider = relationship("Provider")
 
 
 class Service(Base):
@@ -112,13 +147,13 @@ class Service(Base):
 
 
 class Appointment(Base):
-    """Appointment model - links Patient, Doctor, and Service."""
+    """Appointment model - links Patient, Provider, and Service."""
     __tablename__ = "appointments"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     clinic_id = Column(String, ForeignKey("clinics.id"), nullable=False, default=DEFAULT_CLINIC_ID)
     patient_id = Column(String, ForeignKey("patients.id"), nullable=False)
-    doctor_id = Column(Integer, ForeignKey("doctors.id"), nullable=False)
+    provider_id = Column(Integer, ForeignKey("providers.id"), nullable=False)
     service_id = Column(Integer, ForeignKey("services.id"), nullable=True)
     start_time = Column(DateTime, nullable=False)
     end_time = Column(DateTime, nullable=False)
@@ -131,7 +166,7 @@ class Appointment(Base):
     # Relationships
     clinic = relationship("Clinic", back_populates="appointments")
     patient = relationship("Patient", back_populates="appointments")
-    doctor = relationship("Doctor", back_populates="appointments")
+    provider = relationship("Provider", back_populates="appointments")
     service = relationship("Service", back_populates="appointments")
 
 
