@@ -24,6 +24,9 @@ def seed_market_mall_denture(db):
         timezone="America/Edmonton",
         working_hour_start=9,
         working_hour_end=17,
+        address="Suite 227, 4935 - 40th Ave NW , Calgary, AB T3A 2N1",
+        contact_phone="(403) 247-6222",
+        booking_notification_email=None,
     )
     db.add(clinic)
     db.flush()
@@ -34,15 +37,32 @@ def seed_market_mall_denture(db):
     for p in providers:
         db.add(p)
     db.flush()
-    # Busy blocks = when provider is UNAVAILABLE (inverse of availability)
-    # Soheil: available Tue 9-17, Wed 9-12, Fri 15-17 -> busy Mon, Wed 12-17, Thu, Fri 9-15
-    # Nadeem: available Mon-Thu 9-17, Fri 9-12 -> busy Fri 12-17
+    # Busy blocks = when provider is UNAVAILABLE (0=Mon .. 6=Sun)
     busy_blocks = [
-        ProviderBusyBlock(clinic_id=MARKET_MALL_CLINIC_ID, provider_id=101, weekday=0, start_hour=9, start_minute=0, end_hour=17, end_minute=0),   # Mon
-        ProviderBusyBlock(clinic_id=MARKET_MALL_CLINIC_ID, provider_id=101, weekday=2, start_hour=12, start_minute=0, end_hour=17, end_minute=0),  # Wed 12-17
-        ProviderBusyBlock(clinic_id=MARKET_MALL_CLINIC_ID, provider_id=101, weekday=3, start_hour=9, start_minute=0, end_hour=17, end_minute=0),   # Thu
-        ProviderBusyBlock(clinic_id=MARKET_MALL_CLINIC_ID, provider_id=101, weekday=4, start_hour=9, start_minute=0, end_hour=15, end_minute=0),   # Fri 9-15
-        ProviderBusyBlock(clinic_id=MARKET_MALL_CLINIC_ID, provider_id=102, weekday=4, start_hour=12, start_minute=0, end_hour=17, end_minute=0),  # Fri 12-17
+        # Soheil (101)
+        ProviderBusyBlock(clinic_id=MARKET_MALL_CLINIC_ID, provider_id=101, weekday=0, start_hour=0, start_minute=0, end_hour=23, end_minute=59),
+        ProviderBusyBlock(clinic_id=MARKET_MALL_CLINIC_ID, provider_id=101, weekday=1, start_hour=0, start_minute=0, end_hour=9, end_minute=0),
+        ProviderBusyBlock(clinic_id=MARKET_MALL_CLINIC_ID, provider_id=101, weekday=1, start_hour=17, start_minute=0, end_hour=23, end_minute=59),
+        ProviderBusyBlock(clinic_id=MARKET_MALL_CLINIC_ID, provider_id=101, weekday=2, start_hour=0, start_minute=0, end_hour=9, end_minute=0),
+        ProviderBusyBlock(clinic_id=MARKET_MALL_CLINIC_ID, provider_id=101, weekday=2, start_hour=12, start_minute=0, end_hour=23, end_minute=59),
+        ProviderBusyBlock(clinic_id=MARKET_MALL_CLINIC_ID, provider_id=101, weekday=3, start_hour=0, start_minute=0, end_hour=23, end_minute=59),
+        ProviderBusyBlock(clinic_id=MARKET_MALL_CLINIC_ID, provider_id=101, weekday=4, start_hour=0, start_minute=0, end_hour=15, end_minute=0),
+        ProviderBusyBlock(clinic_id=MARKET_MALL_CLINIC_ID, provider_id=101, weekday=4, start_hour=18, start_minute=30, end_hour=23, end_minute=59),
+        ProviderBusyBlock(clinic_id=MARKET_MALL_CLINIC_ID, provider_id=101, weekday=5, start_hour=0, start_minute=0, end_hour=23, end_minute=59),
+        ProviderBusyBlock(clinic_id=MARKET_MALL_CLINIC_ID, provider_id=101, weekday=6, start_hour=0, start_minute=0, end_hour=23, end_minute=59),
+        # Nadeem (102)
+        ProviderBusyBlock(clinic_id=MARKET_MALL_CLINIC_ID, provider_id=102, weekday=0, start_hour=0, start_minute=0, end_hour=9, end_minute=0),
+        ProviderBusyBlock(clinic_id=MARKET_MALL_CLINIC_ID, provider_id=102, weekday=0, start_hour=17, start_minute=0, end_hour=23, end_minute=59),
+        ProviderBusyBlock(clinic_id=MARKET_MALL_CLINIC_ID, provider_id=102, weekday=1, start_hour=0, start_minute=0, end_hour=9, end_minute=0),
+        ProviderBusyBlock(clinic_id=MARKET_MALL_CLINIC_ID, provider_id=102, weekday=1, start_hour=17, start_minute=0, end_hour=23, end_minute=59),
+        ProviderBusyBlock(clinic_id=MARKET_MALL_CLINIC_ID, provider_id=102, weekday=2, start_hour=0, start_minute=0, end_hour=9, end_minute=0),
+        ProviderBusyBlock(clinic_id=MARKET_MALL_CLINIC_ID, provider_id=102, weekday=2, start_hour=17, start_minute=0, end_hour=23, end_minute=59),
+        ProviderBusyBlock(clinic_id=MARKET_MALL_CLINIC_ID, provider_id=102, weekday=3, start_hour=0, start_minute=0, end_hour=9, end_minute=0),
+        ProviderBusyBlock(clinic_id=MARKET_MALL_CLINIC_ID, provider_id=102, weekday=3, start_hour=17, start_minute=0, end_hour=23, end_minute=59),
+        ProviderBusyBlock(clinic_id=MARKET_MALL_CLINIC_ID, provider_id=102, weekday=4, start_hour=0, start_minute=0, end_hour=9, end_minute=0),
+        ProviderBusyBlock(clinic_id=MARKET_MALL_CLINIC_ID, provider_id=102, weekday=4, start_hour=12, start_minute=0, end_hour=23, end_minute=59),
+        ProviderBusyBlock(clinic_id=MARKET_MALL_CLINIC_ID, provider_id=102, weekday=5, start_hour=0, start_minute=0, end_hour=23, end_minute=59),
+        ProviderBusyBlock(clinic_id=MARKET_MALL_CLINIC_ID, provider_id=102, weekday=6, start_hour=0, start_minute=0, end_hour=23, end_minute=59),
     ]
     for b in busy_blocks:
         db.add(b)

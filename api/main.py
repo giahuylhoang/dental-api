@@ -14,7 +14,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Depends, Query, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from sqlalchemy.orm import Session, joinedload
 
 from database.connection import get_db, init_db
@@ -25,6 +25,7 @@ from clients.sms_client import (
     send_cancellation_sms_delayed,
     send_reschedule_sms_delayed,
 )
+from clients.email_client import resolve_booking_notification_recipient, send_clinic_booking_email_delayed
 import pytz
 import logging
 
@@ -371,17 +372,18 @@ async def create_calendar_event(
     db.commit()
     db.refresh(appointment)
 
+    provider_display_name = " ".join(filter(None, [provider.title, provider.name])).strip() or provider.name
+    tz = pytz.timezone(clinic.timezone or "America/Edmonton")
+    start_local = start_time_dt.astimezone(tz) if start_time_dt.tzinfo else tz.localize(start_time_dt)
+    date_str = start_local.strftime("%Y-%m-%d")
+    time_str = start_local.strftime("%I:%M %p")
+    patient_name = " ".join(filter(None, [patient.first_name, patient.last_name])) or "Patient"
+    svc = db.query(Service).filter(Service.id == request.service_id, Service.clinic_id == clinic.id).first() if request.service_id else None
+    service_name = (svc.name if svc else None) or request.service_name
+
     # Schedule SMS confirmation (background; configurable delay)
     if patient.phone:
         try:
-            provider_display_name = " ".join(filter(None, [provider.title, provider.name])).strip() or provider.name
-            tz = pytz.timezone(clinic.timezone or "America/Edmonton")
-            start_local = start_time_dt.astimezone(tz) if start_time_dt.tzinfo else tz.localize(start_time_dt)
-            date_str = start_local.strftime("%Y-%m-%d")
-            time_str = start_local.strftime("%I:%M %p")
-            patient_name = " ".join(filter(None, [patient.first_name, patient.last_name])) or "Patient"
-            svc = db.query(Service).filter(Service.id == request.service_id, Service.clinic_id == clinic.id).first() if request.service_id else None
-            service_name = (svc.name if svc else None) or request.service_name
             background_tasks.add_task(
                 send_booking_sms_delayed,
                 patient.phone,
@@ -391,11 +393,32 @@ async def create_calendar_event(
                 provider_display_name,
                 service_name,
                 clinic.name,
+                clinic.address,
+                clinic.contact_phone,
             )
         except Exception as e:
             logger.warning("SMS confirmation skipped: %s", e)
     else:
         logger.info("No patient phone; skipping SMS confirmation")
+
+    booking_notify_to = resolve_booking_notification_recipient(clinic.booking_notification_email)
+    if booking_notify_to:
+        try:
+            when_local = f"{date_str} at {time_str}"
+            background_tasks.add_task(
+                send_clinic_booking_email_delayed,
+                booking_notify_to,
+                clinic.name,
+                appointment.id,
+                patient_name,
+                patient.phone or "",
+                patient.email or "",
+                when_local,
+                provider_display_name,
+                service_name,
+            )
+        except Exception as e:
+            logger.warning("Clinic booking email skipped: %s", e)
 
     return AppointmentResponse(
         appointment_id=appointment.id,
@@ -815,6 +838,8 @@ async def cancel_appointment(
                 time_str,
                 provider_display_name,
                 clinic.name,
+                clinic.address,
+                clinic.contact_phone,
             )
         except Exception as e:
             logger.warning("Cancellation SMS skipped: %s", e)
@@ -966,6 +991,8 @@ async def reschedule_appointment(
                     provider_display_name,
                     service_name,
                     clinic.name,
+                    clinic.address,
+                    clinic.contact_phone,
                 )
             except Exception as e:
                 logger.warning("Reschedule SMS skipped: %s", e)
@@ -1296,6 +1323,11 @@ class ClinicCreateRequest(BaseModel):
     timezone: Optional[str] = Field("America/Edmonton", description="Timezone (e.g. America/Edmonton)")
     working_hour_start: Optional[int] = Field(9, description="Start of working hours (0-23)")
     working_hour_end: Optional[int] = Field(17, description="End of working hours (0-23)")
+    address: Optional[str] = Field(None, description="Physical address for SMS / display")
+    contact_phone: Optional[str] = Field(None, description="Clinic phone for SMS callbacks")
+    booking_notification_email: Optional[str] = Field(
+        None, description="Inbox to notify when a new appointment is booked"
+    )
 
 
 class ClinicResponse(BaseModel):
@@ -1305,9 +1337,25 @@ class ClinicResponse(BaseModel):
     timezone: Optional[str] = None
     working_hour_start: Optional[int] = None
     working_hour_end: Optional[int] = None
+    address: Optional[str] = None
+    contact_phone: Optional[str] = None
+    booking_notification_email: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ClinicUpdateRequest(BaseModel):
+    """Partial update for current clinic (X-Clinic-Id). Omit fields to leave unchanged."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: Optional[str] = None
+    timezone: Optional[str] = None
+    working_hour_start: Optional[int] = None
+    working_hour_end: Optional[int] = None
+    address: Optional[str] = None
+    contact_phone: Optional[str] = None
+    booking_notification_email: Optional[str] = None
 
 
 @app.post("/api/clinics", response_model=ClinicResponse)
@@ -1325,6 +1373,9 @@ async def create_clinic(
         timezone=request.timezone or "America/Edmonton",
         working_hour_start=request.working_hour_start or 9,
         working_hour_end=request.working_hour_end or 17,
+        address=request.address,
+        contact_phone=request.contact_phone,
+        booking_notification_email=request.booking_notification_email,
     )
     db.add(clinic)
     db.commit()
@@ -1335,6 +1386,23 @@ async def create_clinic(
 @app.get("/api/clinics/me", response_model=ClinicResponse)
 async def get_clinic_me(clinic: Clinic = Depends(get_clinic)):
     """Get current clinic config (from X-Clinic-Id header)."""
+    return ClinicResponse.model_validate(clinic)
+
+
+@app.patch("/api/clinics/me", response_model=ClinicResponse)
+async def patch_clinic_me(
+    request: ClinicUpdateRequest,
+    db: Session = Depends(get_db),
+    clinic: Clinic = Depends(get_clinic),
+):
+    """Update current clinic fields (from X-Clinic-Id)."""
+    updates = request.model_dump(exclude_unset=True)
+    for key, value in updates.items():
+        if hasattr(clinic, key):
+            setattr(clinic, key, value)
+    clinic.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(clinic)
     return ClinicResponse.model_validate(clinic)
 
 

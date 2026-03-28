@@ -7,6 +7,8 @@ Run from dental-api project root:
 """
 import pytest
 
+import api.main as api_main
+
 from database.models import (
     DEFAULT_CLINIC_ID,
     Provider,
@@ -219,7 +221,7 @@ def test_market_mall_denture_clinic_slots_with_busy_blocks(client_market_mall):
     assert "providers" in data
     providers = {p["provider_id"]: p for p in data["providers"]}
 
-    # Soheil (101): available Fri 15-17 only (busy 9-15)
+    # Soheil (101): within clinic hours Fri 15-17 only (busy before 15:00; after 18:30 is outside 9-17)
     soheil = providers.get(101)
     assert soheil is not None
     slots = soheil["slots"]
@@ -598,3 +600,213 @@ def test_clinic_create_and_me(client):
     me_resp = client.get("/api/clinics/me", headers={"X-Clinic-Id": "clinic-a"})
     assert me_resp.status_code == 200
     assert me_resp.json()["id"] == "clinic-a"
+
+
+def test_patch_clinic_me_updates_contact_fields(client):
+    r = client.patch(
+        "/api/clinics/me",
+        json={
+            "address": "1 Test Rd",
+            "contact_phone": "555-0199",
+            "booking_notification_email": "notify@test.example",
+        },
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["address"] == "1 Test Rd"
+    assert data["contact_phone"] == "555-0199"
+    assert data["booking_notification_email"] == "notify@test.example"
+
+    me = client.get("/api/clinics/me")
+    assert me.status_code == 200
+    assert me.json()["booking_notification_email"] == "notify@test.example"
+
+
+def test_create_appointment_background_sms_and_clinic_email(client, db_session, monkeypatch):
+    """Patch handlers bound in api.main so BackgroundTasks run instantly (no Twilio/SMTP thread)."""
+    p1, _, s1 = seed_providers_and_services(db_session)
+
+    sms_log: list = []
+    email_log: list = []
+
+    async def fake_booking_sms_delayed(*args):
+        sms_log.append(args)
+
+    async def fake_clinic_email_delayed(*args):
+        email_log.append(args)
+
+    monkeypatch.setattr(api_main, "send_booking_sms_delayed", fake_booking_sms_delayed)
+    monkeypatch.setattr(api_main, "send_clinic_booking_email_delayed", fake_clinic_email_delayed)
+
+    pr = client.patch(
+        "/api/clinics/me",
+        json={
+            "address": "99 Clinic Ave",
+            "contact_phone": "403-999-8888",
+            "booking_notification_email": "desk@clinic.test",
+        },
+    )
+    assert pr.status_code == 200
+
+    cr = client.post(
+        "/api/patients",
+        json={
+            "first_name": "Bob",
+            "last_name": "Zed",
+            "phone": "+14035551212",
+            "consent_approved": True,
+        },
+    )
+    assert cr.status_code == 200
+    patient_id = cr.json()["id"]
+
+    create_resp = client.post(
+        "/api/appointments",
+        json={
+            "start_time": "2026-03-10T10:00:00-06:00",
+            "end_time": "2026-03-10T11:00:00-06:00",
+            "patient_id": patient_id,
+            "provider_id": p1.id,
+            "service_id": s1.id,
+            "patient_name": "Bob Zed",
+            "service_name": s1.name,
+            "reason": "Checkup",
+        },
+    )
+    assert create_resp.status_code == 200
+    appointment_id = create_resp.json()["appointment_id"]
+
+    assert len(sms_log) == 1
+    sms_args = sms_log[0]
+    assert sms_args[7] == "99 Clinic Ave"
+    assert sms_args[8] == "403-999-8888"
+
+    assert len(email_log) == 1
+    email_args = email_log[0]
+    assert email_args[0] == "desk@clinic.test"
+    assert email_args[2] == appointment_id
+    assert email_args[3] == "Bob Zed"
+
+
+def test_create_appointment_clinic_email_without_patient_phone(client, db_session, monkeypatch):
+    p1, _, s1 = seed_providers_and_services(db_session)
+
+    sms_log: list = []
+    email_log: list = []
+
+    async def fake_booking_sms_delayed(*args):
+        sms_log.append(args)
+
+    async def fake_clinic_email_delayed(*args):
+        email_log.append(args)
+
+    monkeypatch.setattr(api_main, "send_booking_sms_delayed", fake_booking_sms_delayed)
+    monkeypatch.setattr(api_main, "send_clinic_booking_email_delayed", fake_clinic_email_delayed)
+
+    client.patch(
+        "/api/clinics/me",
+        json={"booking_notification_email": "only-email@clinic.test"},
+    )
+    patient_id = create_patient_without_phone(client)
+
+    create_resp = client.post(
+        "/api/appointments",
+        json={
+            "start_time": "2026-03-10T15:00:00-06:00",
+            "end_time": "2026-03-10T16:00:00-06:00",
+            "patient_id": patient_id,
+            "provider_id": p1.id,
+            "service_id": s1.id,
+            "patient_name": "Alice Example",
+            "service_name": s1.name,
+            "reason": "Checkup",
+        },
+    )
+    assert create_resp.status_code == 200
+
+    assert len(sms_log) == 0
+    assert len(email_log) == 1
+    assert email_log[0][0] == "only-email@clinic.test"
+
+
+def test_create_appointment_booking_email_env_recipient_without_clinic_field(
+    client, db_session, monkeypatch
+):
+    """BOOKING_NOTIFICATION_TO alone triggers clinic email (no clinic.booking_notification_email)."""
+    monkeypatch.delenv("BOOKING_NOTIFICATION_TO", raising=False)
+    monkeypatch.setenv("BOOKING_NOTIFICATION_TO", "env-only-recipient@example.com")
+
+    p1, _, s1 = seed_providers_and_services(db_session)
+
+    email_log: list = []
+
+    async def fake_clinic_email_delayed(*args):
+        email_log.append(args)
+
+    monkeypatch.setattr(api_main, "send_clinic_booking_email_delayed", fake_clinic_email_delayed)
+
+    patient_id = create_patient_without_phone(client)
+
+    create_resp = client.post(
+        "/api/appointments",
+        json={
+            "start_time": "2026-03-10T15:00:00-06:00",
+            "end_time": "2026-03-10T16:00:00-06:00",
+            "patient_id": patient_id,
+            "provider_id": p1.id,
+            "service_id": s1.id,
+            "patient_name": "Pat Env",
+            "service_name": s1.name,
+            "reason": "Checkup",
+        },
+    )
+    assert create_resp.status_code == 200
+
+    assert len(email_log) == 1
+    assert email_log[0][0] == "env-only-recipient@example.com"
+
+
+def test_create_appointment_booking_email_env_overrides_clinic_recipient(
+    client, db_session, monkeypatch
+):
+    monkeypatch.setenv("BOOKING_NOTIFICATION_TO", "wins@example.com")
+
+    p1, _, s1 = seed_providers_and_services(db_session)
+    email_log: list = []
+
+    async def fake_clinic_email_delayed(*args):
+        email_log.append(args)
+
+    monkeypatch.setattr(api_main, "send_clinic_booking_email_delayed", fake_clinic_email_delayed)
+
+    client.patch(
+        "/api/clinics/me",
+        json={"booking_notification_email": "clinic-field@example.com"},
+    )
+    cr = client.post(
+        "/api/patients",
+        json={
+            "first_name": "A",
+            "last_name": "B",
+            "phone": "+15555550100",
+            "consent_approved": True,
+        },
+    )
+    patient_id = cr.json()["id"]
+
+    client.post(
+        "/api/appointments",
+        json={
+            "start_time": "2026-03-11T10:00:00-06:00",
+            "end_time": "2026-03-11T11:00:00-06:00",
+            "patient_id": patient_id,
+            "provider_id": p1.id,
+            "service_id": s1.id,
+            "patient_name": "A B",
+            "service_name": s1.name,
+            "reason": "x",
+        },
+    )
+
+    assert len(email_log) == 1
+    assert email_log[0][0] == "wins@example.com"

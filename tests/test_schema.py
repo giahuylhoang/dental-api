@@ -71,6 +71,8 @@ def test_seed_market_mall_denture_creates_expected_data(db_session):
     clinic = db_session.query(Clinic).filter(Clinic.id == MARKET_MALL_CLINIC_ID).first()
     assert clinic is not None
     assert clinic.name == "Market Mall Denture"
+    assert clinic.address and "40th Ave NW" in clinic.address
+    assert clinic.contact_phone == "(403) 247-6222"
 
     providers = db_session.query(Provider).filter(
         Provider.clinic_id == MARKET_MALL_CLINIC_ID
@@ -92,4 +94,4 @@ def test_seed_market_mall_denture_creates_expected_data(db_session):
     blocks = db_session.query(ProviderBusyBlock).filter(
         ProviderBusyBlock.clinic_id == MARKET_MALL_CLINIC_ID
     ).all()
-    assert len(blocks) == 5
+    assert len(blocks) == 22

@@ -6,14 +6,34 @@ SEND_BOOKING_SMS (default true) toggles sending on/off.
 SMS_DELAY_SECONDS (default 0) delays sending; use with background tasks.
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 import os
+from typing import Optional
 
 logger = logging.getLogger("dental-receptionist")
 
 SEND_BOOKING_SMS = os.getenv("SEND_BOOKING_SMS", "true").lower() in ("true", "1", "yes")
 SMS_DELAY_SECONDS = int(os.getenv("SMS_DELAY_SECONDS", "0"))
+
+
+def _append_clinic_contact_suffix(
+    base: str,
+    clinic_address: Optional[str] = None,
+    contact_phone: Optional[str] = None,
+) -> str:
+    extras: list[str] = []
+    addr = (clinic_address or "").strip()
+    phone = (contact_phone or "").strip()
+    if addr:
+        extras.append(f"Address: {addr}")
+    if phone:
+        extras.append(f"Feel free to call us at {phone}.")
+    if not extras:
+        return base
+    return f"{base} {' '.join(extras)}"
 
 
 def _send_sms_sync(to_phone: str, body: str) -> bool:
@@ -48,6 +68,8 @@ async def send_booking_confirmation_sms(
     doctor_name: str,
     service_name: str,
     clinic_name: str,
+    clinic_address: Optional[str] = None,
+    contact_phone: Optional[str] = None,
 ) -> bool:
     """
     Send booking confirmation SMS via Twilio.
@@ -56,10 +78,11 @@ async def send_booking_confirmation_sms(
     """
     if not phone or not str(phone).strip():
         return True
-    body = (
+    core = (
         f"Hi {patient_name}, your appointment at {clinic_name} with {doctor_name} "
         f"for {service_name} on {date_str} at {time_str} is confirmed."
     )
+    body = _append_clinic_contact_suffix(core, clinic_address, contact_phone)
     try:
         return await asyncio.wait_for(
             asyncio.to_thread(_send_sms_sync, str(phone).strip(), body),
@@ -80,14 +103,22 @@ async def send_cancellation_sms(
     time_str: str,
     doctor_name: str,
     clinic_name: str,
+    clinic_address: Optional[str] = None,
+    contact_phone: Optional[str] = None,
 ) -> bool:
     """Send cancellation confirmation SMS. Same semantics as send_booking_confirmation_sms."""
     if not phone or not str(phone).strip():
         return True
-    body = (
-        f"{clinic_name}: Your appointment with {doctor_name} on {date_str} at {time_str} "
-        f"has been cancelled. Call us to reschedule."
+    reschedule_hint = (
+        f"Call us at {contact_phone.strip()} to reschedule."
+        if (contact_phone or "").strip()
+        else "Call us to reschedule."
     )
+    core = (
+        f"{clinic_name}: Your appointment with {doctor_name} on {date_str} at {time_str} "
+        f"has been cancelled. {reschedule_hint}"
+    )
+    body = _append_clinic_contact_suffix(core, clinic_address, None)
     try:
         return await asyncio.wait_for(
             asyncio.to_thread(_send_sms_sync, str(phone).strip(), body),
@@ -109,14 +140,17 @@ async def send_reschedule_confirmation_sms(
     doctor_name: str,
     service_name: str,
     clinic_name: str,
+    clinic_address: Optional[str] = None,
+    contact_phone: Optional[str] = None,
 ) -> bool:
     """Send reschedule confirmation SMS. Same semantics as send_booking_confirmation_sms."""
     if not phone or not str(phone).strip():
         return True
-    body = (
+    core = (
         f"Hi {patient_name}, your appointment at {clinic_name} has been rescheduled to "
         f"{date_str} at {time_str} with {doctor_name} ({service_name})."
     )
+    body = _append_clinic_contact_suffix(core, clinic_address, contact_phone)
     try:
         return await asyncio.wait_for(
             asyncio.to_thread(_send_sms_sync, str(phone).strip(), body),
@@ -138,12 +172,22 @@ async def send_booking_sms_delayed(
     doctor_name: str,
     service_name: str,
     clinic_name: str,
+    clinic_address: Optional[str] = None,
+    contact_phone: Optional[str] = None,
 ) -> None:
     """Sleep SMS_DELAY_SECONDS, then send booking confirmation. For BackgroundTasks."""
     if SMS_DELAY_SECONDS > 0:
         await asyncio.sleep(SMS_DELAY_SECONDS)
     await send_booking_confirmation_sms(
-        phone, patient_name, date_str, time_str, doctor_name, service_name, clinic_name
+        phone,
+        patient_name,
+        date_str,
+        time_str,
+        doctor_name,
+        service_name,
+        clinic_name,
+        clinic_address,
+        contact_phone,
     )
 
 
@@ -154,12 +198,21 @@ async def send_cancellation_sms_delayed(
     time_str: str,
     doctor_name: str,
     clinic_name: str,
+    clinic_address: Optional[str] = None,
+    contact_phone: Optional[str] = None,
 ) -> None:
     """Sleep SMS_DELAY_SECONDS, then send cancellation SMS. For BackgroundTasks."""
     if SMS_DELAY_SECONDS > 0:
         await asyncio.sleep(SMS_DELAY_SECONDS)
     await send_cancellation_sms(
-        phone, patient_name, date_str, time_str, doctor_name, clinic_name
+        phone,
+        patient_name,
+        date_str,
+        time_str,
+        doctor_name,
+        clinic_name,
+        clinic_address,
+        contact_phone,
     )
 
 
@@ -171,10 +224,20 @@ async def send_reschedule_sms_delayed(
     doctor_name: str,
     service_name: str,
     clinic_name: str,
+    clinic_address: Optional[str] = None,
+    contact_phone: Optional[str] = None,
 ) -> None:
     """Sleep SMS_DELAY_SECONDS, then send reschedule confirmation. For BackgroundTasks."""
     if SMS_DELAY_SECONDS > 0:
         await asyncio.sleep(SMS_DELAY_SECONDS)
     await send_reschedule_confirmation_sms(
-        phone, patient_name, date_str, time_str, doctor_name, service_name, clinic_name
+        phone,
+        patient_name,
+        date_str,
+        time_str,
+        doctor_name,
+        service_name,
+        clinic_name,
+        clinic_address,
+        contact_phone,
     )

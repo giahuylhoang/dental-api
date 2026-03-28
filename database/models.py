@@ -46,6 +46,9 @@ class Clinic(Base):
     timezone = Column(String, default="America/Edmonton")
     working_hour_start = Column(Integer, default=9)
     working_hour_end = Column(Integer, default=17)
+    address = Column(Text, nullable=True)
+    contact_phone = Column(String, nullable=True)
+    booking_notification_email = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
