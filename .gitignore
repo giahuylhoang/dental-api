@@ -13,7 +13,26 @@ __pycache__/
 .ruff_cache
 *.log
 
+.env.local
+
+*.db
+
+
 # Google / service account JSON (never commit)
 gen-lang-client*.json
 *-credentials*.json
 *service*account*.json
+
+curl -s -X POST "https://dental-api-832665048827.northamerica-northeast2.run.app/api/appointments" \
+  -H "Content-Type: application/json" \
+  -H "X-Clinic-Id: market-mall-denture" \
+  -d '{
+    "start_time": "2026-03-30T10:00:00-06:00",
+    "end_time": "2026-03-30T10:30:00-06:00",
+    "patient_id": "13a7e877-d087-44df-965b-bc71f4da59e7",
+    "provider_id": 102,
+    "service_id": 700,
+    "patient_name": "Test User",
+    "service_name": "General Consultation",
+    "reason": "Cloud Run test"
+  }'

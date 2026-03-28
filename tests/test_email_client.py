@@ -4,7 +4,11 @@ import asyncio
 from unittest.mock import patch
 
 from clients import email_client
-from clients.email_client import resolve_booking_notification_recipient, send_clinic_new_booking_email
+from clients.email_client import (
+    resolve_booking_notification_recipient,
+    send_clinic_new_booking_email,
+    verify_smtp_deploy,
+)
 
 
 def test_send_clinic_new_booking_email_builds_body_and_calls_smtp():
@@ -80,3 +84,28 @@ def test_resolve_booking_notification_recipient_falls_back_to_clinic(monkeypatch
     assert resolve_booking_notification_recipient("clinic@x.com") == "clinic@x.com"
     assert resolve_booking_notification_recipient(None) == ""
     assert resolve_booking_notification_recipient("  ") == ""
+
+
+def test_verify_smtp_deploy_skips_when_env_unset(monkeypatch):
+    monkeypatch.delenv("SMTP_DEPLOY_VERIFY_TO", raising=False)
+    assert verify_smtp_deploy() is True
+
+
+def test_verify_smtp_deploy_false_when_smtp_not_configured(monkeypatch):
+    monkeypatch.setenv("SMTP_DEPLOY_VERIFY_TO", "ops@example.com")
+    monkeypatch.delenv("SMTP_HOST", raising=False)
+    monkeypatch.delenv("EMAIL_FROM", raising=False)
+    assert verify_smtp_deploy() is False
+
+
+def test_verify_smtp_deploy_uses_deliver(monkeypatch):
+    monkeypatch.setenv("SMTP_DEPLOY_VERIFY_TO", "ops@example.com")
+    monkeypatch.setenv("SMTP_HOST", "smtp.example.com")
+    monkeypatch.setenv("EMAIL_FROM", "from@example.com")
+
+    with patch.object(email_client, "_deliver_smtp", return_value=True) as m:
+        assert verify_smtp_deploy() is True
+    m.assert_called_once()
+    args = m.call_args[0]
+    assert args[0] == "ops@example.com"
+    assert "deploy SMTP check" in args[1]

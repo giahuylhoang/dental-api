@@ -3,7 +3,10 @@ SMTP email to clinic when a new appointment is booked.
 
 Env: SEND_CLINIC_BOOKING_EMAIL (default true), SMTP_HOST, SMTP_PORT (default 587),
 SMTP_USER, SMTP_PASSWORD, SMTP_USE_TLS (default true for port 587), EMAIL_FROM,
-EMAIL_FROM_NAME (optional).
+EMAIL_FROM_NAME (optional), SMTP_LOCAL_HOSTNAME (default rockyridgeai.com for EHLO/STARTTLS).
+
+SMTP_DEPLOY_VERIFY_TO (optional): if set in production, run_api sends one test message at startup;
+process exits with code 1 if sending fails (fail closed on deploy).
 
 BOOKING_NOTIFICATION_TO (optional): if set, new-booking emails are sent to this address
 instead of the clinic's booking_notification_email. Use for local/testing; leave unset in
@@ -42,6 +45,45 @@ def resolve_booking_notification_recipient(clinic_booking_notification_email: st
 
 NEW_BOOKING_EMAIL_SUBJECT = "New booking: {clinic_name} — {patient_name} — {when_local}"
 
+def _smtp_local_hostname() -> str:
+    return os.getenv("SMTP_LOCAL_HOSTNAME", "rockyridgeai.com").strip() or "rockyridgeai.com"
+
+
+def _deliver_smtp(to_email: str, subject: str, body: str) -> bool:
+    """
+    Send one plain-text message using current SMTP_* / EMAIL_* env. Returns False if
+    SMTP_HOST or EMAIL_FROM is missing or send raises.
+    """
+    host = os.getenv("SMTP_HOST", "").strip()
+    from_addr = os.getenv("EMAIL_FROM", "").strip()
+    if not host or not from_addr:
+        return False
+
+    port = int(os.getenv("SMTP_PORT", "587"))
+    user = os.getenv("SMTP_USER", "").strip()
+    password = os.getenv("SMTP_PASSWORD", "")
+    use_tls = os.getenv("SMTP_USE_TLS", "true").lower() in ("true", "1", "yes")
+    from_name = os.getenv("EMAIL_FROM_NAME", "").strip()
+    local_hostname = _smtp_local_hostname()
+
+    msg = MIMEText(body, "plain", "utf-8")
+    msg["Subject"] = subject
+    msg["From"] = formataddr((from_name, from_addr)) if from_name else from_addr
+    msg["To"] = to_email
+
+    try:
+        with smtplib.SMTP(host, port, timeout=30, local_hostname=local_hostname) as server:
+            if use_tls:
+                server.starttls()
+            if user:
+                server.login(user, password)
+            server.sendmail(from_addr, [to_email], msg.as_string())
+        return True
+    except Exception as e:
+        logger.error("SMTP send failed: %s", e, exc_info=True)
+        return False
+
+
 NEW_BOOKING_EMAIL_BODY = """New appointment booked
 
 Clinic: {clinic_name}
@@ -76,28 +118,32 @@ def _send_email_sync(to_email: str, subject: str, body: str) -> bool:
         )
         return False
 
-    port = int(os.getenv("SMTP_PORT", "587"))
-    user = os.getenv("SMTP_USER", "").strip()
-    password = os.getenv("SMTP_PASSWORD", "")
-    use_tls = os.getenv("SMTP_USE_TLS", "true").lower() in ("true", "1", "yes")
-    from_name = os.getenv("EMAIL_FROM_NAME", "").strip()
+    return _deliver_smtp(to_email, subject, body)
 
-    msg = MIMEText(body, "plain", "utf-8")
-    msg["Subject"] = subject
-    msg["From"] = formataddr((from_name, from_addr)) if from_name else from_addr
-    msg["To"] = to_email
 
-    try:
-        with smtplib.SMTP(host, port, timeout=30) as server:
-            if use_tls:
-                server.starttls()
-            if user:
-                server.login(user, password)
-            server.sendmail(from_addr, [to_email], msg.as_string())
+def verify_smtp_deploy() -> bool:
+    """
+    If SMTP_DEPLOY_VERIFY_TO is set, send a single test message; return False on failure.
+    If unset, return True (no check).
+    """
+    to = os.getenv("SMTP_DEPLOY_VERIFY_TO", "").strip()
+    if not to:
         return True
-    except Exception as e:
-        logger.error("SMTP send failed for clinic booking email: %s", e, exc_info=True)
+    host = os.getenv("SMTP_HOST", "").strip()
+    from_addr = os.getenv("EMAIL_FROM", "").strip()
+    if not host or not from_addr:
+        logger.error(
+            "SMTP_DEPLOY_VERIFY_TO is set but SMTP_HOST or EMAIL_FROM is missing — deploy check failed",
+        )
         return False
+    subject = "Dental API deploy SMTP check"
+    body = "This message confirms outbound SMTP from a new deployment."
+    ok = _deliver_smtp(to, subject, body)
+    if ok:
+        logger.info("SMTP deploy verification sent successfully to %s", to)
+    else:
+        logger.error("SMTP deploy verification failed (could not send to %s)", to)
+    return ok
 
 
 async def send_clinic_new_booking_email(
