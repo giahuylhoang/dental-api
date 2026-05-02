@@ -5,7 +5,7 @@ from datetime import datetime, date
 from enum import Enum as PyEnum
 from typing import Optional
 
-from sqlalchemy import Column, String, Integer, Boolean, DateTime, Date, Text, ForeignKey, Enum as SQLEnum, DECIMAL
+from sqlalchemy import Column, String, Integer, Boolean, DateTime, Date, Text, ForeignKey, Enum as SQLEnum, DECIMAL, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -189,3 +189,21 @@ class Lead(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     clinic = relationship("Clinic", back_populates="leads")
+
+
+# v1.1 performance indexes — additive, never alter existing columns.
+Index("ix_patients_clinic", Patient.clinic_id)
+Index("ix_appointments_clinic_start", Appointment.clinic_id, Appointment.start_time.desc())
+Index("ix_appointments_clinic_status", Appointment.clinic_id, Appointment.status)
+Index("ix_appointments_patient_start", Appointment.patient_id, Appointment.start_time.desc())
+Index("ix_leads_clinic_status", Lead.clinic_id, Lead.status)
+Index(
+    "ix_provider_busy_blocks_provider_weekday",
+    ProviderBusyBlock.provider_id,
+    ProviderBusyBlock.weekday,
+)
+Index(
+    "ix_provider_availability_provider_weekday",
+    ProviderAvailability.provider_id,
+    ProviderAvailability.weekday,
+)

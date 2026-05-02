@@ -4,7 +4,7 @@ from datetime import datetime
 
 from sqlalchemy import (
     Column, String, Boolean, DateTime, Text, ForeignKey,
-    UniqueConstraint, JSON, PrimaryKeyConstraint,
+    UniqueConstraint, JSON, PrimaryKeyConstraint, Index,
 )
 from sqlalchemy.orm import relationship
 
@@ -87,3 +87,13 @@ class AuditLog(Base):
     ip = Column(String, nullable=True)
     user_agent = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+# v1.1 audit lookup index. AuditLog.action accepts {insert,update,delete,read,export}.
+Index(
+    "ix_audit_log_entity",
+    AuditLog.entity_type,
+    AuditLog.entity_id,
+    AuditLog.created_at.desc(),
+)
+Index("ix_audit_log_clinic_created", AuditLog.clinic_id, AuditLog.created_at.desc())

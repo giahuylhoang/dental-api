@@ -165,3 +165,47 @@ def _before_flush(session, flush_context, instances):
 def register_audit_listeners() -> None:
     """Attach event listeners. Call once at startup."""
     event.listen(SASession, "before_flush", _before_flush)
+
+
+# v1.1 — read-access audit. Off by default; flip env AUDIT_READS=true to record
+# every read access of patient PHI from /api/v2/clinical/* endpoints (PIPEDA).
+
+import os as _os
+
+
+def audit_reads_enabled() -> bool:
+    return _os.getenv("AUDIT_READS", "false").lower() in {"1", "true", "yes"}
+
+
+def record_read(
+    session,
+    entity_type: str,
+    entity_id: Optional[str],
+    clinic_id: Optional[str],
+) -> None:
+    """Insert a single AuditLog row with action='read' if AUDIT_READS is enabled.
+
+    Caller passes its current request-scoped session; we add the log row to it
+    so it's committed with the rest of the request. Caller must ensure the
+    audit context (user_id/ip/ua) is set via set_audit_context().
+
+    Action 'export' is reserved for bulk dumps (e.g. CSV downloads) — call this
+    function with action='export' via set_action below.
+    """
+    if not audit_reads_enabled():
+        return
+    log = _make_audit_log("read", entity_type, entity_id, clinic_id, None, None)
+    session.add(log)
+
+
+def record_export(
+    session,
+    entity_type: str,
+    entity_id: Optional[str],
+    clinic_id: Optional[str],
+) -> None:
+    """Same as record_read but with action='export' for bulk PHI extracts."""
+    if not audit_reads_enabled():
+        return
+    log = _make_audit_log("export", entity_type, entity_id, clinic_id, None, None)
+    session.add(log)

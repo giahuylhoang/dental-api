@@ -164,6 +164,25 @@ async def send_reschedule_confirmation_sms(
         return False
 
 
+def _patient_opts_in(channel: str, clinic_id: Optional[str], patient_id: Optional[str]) -> bool:
+    """Honor v1.1 patient_communication_preferences. Defaults to True for
+    legacy callers that don't pass clinic_id+patient_id (preserves v1 behavior)."""
+    if not clinic_id or not patient_id:
+        return True
+    try:
+        from database.connection import SessionLocal
+        from database.clinical.communication_prefs import is_opted_in
+
+        db = SessionLocal()
+        try:
+            return is_opted_in(db, clinic_id, patient_id, channel)
+        finally:
+            db.close()
+    except Exception as e:  # never block dispatch on a lookup failure
+        logger.warning("Comm prefs lookup failed: %s", e)
+        return True
+
+
 async def send_booking_sms_delayed(
     phone: str,
     patient_name: str,
@@ -174,8 +193,19 @@ async def send_booking_sms_delayed(
     clinic_name: str,
     clinic_address: Optional[str] = None,
     contact_phone: Optional[str] = None,
+    *,
+    clinic_id: Optional[str] = None,
+    patient_id: Optional[str] = None,
 ) -> None:
-    """Sleep SMS_DELAY_SECONDS, then send booking confirmation. For BackgroundTasks."""
+    """Sleep SMS_DELAY_SECONDS, then send booking confirmation. For BackgroundTasks.
+
+    v1.1 — when clinic_id and patient_id are provided, honor the patient's
+    SMS opt-in preference. Without those kwargs (legacy callers), defaults
+    to opted-in.
+    """
+    if not _patient_opts_in("sms", clinic_id, patient_id):
+        logger.info("SMS booking skipped: patient opted out")
+        return
     if SMS_DELAY_SECONDS > 0:
         await asyncio.sleep(SMS_DELAY_SECONDS)
     await send_booking_confirmation_sms(
@@ -200,8 +230,14 @@ async def send_cancellation_sms_delayed(
     clinic_name: str,
     clinic_address: Optional[str] = None,
     contact_phone: Optional[str] = None,
+    *,
+    clinic_id: Optional[str] = None,
+    patient_id: Optional[str] = None,
 ) -> None:
     """Sleep SMS_DELAY_SECONDS, then send cancellation SMS. For BackgroundTasks."""
+    if not _patient_opts_in("sms", clinic_id, patient_id):
+        logger.info("SMS cancellation skipped: patient opted out")
+        return
     if SMS_DELAY_SECONDS > 0:
         await asyncio.sleep(SMS_DELAY_SECONDS)
     await send_cancellation_sms(
@@ -226,8 +262,14 @@ async def send_reschedule_sms_delayed(
     clinic_name: str,
     clinic_address: Optional[str] = None,
     contact_phone: Optional[str] = None,
+    *,
+    clinic_id: Optional[str] = None,
+    patient_id: Optional[str] = None,
 ) -> None:
     """Sleep SMS_DELAY_SECONDS, then send reschedule confirmation. For BackgroundTasks."""
+    if not _patient_opts_in("sms", clinic_id, patient_id):
+        logger.info("SMS reschedule skipped: patient opted out")
+        return
     if SMS_DELAY_SECONDS > 0:
         await asyncio.sleep(SMS_DELAY_SECONDS)
     await send_reschedule_confirmation_sms(

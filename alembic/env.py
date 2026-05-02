@@ -23,6 +23,10 @@ try:
     import database.ops.models  # noqa: F401
 except ImportError:
     pass
+try:
+    import database.v1_1.models  # noqa: F401
+except ImportError:
+    pass
 
 config = context.config
 

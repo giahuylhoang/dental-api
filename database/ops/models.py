@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from sqlalchemy import (
     Column, String, Integer, Boolean, DateTime, Text, ForeignKey,
-    Enum as SQLEnum, DECIMAL, JSON, Float,
+    Enum as SQLEnum, DECIMAL, JSON, Float, Index,
 )
 from sqlalchemy.orm import relationship
 
@@ -219,3 +219,28 @@ class LeadEvent(Base):
     kind = Column(String, nullable=False)  # note|status_change|email_sent|sms_sent|converted
     occurred_at = Column(DateTime, default=datetime.utcnow)
     payload = Column(JSON, nullable=True)
+
+
+# v1.1 indexes
+Index("ix_invoices_clinic_status", Invoice.clinic_id, Invoice.status, Invoice.due_at)
+Index("ix_invoices_patient", Invoice.patient_id)
+Index("ix_claims_clinic_status", InsuranceClaim.clinic_id, InsuranceClaim.status)
+Index("ix_appt_reminders_status_due", AppointmentReminder.status, AppointmentReminder.scheduled_at)
+Index("ix_recalls_clinic_due_status", Recall.clinic_id, Recall.due_at, Recall.status)
+Index("ix_recalls_patient_status", Recall.patient_id, Recall.status)
+# Partial unique: at most one active recall per (patient, rule). Status values
+# that count as "active" are 'pending' and 'sent' (not yet completed/cancelled).
+Index(
+    "ux_recalls_active_patient_rule",
+    Recall.patient_id,
+    Recall.rule_id,
+    unique=True,
+    sqlite_where=Recall.status.in_(("pending", "sent")),
+    postgresql_where=Recall.status.in_(("pending", "sent")),
+)
+Index("ix_communications_patient_created", Communication.patient_id, Communication.created_at.desc())
+Index("ix_communications_clinic_created", Communication.clinic_id, Communication.created_at.desc())
+Index("ix_lead_events_lead_created", LeadEvent.lead_id, LeadEvent.occurred_at.desc())
+Index("ix_appointment_resources_appointment", AppointmentResource.appointment_id)
+Index("ix_appointment_resources_operatory", AppointmentResource.operatory_id)
+Index("ix_waitlist_clinic_status", WaitlistEntry.clinic_id, WaitlistEntry.status)

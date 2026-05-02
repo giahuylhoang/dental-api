@@ -4,7 +4,7 @@ from datetime import datetime
 
 from sqlalchemy import (
     Column, String, Boolean, DateTime, Text, ForeignKey,
-    Integer, JSON, UniqueConstraint, Float,
+    Integer, JSON, UniqueConstraint, Float, Index,
 )
 from sqlalchemy.orm import relationship
 
@@ -26,6 +26,32 @@ class PatientMedicalHistory(Base):
     allergies_text = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class PatientCommunicationPreference(Base):
+    """v1.1 — channel-level opt-in / opt-out per patient (CASL/PIPEDA).
+
+    Notification helpers (clients/sms_client.py, clients/email_client.py, the
+    reminder scheduler) MUST consult this table before dispatching. Absence of
+    a row for a channel means "no preference set" — default behavior is opted-in
+    so existing flows are not silently broken.
+    """
+    __tablename__ = "patient_communication_preferences"
+
+    id = Column(String, primary_key=True, default=_uuid)
+    clinic_id = Column(String, ForeignKey("clinics.id"), nullable=False)
+    patient_id = Column(String, ForeignKey("patients.id"), nullable=False)
+    channel = Column(String, nullable=False)         # sms|email|phone|mail
+    opted_in = Column(Boolean, default=True, nullable=False)
+    language = Column(String, default="en", nullable=False)  # en|fr
+    do_not_contact_until = Column(DateTime, nullable=True)
+    reason = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("clinic_id", "patient_id", "channel", name="ux_pcp_clinic_patient_channel"),
+    )
 
 
 class PatientAllergy(Base):
@@ -250,3 +276,15 @@ class LabCaseEvent(Base):
     payload = Column(JSON, default=dict)
 
     lab_case = relationship("LabCase", back_populates="events")
+
+
+# v1.1 indexes
+Index("ix_clinical_notes_patient_created", ClinicalNote.patient_id, ClinicalNote.created_at.desc())
+Index("ix_clinical_notes_appointment", ClinicalNote.appointment_id)
+Index("ix_denture_cases_patient_status", DentureCase.patient_id, DentureCase.status)
+Index("ix_denture_cases_clinic_status", DentureCase.clinic_id, DentureCase.status)
+Index("ix_lab_cases_clinic_status", LabCase.clinic_id, LabCase.status)
+Index("ix_lab_cases_denture_case", LabCase.denture_case_id)
+Index("ix_treatment_plans_patient_status", TreatmentPlan.patient_id, TreatmentPlan.status)
+Index("ix_documents_patient_kind", Document.patient_id, Document.kind)
+Index("ix_patient_insurance_patient_primary", PatientInsurance.patient_id, PatientInsurance.is_primary)
