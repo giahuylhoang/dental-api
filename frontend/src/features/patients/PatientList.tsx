@@ -1,8 +1,23 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { type ColumnDef } from '@tanstack/react-table';
 import { fetcher } from '../../api/client';
 import { PatientSearchInput } from './PatientSearchInput';
+import { PageHeader } from '../../components/ui/page-header';
+import { Button } from '../../components/ui/button';
+import { Badge } from '../../components/ui/badge';
+import { Card, CardContent } from '../../components/ui/card';
+import { DataTable } from '../../components/ui/data-table';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../../components/ui/dropdown-menu';
+import QuickBookPopover from './QuickBookPopover';
 import type { Patient as SearchPatient } from './usePatient';
 
 interface Patient {
@@ -22,86 +37,154 @@ interface PatientsPage {
   limit: number;
 }
 
+function initials(p: Patient) {
+  return `${(p.first_name ?? '?').charAt(0)}${(p.last_name ?? '?').charAt(0)}`.toUpperCase();
+}
+
 export default function PatientList() {
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState<string>('active');
+  const [newPatientOpen, setNewPatientOpen] = useState(false);
   const limit = 20;
 
   const { data, isLoading } = useQuery<PatientsPage>({
     queryKey: ['patients', page],
-    queryFn: async () => {
-      const arr = await fetcher<Patient[]>(`/api/patients`);
-      const start = (page - 1) * limit;
-      return { items: arr.slice(start, start + limit), total: arr.length, page, limit };
-    },
+    queryFn: () => fetcher<PatientsPage>(`/api/patients?page=${page}&limit=${limit}`),
   });
+
+  const activeCount = data?.items.filter((p) => (p.status ?? 'active') === 'active').length ?? 0;
+
+  const filtered = (data?.items ?? []).filter((p) => {
+    if (statusFilter === 'all') return true;
+    return (p.status ?? 'active') === statusFilter;
+  });
+
+  const columns: ColumnDef<Patient>[] = [
+    {
+      accessorKey: 'name',
+      header: 'Name',
+      cell: ({ row }) => {
+        const p = row.original;
+        return (
+          <span className="inline-flex items-center gap-2">
+            <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-blue-500 text-xs font-medium text-white">
+              {initials(p)}
+            </span>
+            <span className="font-medium">{p.first_name} {p.last_name}</span>
+          </span>
+        );
+      },
+    },
+    {
+      accessorKey: 'phone',
+      header: 'Phone',
+      cell: ({ row }) => row.original.phone ?? '—',
+    },
+    {
+      accessorKey: 'date_of_birth',
+      header: 'DOB',
+      cell: ({ row }) => row.original.date_of_birth ?? '—',
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ row }) => {
+        const s = row.original.status ?? 'active';
+        return (
+          <Badge variant={s === 'active' ? 'default' : 'secondary'}>
+            {s}
+          </Badge>
+        );
+      },
+    },
+    {
+      id: 'actions',
+      header: '',
+      cell: ({ row }) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" onClick={(e) => e.stopPropagation()}>⋯</Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => navigate(`/patients/${row.original.id}`)}>View</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate(`/patients/${row.original.id}`)}>Edit</DropdownMenuItem>
+            <DropdownMenuItem>Archive</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ),
+    },
+  ];
+
+  const totalPages = Math.ceil((data?.total ?? 0) / limit);
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Patients</h2>
-      </div>
-      <div className="mb-4 max-w-sm">
-        <PatientSearchInput
-          onSelect={(p: SearchPatient) => navigate(`/patients/${p.id}`)}
-          placeholder="Search by name, phone, or email…"
-        />
-      </div>
+      <PageHeader
+        title="Patients"
+        description={`${activeCount} active`}
+        actions={
+          <Button onClick={() => setNewPatientOpen(true)}>+ New patient</Button>
+        }
+      />
+
+      <Card className="mb-4">
+        <CardContent className="flex flex-wrap items-center gap-3 pt-4">
+          <div className="flex-1 min-w-48">
+            <PatientSearchInput
+              onSelect={(p: SearchPatient) => navigate(`/patients/${p.id}`)}
+              placeholder="Search by name, phone, or email…"
+            />
+          </div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-36">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="inactive">Inactive</SelectItem>
+              <SelectItem value="all">All</SelectItem>
+            </SelectContent>
+          </Select>
+        </CardContent>
+      </Card>
+
       {isLoading ? (
         <p className="text-sm text-zinc-500">Loading…</p>
+      ) : filtered.length === 0 ? (
+        <p className="py-12 text-center text-sm text-zinc-500">No patients found.</p>
       ) : (
         <>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-zinc-200 text-left text-zinc-500">
-                <th className="pb-2 pr-4 font-medium">Name</th>
-                <th className="pb-2 pr-4 font-medium">Phone</th>
-                <th className="pb-2 pr-4 font-medium">Email</th>
-                <th className="pb-2 font-medium">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data?.items.map((p) => (
-                <tr key={p.id} className="border-b border-zinc-100 hover:bg-zinc-50">
-                  <td className="py-2 pr-4">
-                    <Link to={`/patients/${p.id}`} className="font-medium text-zinc-900 hover:underline">
-                      {p.first_name} {p.last_name}
-                    </Link>
-                  </td>
-                  <td className="py-2 pr-4 text-zinc-600">{p.phone ?? '—'}</td>
-                  <td className="py-2 pr-4 text-zinc-600">{p.email ?? '—'}</td>
-                  <td className="py-2">
-                    <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-                      active
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {data && data.total > limit && (
-            <div className="mt-4 flex gap-2 text-sm">
-              <button
-                disabled={page === 1}
-                onClick={() => setPage((p) => p - 1)}
-                className="rounded border px-3 py-1 disabled:opacity-40"
-              >
+          <DataTable
+            columns={columns}
+            data={filtered}
+            onRowClick={(p) => navigate(`/patients/${p.id}`)}
+          />
+          {totalPages > 1 && (
+            <div className="mt-4 flex items-center gap-2 text-sm">
+              <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage((p) => p - 1)}>
                 Prev
-              </button>
-              <span className="py-1 text-zinc-500">
-                Page {page} of {Math.ceil(data.total / limit)}
-              </span>
-              <button
-                disabled={page >= Math.ceil(data.total / limit)}
-                onClick={() => setPage((p) => p + 1)}
-                className="rounded border px-3 py-1 disabled:opacity-40"
-              >
+              </Button>
+              <span className="text-zinc-500">Page {page} of {totalPages}</span>
+              <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
                 Next
-              </button>
+              </Button>
             </div>
           )}
         </>
       )}
+
+      <Dialog open={newPatientOpen} onOpenChange={setNewPatientOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>New patient</DialogTitle>
+          </DialogHeader>
+          <QuickBookPopover
+            onCreated={() => setNewPatientOpen(false)}
+            onClose={() => setNewPatientOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

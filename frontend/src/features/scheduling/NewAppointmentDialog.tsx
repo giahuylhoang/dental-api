@@ -5,6 +5,23 @@ import { useAuthStore } from '../auth/store';
 import QuickBookPopover from '../patients/QuickBookPopover';
 import { PatientSearchInput } from '../patients/PatientSearchInput';
 import type { Patient } from '../patients/usePatient';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/components/ui/select';
 
 interface Doctor {
   id: number;
@@ -26,7 +43,6 @@ interface Props {
 
 function toDatetimeLocal(iso: string): string {
   if (!iso) return '';
-  // Convert ISO string to datetime-local format (YYYY-MM-DDTHH:mm)
   return iso.slice(0, 16);
 }
 
@@ -81,85 +97,90 @@ export default function NewAppointmentDialog({ open, start, end, onClose, onCrea
     });
   }
 
-  if (!open) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-[28rem] rounded-lg bg-white p-6 shadow-xl">
-        <h3 className="mb-4 font-semibold">New Appointment</h3>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="sm:max-w-[28rem]">
+        <DialogHeader>
+          <DialogTitle>New Appointment</DialogTitle>
+        </DialogHeader>
+
         <form onSubmit={handleSubmit} className="space-y-3 text-sm">
-          {/* Patient combobox */}
+          {/* Patient */}
           <div>
-            <label className="block text-zinc-600">Patient</label>
+            <label className="block text-zinc-600 mb-1">Patient</label>
             {selectedPatient ? (
-              <div className="mt-1 flex items-center gap-2">
-                <span className="flex-1 rounded border px-2 py-1 bg-zinc-50">
+              <div className="flex items-center gap-2">
+                <span className="flex-1 rounded border px-2 py-1 bg-zinc-50 text-sm">
                   {selectedPatient.first_name} {selectedPatient.last_name}
                 </span>
-                <button
+                <Button
                   type="button"
-                  className="text-xs text-zinc-500 hover:text-zinc-800"
+                  variant="ghost"
+                  size="sm"
                   onClick={() => setSelectedPatient(null)}
                 >
                   ✕
-                </button>
+                </Button>
               </div>
             ) : (
-              <div className="mt-1">
+              <div>
                 <PatientSearchInput
                   onSelect={(p) => setSelectedPatient(p)}
                   placeholder="Search patient…"
                 />
-                <button
+                <Button
                   type="button"
-                  className="mt-1 text-xs text-blue-600 hover:underline"
+                  variant="ghost"
+                  size="sm"
+                  className="mt-1 text-xs text-blue-600 hover:underline p-0 h-auto"
                   onClick={() => setShowQuickBook(true)}
                 >
                   + Create new patient
-                </button>
+                </Button>
               </div>
             )}
           </div>
 
           {/* Provider */}
           <div>
-            <label className="block text-zinc-600">Provider</label>
-            <select
-              required
-              className="mt-1 w-full rounded border px-2 py-1"
-              value={doctorId}
-              onChange={(e) => setDoctorId(e.target.value)}
-            >
-              <option value="">Select provider…</option>
-              {doctors.map((d) => (
-                <option key={d.id} value={d.id}>{d.name}</option>
-              ))}
-            </select>
+            <label className="block text-zinc-600 mb-1">Provider</label>
+            <Select required value={doctorId} onValueChange={setDoctorId}>
+              <SelectTrigger data-testid="provider-select">
+                <SelectValue placeholder="Select provider…" />
+              </SelectTrigger>
+              <SelectContent>
+                {doctors.map((d) => (
+                  <SelectItem key={d.id} value={String(d.id)}>
+                    {d.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Service */}
           <div>
-            <label className="block text-zinc-600">Service</label>
-            <select
-              required
-              className="mt-1 w-full rounded border px-2 py-1"
-              value={serviceId}
-              onChange={(e) => setServiceId(e.target.value)}
-            >
-              <option value="">Select service…</option>
-              {services.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
+            <label className="block text-zinc-600 mb-1">Service</label>
+            <Select required value={serviceId} onValueChange={setServiceId}>
+              <SelectTrigger data-testid="service-select">
+                <SelectValue placeholder="Select service…" />
+              </SelectTrigger>
+              <SelectContent>
+                {services.map((s) => (
+                  <SelectItem key={s.id} value={String(s.id)}>
+                    {s.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Start */}
           <div>
-            <label className="block text-zinc-600">Start</label>
-            <input
+            <label className="block text-zinc-600 mb-1">Start</label>
+            <Input
               required
               type="datetime-local"
-              className="mt-1 w-full rounded border px-2 py-1"
               value={startVal}
               onChange={(e) => setStartVal(e.target.value)}
             />
@@ -167,11 +188,10 @@ export default function NewAppointmentDialog({ open, start, end, onClose, onCrea
 
           {/* End */}
           <div>
-            <label className="block text-zinc-600">End</label>
-            <input
+            <label className="block text-zinc-600 mb-1">End</label>
+            <Input
               required
               type="datetime-local"
-              className="mt-1 w-full rounded border px-2 py-1"
               value={endVal}
               onChange={(e) => setEndVal(e.target.value)}
             />
@@ -179,9 +199,11 @@ export default function NewAppointmentDialog({ open, start, end, onClose, onCrea
 
           {/* Chief complaint */}
           <div>
-            <label className="block text-zinc-600">Pain points / Chief complaint</label>
-            <textarea
-              className="mt-1 w-full rounded border px-2 py-1"
+            <label className="block text-zinc-600 mb-1" htmlFor="chief-complaint">
+              Pain points / Chief complaint
+            </label>
+            <Textarea
+              id="chief-complaint"
               rows={2}
               value={chiefComplaint}
               onChange={(e) => setChiefComplaint(e.target.value)}
@@ -191,9 +213,8 @@ export default function NewAppointmentDialog({ open, start, end, onClose, onCrea
 
           {/* Notes */}
           <div>
-            <label className="block text-zinc-600">Notes</label>
-            <textarea
-              className="mt-1 w-full rounded border px-2 py-1"
+            <label className="block text-zinc-600 mb-1">Notes</label>
+            <Textarea
               rows={2}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
@@ -204,18 +225,14 @@ export default function NewAppointmentDialog({ open, start, end, onClose, onCrea
             <p className="text-xs text-red-600">{(create.error as Error).message}</p>
           )}
 
-          <div className="flex justify-end gap-2 pt-2">
-            <button type="button" className="rounded px-3 py-1 hover:bg-zinc-100" onClick={onClose}>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={onClose}>
               Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={create.isPending || !selectedPatient}
-              className="rounded bg-blue-600 px-3 py-1 text-white hover:bg-blue-700 disabled:opacity-50"
-            >
+            </Button>
+            <Button type="submit" disabled={create.isPending || !selectedPatient}>
               {create.isPending ? 'Saving…' : 'Create'}
-            </button>
-          </div>
+            </Button>
+          </DialogFooter>
         </form>
 
         {showQuickBook && (
@@ -227,7 +244,7 @@ export default function NewAppointmentDialog({ open, start, end, onClose, onCrea
             onClose={() => setShowQuickBook(false)}
           />
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -1,4 +1,5 @@
 @import '../design_system/dental-pms.v1/tokens.css';
+@import './design_system/tokens-hsl.css';
 
 @tailwind base;
 @tailwind components;

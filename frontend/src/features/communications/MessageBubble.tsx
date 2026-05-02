@@ -7,13 +7,15 @@ interface Props {
   onReply?: (msg: Message) => void;
 }
 
-export function MessageBubble({ message: m, onReply }: Props) {
+export function MessageBubble({ message: m }: Props) {
   const isOut = m.direction === 'outbound';
   return (
     <li className={`flex ${isOut ? 'justify-end' : 'justify-start'}`}>
       <div
-        className={`max-w-xs rounded-lg px-3 py-2 text-sm ${
-          isOut ? 'bg-zinc-900 text-white' : 'bg-zinc-200 text-zinc-800'
+        className={`max-w-xs px-3 py-2 text-sm ${
+          isOut
+            ? 'rounded-2xl rounded-br-sm bg-primary text-primary-foreground'
+            : 'rounded-2xl rounded-bl-sm bg-muted text-foreground'
         }`}
       >
         <div>{m.body}</div>
@@ -21,14 +23,6 @@ export function MessageBubble({ message: m, onReply }: Props) {
           {CHANNEL_ICONS[m.channel]} {new Date(m.created_at).toLocaleTimeString('en-CA')}
           {m.status && ` · ${m.status}`}
         </div>
-        {!isOut && onReply && (
-          <button
-            className="mt-1 text-xs underline opacity-70 hover:opacity-100"
-            onClick={() => onReply(m)}
-          >
-            Reply
-          </button>
-        )}
       </div>
     </li>
   );

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Phone, Mail } from 'lucide-react';
 import { fetcher } from '../../api/client';
 import { useAuthStore } from '../auth/store';
 import { useNavigate } from 'react-router-dom';
@@ -8,6 +9,14 @@ import LeadDrawer from './LeadDrawer';
 import { Skeleton } from '../../components/ui/skeleton';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
+import { Card, CardHeader, CardContent, CardFooter } from '../../components/ui/card';
+import { PageHeader } from '../../components/ui/page-header';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '../../components/ui/dropdown-menu';
 
 type LeadStatus = 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'CONVERTED' | 'LOST';
 
@@ -19,12 +28,21 @@ interface Lead {
   phone: string | null;
   status: LeadStatus;
   source: string | null;
+  notes: string | null;
   clinic_id: string;
 }
 
 const COLUMNS: LeadStatus[] = ['NEW', 'CONTACTED', 'QUALIFIED', 'CONVERTED', 'LOST'];
 
 const COL_COLORS: Record<LeadStatus, string> = {
+  NEW: 'bg-zinc-400',
+  CONTACTED: 'bg-blue-400',
+  QUALIFIED: 'bg-yellow-400',
+  CONVERTED: 'bg-green-400',
+  LOST: 'bg-red-400',
+};
+
+const COL_BG: Record<LeadStatus, string> = {
   NEW: 'bg-zinc-50',
   CONTACTED: 'bg-blue-50',
   QUALIFIED: 'bg-yellow-50',
@@ -32,36 +50,15 @@ const COL_COLORS: Record<LeadStatus, string> = {
   LOST: 'bg-red-50',
 };
 
-const SOURCE_ICONS: Record<string, string> = {
-  phone: '📞',
-  web: '🌐',
-  referral: '👥',
-  'walk-in': '🚶',
-};
-
-function sourcePill(source: string | null) {
-  if (!source) return null;
-  const icon = SOURCE_ICONS[source] ?? '❓';
-  return (
-    <Badge variant="secondary" className="mt-1">
-      {icon} {source}
-    </Badge>
-  );
-}
-
 function SkeletonColumn() {
   return (
-    <div className="flex w-56 shrink-0 flex-col rounded-lg border border-zinc-200 bg-zinc-50">
+    <div className="flex w-64 shrink-0 flex-col rounded-lg border border-zinc-200 bg-zinc-50">
       <div className="border-b border-zinc-200 px-3 py-2">
         <Skeleton className="h-3 w-20" />
       </div>
       <div className="flex flex-1 flex-col gap-2 p-2">
         {[0, 1].map((i) => (
-          <Skeleton
-            key={i}
-            data-testid="lead-skeleton"
-            className="h-16"
-          />
+          <Skeleton key={i} data-testid="lead-skeleton" className="h-24" />
         ))}
       </div>
     </div>
@@ -113,12 +110,18 @@ export default function LeadKanban() {
     },
   });
 
+  const activeCount = leads.filter(
+    (l) => l.status !== 'CONVERTED' && l.status !== 'LOST',
+  ).length;
+
   if (isLoading) {
     return (
       <>
-        <div className="mb-3 flex justify-end">
-          <Button size="sm">+ New Lead</Button>
-        </div>
+        <PageHeader
+          title="CRM"
+          description="Loading…"
+          actions={<Button>+ New lead</Button>}
+        />
         <div className="flex gap-3 overflow-x-auto pb-4">
           {COLUMNS.map((col) => <SkeletonColumn key={col} />)}
         </div>
@@ -128,69 +131,133 @@ export default function LeadKanban() {
 
   return (
     <>
-      <div className="mb-3 flex justify-end">
-        <Button size="sm" onClick={() => setCreateOpen(true)}>
-          + New Lead
-        </Button>
-      </div>
+      <PageHeader
+        title="CRM"
+        description={`${activeCount} active leads`}
+        actions={
+          <Button onClick={() => setCreateOpen(true)}>+ New lead</Button>
+        }
+      />
       <div className="flex gap-3 overflow-x-auto pb-4">
-      {COLUMNS.map((col) => {
-        const colLeads = leads.filter((l) => l.status === col);
-        return (
-          <div
-            key={col}
-            className={`flex w-56 shrink-0 flex-col rounded-lg border border-zinc-200 ${COL_COLORS[col]}`}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => {
-              e.preventDefault();
-              if (dragging) updateStatus.mutate({ id: dragging, status: col });
-              setDragging(null);
-            }}
-          >
-            <div className="border-b border-zinc-200 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-600">
-              {col} ({colLeads.length})
-            </div>
-            <div className="flex flex-1 flex-col gap-2 p-2">
-              {colLeads.map((lead) => (
-                <div
-                  key={lead.id}
-                  draggable
-                  onDragStart={() => setDragging(lead.id)}
-                  onDragEnd={() => setDragging(null)}
-                  onClick={() => setDrawerLeadId(lead.id)}
-                  className="cursor-pointer rounded bg-white p-3 shadow-sm"
-                >
-                  <div className="text-sm font-medium">
-                    {lead.first_name} {lead.last_name}
+        {COLUMNS.map((col) => {
+          const colLeads = leads.filter((l) => l.status === col);
+          return (
+            <div
+              key={col}
+              className={`flex w-64 shrink-0 flex-col rounded-lg border border-zinc-200 ${COL_BG[col]}`}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (dragging) updateStatus.mutate({ id: dragging, status: col });
+                setDragging(null);
+              }}
+            >
+              {/* Sticky column header */}
+              <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-zinc-200 bg-inherit px-3 py-2">
+                <span
+                  className={`inline-block h-2.5 w-2.5 rounded-full ${COL_COLORS[col]}`}
+                  aria-hidden="true"
+                />
+                <span className="text-xs font-semibold uppercase tracking-wide text-zinc-600">
+                  {col} ({colLeads.length})
+                </span>
+              </div>
+
+              <div className="flex flex-1 flex-col gap-2 p-2">
+                {colLeads.length === 0 && (
+                  <div className="py-6 text-center text-xs text-zinc-400">
+                    Drop leads here
                   </div>
-                  {lead.phone && (
-                    <div className="text-xs text-zinc-500">{lead.phone}</div>
-                  )}
-                  {sourcePill(lead.source)}
-                  {col !== 'CONVERTED' && col !== 'LOST' && (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      className="mt-2 w-full text-xs"
-                      onClick={(e) => { e.stopPropagation(); convert.mutate(lead.id); }}
-                      disabled={convert.isPending}
-                    >
-                      Convert →
-                    </Button>
-                  )}
-                </div>
-              ))}
-              {colLeads.length === 0 && (
-                <div className="py-4 text-center text-xs text-zinc-400">Empty</div>
-              )}
+                )}
+                {colLeads.map((lead) => (
+                  <Card
+                    key={lead.id}
+                    draggable
+                    onDragStart={() => setDragging(lead.id)}
+                    onDragEnd={() => setDragging(null)}
+                    className="cursor-pointer"
+                    onClick={() => setDrawerLeadId(lead.id)}
+                  >
+                    <CardHeader className="p-3 pb-1">
+                      <div className="flex items-start justify-between gap-1">
+                        <span className="text-sm font-medium">
+                          {lead.first_name} {lead.last_name}
+                        </span>
+                        {lead.source && (
+                          <Badge variant="secondary" className="shrink-0 text-xs">
+                            {lead.source}
+                          </Badge>
+                        )}
+                      </div>
+                    </CardHeader>
+                    <CardContent className="px-3 pb-1 pt-0">
+                      {lead.phone && (
+                        <div className="flex items-center gap-1 text-xs text-zinc-500">
+                          <Phone className="h-3 w-3" />
+                          {lead.phone}
+                        </div>
+                      )}
+                      {lead.email && (
+                        <div className="flex items-center gap-1 text-xs text-zinc-500">
+                          <Mail className="h-3 w-3" />
+                          {lead.email}
+                        </div>
+                      )}
+                      {lead.notes && (
+                        <p className="mt-1 line-clamp-2 text-xs text-zinc-500">
+                          {lead.notes}
+                        </p>
+                      )}
+                    </CardContent>
+                    <CardFooter className="px-3 pb-2 pt-1">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 w-full text-xs"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            Actions ▾
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent onClick={(e) => e.stopPropagation()}>
+                          <DropdownMenuItem
+                            onSelect={() => convert.mutate(lead.id)}
+                            disabled={convert.isPending}
+                          >
+                            Convert
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onSelect={() => setDrawerLeadId(lead.id)}>
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onSelect={() => setDrawerLeadId(lead.id)}>
+                            Add activity
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onSelect={() =>
+                              updateStatus.mutate({ id: lead.id, status: 'LOST' })
+                            }
+                          >
+                            Archive
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </CardFooter>
+                  </Card>
+                ))}
+              </div>
             </div>
-          </div>
-        );
-      })}
-    </div>
+          );
+        })}
+      </div>
       <LeadCreateDialog open={createOpen} onClose={() => setCreateOpen(false)} />
       {drawerLeadId && (
-        <LeadDrawer open={!!drawerLeadId} onClose={() => setDrawerLeadId(null)} leadId={drawerLeadId} />
+        <LeadDrawer
+          open={!!drawerLeadId}
+          onClose={() => setDrawerLeadId(null)}
+          leadId={drawerLeadId}
+        />
       )}
     </>
   );

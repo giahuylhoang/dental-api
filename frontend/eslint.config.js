@@ -22,4 +22,17 @@ export default defineConfig([
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
     },
   },
+  {
+    // Flag ad-hoc card classes in feature files — use <Card> from ui instead
+    files: ['src/features/**/*.tsx'],
+    rules: {
+      'no-restricted-syntax': [
+        'warn',
+        {
+          selector: 'Literal[value=/rounded-(?:lg|md)\\s+border\\s+(?:border-zinc-\\d+\\s+)?bg-white/]',
+          message: 'Use <Card> from @/components/ui instead of ad-hoc card classes.',
+        },
+      ],
+    },
+  },
 ])

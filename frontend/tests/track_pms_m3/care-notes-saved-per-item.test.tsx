@@ -19,6 +19,15 @@ describe('care notes saved per item', () => {
     // tp1 has 1 existing item (from treatmentPlansDb seed)
     render(<TreatmentPlanEditor patientId="p1" planId="tp1" />, { wrapper });
 
+    // E4 moved care notes into the "Care Notes" tab — open it first
+    await waitFor(() => expect(screen.getByRole('tab', { name: /care notes/i })).toBeInTheDocument());
+    {
+      const t = screen.getByRole('tab', { name: /care notes/i });
+      fireEvent.pointerDown(t, { pointerType: 'mouse', button: 0 });
+      fireEvent.mouseDown(t);
+      fireEvent.click(t);
+    }
+
     // Wait for the plan to load and care_notes textarea to appear
     await waitFor(() => {
       const textareas = screen.getAllByRole('textbox', { name: /care notes/i });

@@ -3,7 +3,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { pdf } from '@react-pdf/renderer';
 import { fetcher } from '../../api/client';
 import { useAuthStore } from '../auth/store';
-import Drawer from '../../components/Drawer';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '../../components/ui/sheet';
+import { Badge } from '../../components/ui/badge';
+import { Button } from '../../components/ui/button';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../components/ui/tabs';
 import FormField from '../../components/forms/FormField';
 import SubmitClaimForm from './SubmitClaimForm';
 import ClaimDrawer from './ClaimDrawer';
@@ -58,21 +61,15 @@ interface Props {
   onChanged?: () => void;
 }
 
-const STATUS_COLORS: Record<Invoice['status'], string> = {
-  draft: 'bg-zinc-100 text-zinc-600',
-  issued: 'bg-blue-100 text-blue-700',
-  partial: 'bg-yellow-100 text-yellow-700',
-  paid: 'bg-green-100 text-green-700',
-  void: 'bg-red-100 text-red-600',
+const STATUS_BADGE_VARIANT: Record<Invoice['status'], 'default' | 'secondary' | 'destructive' | 'outline'> = {
+  draft: 'outline',
+  issued: 'default',
+  partial: 'secondary',
+  paid: 'default',
+  void: 'destructive',
 };
 
-function RecordPaymentForm({
-  invoiceId,
-  onClose,
-}: {
-  invoiceId: string;
-  onClose: () => void;
-}) {
+function RecordPaymentForm({ invoiceId, onClose }: { invoiceId: string; onClose: () => void }) {
   const qc = useQueryClient();
   const clinicId = useAuthStore((s) => s.clinicId);
   const [method, setMethod] = useState('cash');
@@ -130,19 +127,16 @@ function RecordPaymentForm({
         <p className="text-xs text-red-600">{(record.error as Error).message}</p>
       )}
       <div className="flex gap-2">
-        <button
+        <Button
+          size="sm"
           disabled={record.isPending || !amount}
           onClick={() => record.mutate()}
-          className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
         >
           {record.isPending ? 'Saving…' : 'Record'}
-        </button>
-        <button
-          onClick={onClose}
-          className="rounded border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50"
-        >
+        </Button>
+        <Button variant="outline" size="sm" onClick={onClose}>
           Cancel
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -199,186 +193,173 @@ export default function InvoiceDrawer({ invoiceId, invoice: invoiceProp, open = 
 
   return (
     <>
-      <Drawer
-        open={open}
-        onClose={onClose}
-        title={`Invoice ${resolvedId?.slice(0, 8) ?? ''}`}
-        width="lg"
-        footer={
-          invoice ? (
-            <div className="flex flex-wrap gap-2">
-              {invoice.status === 'draft' && (
-                <button
-                  disabled={issue.isPending}
-                  onClick={() => issue.mutate()}
-                  className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {issue.isPending ? 'Issuing…' : 'Issue'}
-                </button>
+      <Sheet open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+        <SheetContent side="right" className="w-[480px] sm:max-w-[480px] overflow-y-auto">
+          <SheetHeader className="mb-4">
+            <div className="flex items-center gap-3">
+              <SheetTitle className="font-mono text-sm">
+                {invoice?.invoice_number ?? resolvedId?.slice(0, 8) ?? ''}
+              </SheetTitle>
+              {invoice && (
+                <Badge variant={STATUS_BADGE_VARIANT[invoice.status]}>
+                  {invoice.status}
+                </Badge>
               )}
-              {(invoice.status === 'issued' || invoice.status === 'partial') && (
-                <button
-                  onClick={() => { setShowPayment(true); setShowClaim(false); }}
-                  className="rounded bg-green-600 px-3 py-1.5 text-sm text-white hover:bg-green-700"
-                >
-                  Record Payment
-                </button>
-              )}
-              {invoice.status !== 'void' && invoice.status !== 'paid' && (
-                <button
-                  disabled={voidInv.isPending}
-                  onClick={() => {
-                    if (confirm('Void this invoice?')) voidInv.mutate();
-                  }}
-                  className="rounded bg-red-500 px-3 py-1.5 text-sm text-white hover:bg-red-600 disabled:opacity-50"
-                >
-                  Void
-                </button>
-              )}
-              {invoice.status !== 'void' && (
-                <button
-                  onClick={() => { setShowClaim(true); setShowPayment(false); }}
-                  className="rounded border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50"
-                >
-                  Submit Claim
-                </button>
-              )}
-              <button
-                onClick={handleDownloadPdf}
-                className="rounded border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50"
-              >
-                Download PDF
-              </button>
             </div>
-          ) : undefined
-        }
-      >
-        {isLoading && <p className="text-sm text-zinc-500">Loading…</p>}
-        {invoice && (
-          <div className="space-y-5">
-            {/* Header */}
-            <div className="flex items-start justify-between">
-              <div className="space-y-0.5 text-sm">
-                <div className="text-zinc-500">Patient ID: {invoice.patient_id}</div>
-                <div className="text-zinc-500">
-                  Date: {new Date(invoice.created_at).toLocaleDateString('en-CA')}
-                </div>
-              </div>
-              <span className={`rounded px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[invoice.status]}`}>
-                {invoice.status}
-              </span>
-            </div>
-
-            {/* Totals */}
-            <div className="space-y-1 rounded bg-zinc-50 p-3 text-sm">
-              <div className="flex justify-between">
-                <span className="text-zinc-500">Subtotal</span>
-                <span>{fmt.format(invoice.subtotal)}</span>
-              </div>
-              {invoice.gst > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-zinc-500">GST</span>
-                  <span>{fmt.format(invoice.gst)}</span>
-                </div>
-              )}
-              <div className="flex justify-between font-semibold">
-                <span>Total</span>
-                <span>{fmt.format(invoice.total)}</span>
-              </div>
-              <div className="flex justify-between text-blue-700">
-                <span>Balance</span>
-                <span>{fmt.format(invoice.balance)}</span>
-              </div>
-            </div>
-
-            {/* Lines */}
-            {invoice.lines && invoice.lines.length > 0 && (
-              <div>
-                <h3 className="mb-2 text-xs font-semibold uppercase text-zinc-500">Lines</h3>
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-left text-zinc-500">
-                      <th className="pb-1">Description</th>
-                      <th className="pb-1 text-right">Qty</th>
-                      <th className="pb-1 text-right">Unit</th>
-                      <th className="pb-1 text-right">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {invoice.lines.map((line) => (
-                      <tr key={line.id} className="border-b border-zinc-100">
-                        <td className="py-1 pr-2">{line.description}</td>
-                        <td className="py-1 pr-2 text-right">{line.qty}</td>
-                        <td className="py-1 pr-2 text-right">
-                          ${(line.unit_price_cents / 100).toFixed(2)}
-                        </td>
-                        <td className="py-1 text-right">
-                          ${((line.qty * line.unit_price_cents) / 100).toFixed(2)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+            {invoice?.patient_name && (
+              <p className="text-sm text-zinc-500">{invoice.patient_name}</p>
             )}
+          </SheetHeader>
 
-            {/* Payments */}
-            {invoice.payments && invoice.payments.length > 0 && (
-              <div>
-                <h3 className="mb-2 text-xs font-semibold uppercase text-zinc-500">Payments</h3>
-                <ul className="space-y-1">
-                  {invoice.payments.map((p) => (
-                    <li key={p.id} className="flex justify-between rounded bg-zinc-50 px-2 py-1 text-sm">
-                      <span className="capitalize text-zinc-600">{p.method}{p.ref ? ` · ${p.ref}` : ''}</span>
-                      <span>{fmt.format(p.amount)}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+          {isLoading && <p className="text-sm text-zinc-500">Loading…</p>}
 
-            {/* Claims */}
-            {invoice.claims && invoice.claims.length > 0 && (
-              <div>
-                <h3 className="mb-2 text-xs font-semibold uppercase text-zinc-500">Claims</h3>
-                <ul className="space-y-1">
-                  {invoice.claims.map((c) => (
-                    <li key={c.id} className="flex items-center justify-between rounded bg-zinc-50 px-2 py-1 text-sm">
-                      <span>{c.carrier} · {c.kind} · <span className="text-zinc-500">{c.status}</span></span>
-                      <button
-                        className="text-xs text-blue-600 hover:underline"
-                        onClick={() => setOpenClaimId(c.id)}
+          {invoice && (
+            <Tabs defaultValue="detail">
+              <TabsList className="mb-4 w-full">
+                <TabsTrigger value="detail" className="flex-1">Detail</TabsTrigger>
+                <TabsTrigger value="lines" className="flex-1">Lines</TabsTrigger>
+                <TabsTrigger value="payments" className="flex-1">Payments</TabsTrigger>
+                <TabsTrigger value="claims" className="flex-1">Claims</TabsTrigger>
+                <TabsTrigger value="pdf" className="flex-1">PDF</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="detail">
+                <div className="space-y-4">
+                  <div className="space-y-1 rounded bg-zinc-50 p-3 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-zinc-500">Subtotal</span>
+                      <span>{fmt.format(invoice.subtotal)}</span>
+                    </div>
+                    {invoice.gst > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-zinc-500">GST</span>
+                        <span>{fmt.format(invoice.gst)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-semibold">
+                      <span>Total</span>
+                      <span>{fmt.format(invoice.total)}</span>
+                    </div>
+                    <div className="flex justify-between text-blue-700">
+                      <span>Balance</span>
+                      <span>{fmt.format(invoice.balance)}</span>
+                    </div>
+                  </div>
+                  <div className="text-xs text-zinc-500">
+                    Date: {new Date(invoice.created_at).toLocaleDateString('en-CA')}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {invoice.status === 'draft' && (
+                      <Button size="sm" disabled={issue.isPending} onClick={() => issue.mutate()}>
+                        {issue.isPending ? 'Issuing…' : 'Issue'}
+                      </Button>
+                    )}
+                    {(invoice.status === 'issued' || invoice.status === 'partial') && (
+                      <Button size="sm" variant="outline" onClick={() => { setShowPayment(true); setShowClaim(false); }}>
+                        Record Payment
+                      </Button>
+                    )}
+                    {invoice.status !== 'void' && invoice.status !== 'paid' && (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        disabled={voidInv.isPending}
+                        onClick={() => { if (confirm('Void this invoice?')) voidInv.mutate(); }}
                       >
-                        View
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+                        Void
+                      </Button>
+                    )}
+                    <Button size="sm" variant="outline" onClick={handleDownloadPdf}>
+                      Download PDF
+                    </Button>
+                  </div>
+                  {showPayment && (
+                    <RecordPaymentForm invoiceId={invoice.id} onClose={() => setShowPayment(false)} />
+                  )}
+                  {showClaim && (
+                    <SubmitClaimForm
+                      invoiceId={invoice.id}
+                      patientId={invoice.patient_id}
+                      onSuccess={(claimId) => { setShowClaim(false); setOpenClaimId(claimId); onChanged?.(); }}
+                      onCancel={() => setShowClaim(false)}
+                    />
+                  )}
+                </div>
+              </TabsContent>
 
-            {/* Inline forms */}
-            {showPayment && (
-              <RecordPaymentForm
-                invoiceId={invoice.id}
-                onClose={() => setShowPayment(false)}
-              />
-            )}
-            {showClaim && (
-              <SubmitClaimForm
-                invoiceId={invoice.id}
-                patientId={invoice.patient_id}
-                onSuccess={(claimId) => {
-                  setShowClaim(false);
-                  setOpenClaimId(claimId);
-                  onChanged?.();
-                }}
-                onCancel={() => setShowClaim(false)}
-              />
-            )}
-          </div>
-        )}
-      </Drawer>
+              <TabsContent value="lines">
+                {invoice.lines && invoice.lines.length > 0 ? (
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-left text-zinc-500">
+                        <th className="pb-1">Description</th>
+                        <th className="pb-1 text-right">Qty</th>
+                        <th className="pb-1 text-right">Unit</th>
+                        <th className="pb-1 text-right">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {invoice.lines.map((line) => (
+                        <tr key={line.id} className="border-b border-zinc-100">
+                          <td className="py-1 pr-2">{line.description}</td>
+                          <td className="py-1 pr-2 text-right">{line.qty}</td>
+                          <td className="py-1 pr-2 text-right">${(line.unit_price_cents / 100).toFixed(2)}</td>
+                          <td className="py-1 text-right">${((line.qty * line.unit_price_cents) / 100).toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <p className="text-sm text-zinc-400">No line items.</p>
+                )}
+              </TabsContent>
+
+              <TabsContent value="payments">
+                {invoice.payments && invoice.payments.length > 0 ? (
+                  <ul className="space-y-1">
+                    {invoice.payments.map((p) => (
+                      <li key={p.id} className="flex justify-between rounded bg-zinc-50 px-2 py-1 text-sm">
+                        <span className="capitalize text-zinc-600">{p.method}{p.ref ? ` · ${p.ref}` : ''}</span>
+                        <span>{fmt.format(p.amount)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-zinc-400">No payments recorded.</p>
+                )}
+              </TabsContent>
+
+              <TabsContent value="claims">
+                <div className="space-y-2">
+                  {invoice.claims && invoice.claims.length > 0 ? (
+                    <ul className="space-y-1">
+                      {invoice.claims.map((c) => (
+                        <li key={c.id} className="flex items-center justify-between rounded bg-zinc-50 px-2 py-1 text-sm">
+                          <span>{c.carrier} · {c.kind} · <span className="text-zinc-500">{c.status}</span></span>
+                          <Button variant="ghost" size="sm" onClick={() => setOpenClaimId(c.id)}>View</Button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-zinc-400">No claims.</p>
+                  )}
+                  {invoice.status !== 'void' && (
+                    <Button size="sm" variant="outline" onClick={() => { setShowClaim(true); setShowPayment(false); }}>
+                      Submit Claim
+                    </Button>
+                  )}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="pdf">
+                <Button size="sm" variant="outline" onClick={handleDownloadPdf}>
+                  Download PDF
+                </Button>
+              </TabsContent>
+            </Tabs>
+          )}
+        </SheetContent>
+      </Sheet>
 
       <ClaimDrawer
         claimId={openClaimId}

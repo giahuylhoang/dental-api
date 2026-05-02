@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../src/mocks/server';
@@ -36,16 +36,16 @@ describe('ComposeDialog channel resolves recipient', () => {
     // Default channel is SMS → to = phone
     await waitFor(() => expect(screen.getByDisplayValue('+15551234567')).toBeInTheDocument());
 
-    // Scope to compose dialog to avoid ambiguity with filter chips
-    const dialog = screen.getByRole('heading', { name: /new message/i }).closest('div.w-96')!;
-    const compose = within(dialog);
-
     // Switch to Email → to = email
-    fireEvent.click(compose.getByRole('button', { name: /^email$/i }));
+    const emailTab = screen.getByRole('tab', { name: /^email$/i });
+    emailTab.focus();
+    fireEvent.keyDown(emailTab, { key: 'Enter' });
     await waitFor(() => expect(screen.getByDisplayValue('a@x.com')).toBeInTheDocument());
 
     // Switch to WhatsApp → to = phone
-    fireEvent.click(compose.getByRole('button', { name: /^whatsapp$/i }));
+    const waTab = screen.getByRole('tab', { name: /^whatsapp$/i });
+    waTab.focus();
+    fireEvent.keyDown(waTab, { key: 'Enter' });
     await waitFor(() => expect(screen.getByDisplayValue('+15551234567')).toBeInTheDocument());
   });
 });

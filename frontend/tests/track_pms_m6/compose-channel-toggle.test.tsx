@@ -11,7 +11,7 @@ function wrapper({ children }: { children: React.ReactNode }) {
 }
 
 describe('ComposeDialog channel toggle', () => {
-  it('sends whatsapp channel when WhatsApp toggle is selected', async () => {
+  it('sends whatsapp channel when WhatsApp tab is selected', async () => {
     let captured: unknown;
 
     server.use(
@@ -40,12 +40,13 @@ describe('ComposeDialog channel toggle', () => {
     await waitFor(() => expect(screen.getByPlaceholderText(/search patient/i)).toBeInTheDocument());
     fireEvent.change(screen.getByPlaceholderText(/search patient/i), { target: { value: 'Alice' } });
     await waitFor(() => expect(screen.getByText('Alice Smith')).toBeInTheDocument());
-    // PatientSearchInput uses onMouseDown to preserve focus, not onClick
     fireEvent.mouseDown(screen.getByText('Alice Smith'));
 
-    // Click WhatsApp toggle
-    await waitFor(() => expect(screen.getByRole('button', { name: /whatsapp/i })).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: /whatsapp/i }));
+    // Activate WhatsApp tab via keyboard (Radix Tabs responds to Enter in jsdom)
+    await waitFor(() => expect(screen.getByRole('tab', { name: /whatsapp/i })).toBeInTheDocument());
+    const waTab = screen.getByRole('tab', { name: /whatsapp/i });
+    waTab.focus();
+    fireEvent.keyDown(waTab, { key: 'Enter' });
 
     // Type in the message body textarea
     const bodyTextarea = screen.getByRole('textbox', { name: /message body/i });

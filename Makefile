@@ -571,6 +571,112 @@ test-pms-d5:
 	$(V1_GATE)
 
 # ---------------------------------------------------------------------------
+# PMS Phase 5 — Real shadcn redesign per page (E0..E6)
+# Strict gates: count D1 imports, ban raw <button>, ad-hoc card classes,
+# inline hex colors. Each module's gate fails if the target page hasn't
+# actually been migrated.
+# ---------------------------------------------------------------------------
+
+.PHONY: pms-redesign-e0 pms-redesign-e1 pms-redesign-e2 pms-redesign-e3 pms-redesign-e4 pms-redesign-e5 pms-redesign-e6 pms-redesign-all
+pms-redesign-e0: ; $(call run_pms_loop,e0)
+pms-redesign-e1: ; $(call run_pms_loop,e1)
+pms-redesign-e2: ; $(call run_pms_loop,e2)
+pms-redesign-e3: ; $(call run_pms_loop,e3)
+pms-redesign-e4: ; $(call run_pms_loop,e4)
+pms-redesign-e5: ; $(call run_pms_loop,e5)
+pms-redesign-e6: ; $(call run_pms_loop,e6)
+pms-redesign-all: pms-redesign-e0 pms-redesign-e1 pms-redesign-e2 pms-redesign-e3 pms-redesign-e4 pms-redesign-e5 pms-redesign-e6
+
+# Helper: assert a file imports >= N components from @/components/ui (or relative path)
+define require_ui_imports
+	@n=$$(grep -cE "from '(\.\.\/)+components\/ui|from '@/components/ui'" $(1) 2>/dev/null || echo 0); \
+	  if [ $$n -lt $(2) ]; then echo "FAIL $(1) needs >=$(2) ui imports (found $$n)"; exit 1; fi
+endef
+
+# Helper: assert a file has zero of a banned pattern
+define forbid_pattern
+	@n=$$(grep -cE $(2) $(1) 2>/dev/null || echo 0); \
+	  if [ $$n -gt 0 ]; then echo "FAIL $(1) has banned pattern $(2) ($$n hits)"; exit 1; fi
+endef
+
+.PHONY: test-pms-e0
+test-pms-e0:
+	@for f in \
+	  frontend/src/components/ui/sheet.tsx \
+	  frontend/src/components/ui/separator.tsx \
+	  frontend/src/components/ui/scroll-area.tsx \
+	  frontend/src/components/ui/tooltip.tsx \
+	  frontend/src/components/ui/sonner.tsx \
+	  frontend/src/design_system/tokens-hsl.css \
+	  frontend/tests/track_pms_e0/foundation-primitives-exist.test.tsx ; do \
+	  [ -e $$f ] || { echo "E0 deliverable missing: $$f"; exit 1; }; \
+	done
+	cd frontend && npm run -s lint && npm run -s build && \
+	  npm run -s test:pms-e0
+	$(V1_GATE)
+
+.PHONY: test-pms-e1
+test-pms-e1:
+	@[ -e frontend/tests/track_pms_e1/scheduler-redesign.test.tsx ] || { echo "E1 test missing"; exit 1; }
+	$(call require_ui_imports,frontend/src/features/scheduling/Scheduler.tsx,3)
+	$(call require_ui_imports,frontend/src/features/scheduling/NewAppointmentDialog.tsx,3)
+	$(call require_ui_imports,frontend/src/features/scheduling/AppointmentDrawer.tsx,2)
+	$(call forbid_pattern,frontend/src/features/scheduling/Scheduler.tsx,'<button ')
+	$(call forbid_pattern,frontend/src/features/scheduling/Scheduler.tsx,'rounded.*border.*bg-white')
+	cd frontend && npm run -s lint && npm run -s build && \
+	  npm run -s test:pms-e1
+	$(V1_GATE)
+
+.PHONY: test-pms-e2
+test-pms-e2:
+	@[ -e frontend/tests/track_pms_e2/dashboard-redesign.test.tsx ] || { echo "E2 test missing"; exit 1; }
+	$(call require_ui_imports,frontend/src/features/reporting/Dashboard.tsx,4)
+	$(call forbid_pattern,frontend/src/features/reporting/Dashboard.tsx,'<button ')
+	$(call forbid_pattern,frontend/src/features/reporting/Dashboard.tsx,'rounded.*border.*bg-white')
+	cd frontend && npm run -s lint && npm run -s build && \
+	  npm run -s test:pms-e2
+	$(V1_GATE)
+
+.PHONY: test-pms-e3
+test-pms-e3:
+	@[ -e frontend/tests/track_pms_e3/patients-redesign.test.tsx ] || { echo "E3 test missing"; exit 1; }
+	$(call require_ui_imports,frontend/src/features/patients/PatientList.tsx,3)
+	$(call require_ui_imports,frontend/src/features/patients/Patient360.tsx,3)
+	$(call forbid_pattern,frontend/src/features/patients/PatientList.tsx,'<button ')
+	cd frontend && npm run -s lint && npm run -s build && \
+	  npm run -s test:pms-e3
+	$(V1_GATE)
+
+.PHONY: test-pms-e4
+test-pms-e4:
+	@[ -e frontend/tests/track_pms_e4/lab-tp-redesign.test.tsx ] || { echo "E4 test missing"; exit 1; }
+	$(call require_ui_imports,frontend/src/features/lab/LabCaseKanban.tsx,3)
+	$(call require_ui_imports,frontend/src/features/treatment-plans/TreatmentPlanEditor.tsx,3)
+	$(call forbid_pattern,frontend/src/features/lab/LabCaseKanban.tsx,'rounded.*border.*bg-white')
+	cd frontend && npm run -s lint && npm run -s build && \
+	  npm run -s test:pms-e4
+	$(V1_GATE)
+
+.PHONY: test-pms-e5
+test-pms-e5:
+	@[ -e frontend/tests/track_pms_e5/billing-comms-redesign.test.tsx ] || { echo "E5 test missing"; exit 1; }
+	$(call require_ui_imports,frontend/src/features/billing/InvoiceList.tsx,3)
+	$(call require_ui_imports,frontend/src/features/communications/CommInbox.tsx,2)
+	$(call forbid_pattern,frontend/src/features/billing/InvoiceList.tsx,'<button ')
+	cd frontend && npm run -s lint && npm run -s build && \
+	  npm run -s test:pms-e5
+	$(V1_GATE)
+
+.PHONY: test-pms-e6
+test-pms-e6:
+	@[ -e frontend/tests/track_pms_e6/crm-settings-redesign.test.tsx ] || { echo "E6 test missing"; exit 1; }
+	$(call require_ui_imports,frontend/src/features/crm/LeadKanban.tsx,3)
+	$(call require_ui_imports,frontend/src/features/settings/SettingsPage.tsx,3)
+	cd frontend && npm run -s lint && npm run -s build && \
+	  npm run -s test:pms-e6
+	$(V1_GATE)
+
+# ---------------------------------------------------------------------------
 # Convenience
 # ---------------------------------------------------------------------------
 

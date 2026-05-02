@@ -1,14 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import {
-  useReactTable,
-  getCoreRowModel,
-  getSortedRowModel,
-  flexRender,
-  createColumnHelper,
-  type SortingState,
-} from '@tanstack/react-table';
+import { type ColumnDef } from '@tanstack/react-table';
 import Fuse from 'fuse.js';
 import { fetcher } from '../../api/client';
 import { useAuthStore } from '../auth/store';
@@ -16,6 +9,9 @@ import InvoiceDrawer from './InvoiceDrawer';
 import { Input } from '../../components/ui/input';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
+import { Card } from '../../components/ui/card';
+import { PageHeader } from '../../components/ui/page-header';
+import { DataTable } from '../../components/ui/data-table';
 
 const fmt = new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' });
 
@@ -33,12 +29,6 @@ interface Invoice {
   created_at: string;
 }
 
-interface DentureCase {
-  id: string;
-  arch: string;
-  case_type: string;
-}
-
 const STATUS_BADGE_VARIANT: Record<Invoice['status'], 'default' | 'secondary' | 'destructive' | 'outline'> = {
   draft: 'outline',
   issued: 'default',
@@ -47,41 +37,38 @@ const STATUS_BADGE_VARIANT: Record<Invoice['status'], 'default' | 'secondary' | 
   void: 'destructive',
 };
 
-const col = createColumnHelper<Invoice>();
-
-const columns = [
-  col.accessor('invoice_number', {
+const columns: ColumnDef<Invoice>[] = [
+  {
+    accessorKey: 'invoice_number',
     header: 'Invoice #',
-    cell: (info) => info.getValue() ?? info.row.original.id.slice(0, 8),
-  }),
-  col.accessor(
-    (row) => row.patient_name ?? row.patient_id,
-    {
-      id: 'patient',
-      header: 'Patient',
-    },
-  ),
-  col.accessor('status', {
+    cell: ({ row }) => row.original.invoice_number ?? row.original.id.slice(0, 8),
+  },
+  {
+    id: 'patient',
+    header: 'Patient',
+    accessorFn: (row) => row.patient_name ?? row.patient_id,
+  },
+  {
+    accessorKey: 'status',
     header: 'Status',
-    cell: (info) => (
-      <Badge variant={STATUS_BADGE_VARIANT[info.getValue()]}>
-        {info.getValue()}
+    cell: ({ row }) => (
+      <Badge variant={STATUS_BADGE_VARIANT[row.original.status]}>
+        {row.original.status}
       </Badge>
     ),
-  }),
-  col.accessor((row) => (row.total_cents != null ? row.total_cents / 100 : row.total), {
+  },
+  {
     id: 'total',
     header: 'Total',
-    cell: (info) => <span className="text-right">{fmt.format(info.getValue())}</span>,
-  }),
-  col.accessor(
-    (row) => Math.floor((Date.now() - new Date(row.created_at).getTime()) / 86_400_000),
-    {
-      id: 'age',
-      header: 'Age',
-      cell: (info) => `${info.getValue()}d`,
-    },
-  ),
+    accessorFn: (row) => (row.total_cents != null ? row.total_cents / 100 : row.total),
+    cell: ({ getValue }) => fmt.format(getValue() as number),
+  },
+  {
+    id: 'age',
+    header: 'Age',
+    accessorFn: (row) => Math.floor((Date.now() - new Date(row.created_at).getTime()) / 86_400_000),
+    cell: ({ getValue }) => `${getValue()}d`,
+  },
 ];
 
 export default function InvoiceList({ patientId }: { patientId?: string }) {
@@ -93,7 +80,6 @@ export default function InvoiceList({ patientId }: { patientId?: string }) {
   const [statusFilter, setStatusFilter] = useState<string>(statusFromUrl);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
-  const [sorting, setSorting] = useState<SortingState>([]);
 
   const qs = new URLSearchParams();
   if (patientId) qs.set('patient_id', patientId);
@@ -124,163 +110,66 @@ export default function InvoiceList({ patientId }: { patientId?: string }) {
     ? fuse.search(debouncedQuery).map((r) => r.item)
     : invoices;
 
-  const { data: dentureCases = [] } = useQuery<DentureCase[]>({
-    queryKey: ['denture-cases', patientId],
-    queryFn: () => fetcher<DentureCase[]>(`/api/v2/clinical/patients/${patientId}/denture-cases`),
-    enabled: !!patientId,
-  });
-
-  const [showNewForm, setShowNewForm] = useState(false);
-  const [newPatientId, setNewPatientId] = useState(patientId ?? '');
-  const [newDentureCaseId, setNewDentureCaseId] = useState('');
+  const outstanding = invoices.filter((i) => i.status === 'issued' || i.status === 'partial');
+  const outstandingTotal = outstanding.reduce((sum, i) => sum + (i.total_cents != null ? i.total_cents / 100 : i.total), 0);
 
   const createInvoice = useMutation({
     mutationFn: () =>
       fetcher('/api/v2/billing/invoices', {
         method: 'POST',
-        body: JSON.stringify({
-          patient_id: newPatientId,
-          denture_case_id: newDentureCaseId || undefined,
-          lines: [],
-        }),
+        body: JSON.stringify({ patient_id: patientId ?? '', lines: [] }),
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['invoices', clinicId] });
-      setShowNewForm(false);
-      setNewDentureCaseId('');
     },
-  });
-
-  const table = useReactTable({
-    data: visibleInvoices,
-    columns,
-    state: { sorting },
-    onSortingChange: setSorting,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
   });
 
   if (isLoading) return <p className="text-sm text-zinc-500">Loading…</p>;
 
   return (
     <>
-      <div className="mb-3 flex items-center gap-3">
-        <Input
-          type="search"
-          placeholder="Search invoices…"
-          aria-label="Search invoices"
-          data-testid="invoice-search"
-          className="w-48"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-        />
-        <select
-          className="rounded border border-zinc-300 px-2 py-1 text-sm"
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-        >
-          <option value="">All statuses</option>
-          {(['draft', 'issued', 'partial', 'paid', 'void', 'overdue'] as const).map((s) => (
-            <option key={s} value={s}>{s}</option>
-          ))}
-        </select>
-        <Button
-          className="ml-auto"
-          size="sm"
-          onClick={() => setShowNewForm((v) => !v)}
-        >
-          + New Invoice
-        </Button>
-      </div>
+      <PageHeader
+        title="Billing"
+        description={`${fmt.format(outstandingTotal)} outstanding`}
+        actions={
+          <Button onClick={() => createInvoice.mutate()} disabled={createInvoice.isPending}>
+            + New invoice
+          </Button>
+        }
+      />
 
-      {showNewForm && (
-        <div className="mb-4 space-y-2 rounded border border-zinc-200 p-3 text-sm">
-          {!patientId && (
-            <div>
-              <label className="block text-zinc-600">Patient ID</label>
-              <input
-                className="mt-1 w-full rounded border px-2 py-1"
-                value={newPatientId}
-                onChange={(e) => setNewPatientId(e.target.value)}
-              />
-            </div>
-          )}
-          {dentureCases.length > 0 && (
-            <div>
-              <label className="block text-zinc-600">Denture Case (optional)</label>
-              <select
-                className="mt-1 w-full rounded border px-2 py-1"
-                value={newDentureCaseId}
-                onChange={(e) => setNewDentureCaseId(e.target.value)}
-              >
-                <option value="">None</option>
-                {dentureCases.map((dc) => (
-                  <option key={dc.id} value={dc.id}>
-                    {dc.arch} · {dc.case_type} ({dc.id.slice(0, 8)})
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              disabled={createInvoice.isPending || !newPatientId}
-              onClick={() => createInvoice.mutate()}
-            >
-              {createInvoice.isPending ? 'Creating…' : 'Create'}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowNewForm(false)}
-            >
-              Cancel
-            </Button>
-          </div>
+      <Card className="mb-4 p-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <Input
+            type="search"
+            placeholder="Search invoices…"
+            aria-label="Search invoices"
+            data-testid="invoice-search"
+            className="w-48"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          <select
+            className="rounded border border-zinc-300 px-2 py-1.5 text-sm"
+            value={statusFilter || 'all'}
+            onChange={(e) => setStatusFilter(e.target.value === 'all' ? '' : e.target.value)}
+          >
+            <option value="all">All statuses</option>
+            {(['draft', 'issued', 'partial', 'paid', 'void', 'overdue'] as const).map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+          <div className="ml-auto text-xs text-zinc-400">Date range placeholder</div>
         </div>
-      )}
+      </Card>
 
-      <table className="w-full text-sm">
-        <thead>
-          {table.getHeaderGroups().map((hg) => (
-            <tr key={hg.id} className="border-b text-left text-zinc-500">
-              {hg.headers.map((header) => (
-                <th
-                  key={header.id}
-                  className="pb-1 cursor-pointer select-none"
-                  onClick={header.column.getToggleSortingHandler()}
-                >
-                  {flexRender(header.column.columnDef.header, header.getContext())}
-                  {header.column.getIsSorted() === 'asc' ? ' ↑' : header.column.getIsSorted() === 'desc' ? ' ↓' : ''}
-                </th>
-              ))}
-            </tr>
-          ))}
-        </thead>
-        <tbody>
-          {table.getRowModel().rows.map((row) => (
-            <tr
-              key={row.id}
-              className="cursor-pointer border-b border-zinc-100 hover:bg-zinc-50"
-              onClick={() => setDrawerInvoiceId(row.original.id)}
-            >
-              {row.getVisibleCells().map((cell) => (
-                <td key={cell.id} className="py-1 pr-2">
-                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                </td>
-              ))}
-            </tr>
-          ))}
-          {table.getRowModel().rows.length === 0 && (
-            <tr>
-              <td colSpan={columns.length} className="py-4 text-center text-zinc-400">
-                No invoices
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+      <div data-testid="invoice-data-table">
+        <DataTable
+          columns={columns}
+          data={visibleInvoices}
+          onRowClick={(row) => setDrawerInvoiceId(row.id)}
+        />
+      </div>
 
       <InvoiceDrawer
         invoiceId={drawerInvoiceId}

@@ -38,11 +38,11 @@ describe('Reply prefills channel and to', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: /reply/i })).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: /reply/i }));
 
-    // Compose dialog should open with SMS selected and to prefilled
-    await waitFor(() => expect(screen.getByRole('button', { name: /whatsapp/i })).toBeInTheDocument());
+    // Compose dialog should open with SMS tab selected and to prefilled
+    await waitFor(() => expect(screen.getByRole('tab', { name: /whatsapp/i })).toBeInTheDocument());
 
-    const smsBtn = screen.getByRole('button', { name: /^sms$/i });
-    expect(smsBtn).toHaveAttribute('aria-pressed', 'true');
+    const smsTab = screen.getByRole('tab', { name: /^sms$/i });
+    expect(smsTab.getAttribute('aria-selected')).toBe('true');
 
     const toInput = screen.getByDisplayValue('+15550101010');
     expect(toInput).toBeInTheDocument();

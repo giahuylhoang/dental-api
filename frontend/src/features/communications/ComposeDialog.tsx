@@ -7,6 +7,7 @@ import { useAuthStore } from '../auth/store';
 import { PatientSearchInput } from '../patients/PatientSearchInput';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Button } from '../../components/ui/button';
+import { Tabs, TabsList, TabsTrigger } from '../../components/ui/tabs';
 
 type Channel = 'sms' | 'email' | 'whatsapp';
 
@@ -55,7 +56,6 @@ export function ComposeDialog({ initial, onClose }: Props) {
     },
   });
 
-  // Resolved patient_id: prefer selected patient, then initial
   const patientId = selectedPatient?.id || initialPatientId;
 
   const selectPatient = useCallback((p: Patient, ch: Channel) => {
@@ -100,25 +100,18 @@ export function ComposeDialog({ initial, onClose }: Props) {
             />
           </div>
 
-          {/* Channel segmented control */}
+          {/* Channel tabs */}
           <div>
             <label className="block text-zinc-600">Channel</label>
-            <div className="mt-1 flex overflow-hidden rounded border border-zinc-300">
-              {channels.map((ch) => (
-                <Button
-                  key={ch}
-                  type="button"
-                  variant={channel === ch ? 'default' : 'outline'}
-                  size="sm"
-                  aria-label={ch}
-                  aria-pressed={channel === ch}
-                  onClick={() => handleChannelChange(ch)}
-                  className="flex-1 rounded-none capitalize text-xs"
-                >
-                  {CHANNEL_ICONS[ch]} {ch}
-                </Button>
-              ))}
-            </div>
+            <Tabs value={channel} onValueChange={(v) => handleChannelChange(v as Channel)} className="mt-1">
+              <TabsList className="w-full">
+                {channels.map((ch) => (
+                  <TabsTrigger key={ch} value={ch} className="flex-1 capitalize text-xs" aria-label={ch}>
+                    {CHANNEL_ICONS[ch]} {ch}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
           </div>
 
           {/* To field */}
@@ -134,7 +127,6 @@ export function ComposeDialog({ initial, onClose }: Props) {
           {/* Body: hidden textarea (source of truth for tests) + Tiptap (rich text UI) */}
           <div>
             <label className="block text-zinc-600">Message</label>
-            {/* Hidden textarea keeps M6 test compatibility (inputs[2]) */}
             <textarea
               aria-label="message body"
               className="sr-only"

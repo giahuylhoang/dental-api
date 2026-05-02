@@ -1,4 +1,5 @@
 export * from './button';
+export * from './page-header';
 export * from './input';
 export * from './card';
 export * from './dialog';
@@ -12,3 +13,11 @@ export * from './toaster';
 export * from './use-toast';
 export * from './select';
 export * from './dropdown-menu';
+export * from './sheet';
+export * from './separator';
+export * from './scroll-area';
+export * from './tooltip';
+export { Toaster as SonnerToaster } from './sonner';
+export * from './data-table';
+export * from './textarea';
+export * from './switch';

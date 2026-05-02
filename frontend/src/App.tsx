@@ -15,42 +15,47 @@ import LeadKanban from './features/crm/LeadKanban';
 import Dashboard from './features/reporting/Dashboard';
 import TreatmentPlansPage from './features/treatment-plans/TreatmentPlansPage';
 import SettingsPage from './features/settings/SettingsPage';
+import { Toaster } from './components/ui/sonner';
+import { TooltipProvider } from './components/ui/tooltip';
 
 const queryClient = new QueryClient();
 
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          {import.meta.env.DEV && UIShowcase && (
-            <Route path="/dev/ui" element={<React.Suspense fallback={null}><UIShowcase /></React.Suspense>} />
-          )}
-          <Route
-            path="/*"
-            element={
-              <Authed>
-                <AppShell>
-                  <Routes>
-                    <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                    <Route path="/dashboard" element={<Dashboard />} />
-                    <Route path="/patients" element={<PatientList />} />
-                    <Route path="/patients/:id" element={<Patient360 />} />
-                    <Route path="/schedule" element={<Scheduler />} />
-                    <Route path="/lab" element={<LabCaseKanban />} />
-                    <Route path="/billing" element={<InvoiceList />} />
-                    <Route path="/communications" element={<CommInbox />} />
-                    <Route path="/crm" element={<LeadKanban />} />
-                    <Route path="/plans" element={<TreatmentPlansPage />} />
-                    <Route path="/settings" element={<SettingsPage />} />
-                  </Routes>
-                </AppShell>
-              </Authed>
-            }
-          />
-        </Routes>
-      </BrowserRouter>
+      <TooltipProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            {import.meta.env.DEV && UIShowcase && (
+              <Route path="/dev/ui" element={<React.Suspense fallback={null}><UIShowcase /></React.Suspense>} />
+            )}
+            <Route
+              path="/*"
+              element={
+                <Authed>
+                  <AppShell>
+                    <Routes>
+                      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                      <Route path="/dashboard" element={<Dashboard />} />
+                      <Route path="/patients" element={<PatientList />} />
+                      <Route path="/patients/:id" element={<Patient360 />} />
+                      <Route path="/schedule" element={<Scheduler />} />
+                      <Route path="/lab" element={<LabCaseKanban />} />
+                      <Route path="/billing" element={<InvoiceList />} />
+                      <Route path="/communications" element={<CommInbox />} />
+                      <Route path="/crm" element={<LeadKanban />} />
+                      <Route path="/plans" element={<TreatmentPlansPage />} />
+                      <Route path="/settings" element={<SettingsPage />} />
+                    </Routes>
+                  </AppShell>
+                </Authed>
+              }
+            />
+          </Routes>
+        </BrowserRouter>
+        <Toaster />
+      </TooltipProvider>
     </QueryClientProvider>
   );
 }

@@ -8,12 +8,41 @@ import {
   useSensors,
 } from '@dnd-kit/core';
 import { useDroppable, useDraggable } from '@dnd-kit/core';
+import { CalendarIcon, GripVertical } from 'lucide-react';
 import { fetcher } from '../../api/client';
 import LabCaseDrawer from './LabCaseDrawer';
+import LabCaseCreateForm from './LabCaseCreateForm';
 import { PatientChip } from '../patients/PatientChip';
+import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu';
+import { PageHeader } from '@/components/ui/page-header';
 
 const COLUMNS = ['draft', 'sent', 'in_progress', 'returned', 'remake'] as const;
 type LabStatus = (typeof COLUMNS)[number];
+
+const LABELS: Record<LabStatus, string> = {
+  draft: 'Draft',
+  sent: 'Sent',
+  in_progress: 'In Progress',
+  returned: 'Returned',
+  remake: 'Remake',
+};
+
+const STATUS_VARIANT: Record<LabStatus, 'default' | 'secondary' | 'outline' | 'warning' | 'destructive'> = {
+  draft: 'secondary',
+  sent: 'default',
+  in_progress: 'warning',
+  returned: 'outline',
+  remake: 'destructive',
+};
 
 interface LabCase {
   id: string;
@@ -30,41 +59,75 @@ interface LabCase {
   patient_id?: string | null;
 }
 
-function KanbanCard({ labCase, onClick }: { labCase: LabCase; onClick: () => void }) {
+function KanbanCard({
+  labCase,
+  onClick,
+  onAction,
+}: {
+  labCase: LabCase;
+  onClick: () => void;
+  onAction: (action: string) => void;
+}) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: labCase.id,
   });
   const style = transform
     ? { transform: `translate(${transform.x}px, ${transform.y}px)` }
     : undefined;
+
   return (
-    <div
+    <Card
       ref={setNodeRef}
       style={style}
-      {...listeners}
-      {...attributes}
+      className={`cursor-pointer group ${isDragging ? 'opacity-50' : ''}`}
       onClick={onClick}
-      className={`cursor-grab rounded border border-zinc-200 bg-white p-3 text-sm shadow-sm ${isDragging ? 'opacity-50' : ''}`}
     >
-      {labCase.patient_id && (
-        <div className="mb-1">
-          <PatientChip patientId={labCase.patient_id} />
-        </div>
-      )}
-      {labCase.case_number && (
-        <span className="mb-1 inline-block rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-xs text-zinc-600">
-          {labCase.case_number}
+      <CardHeader className="p-3 pb-1 flex-row items-center justify-between space-y-0">
+        <span className="font-mono text-xs text-zinc-600">
+          {labCase.case_number ?? `#${labCase.id}`}
         </span>
-      )}
-      <p className="font-medium">Case #{labCase.id}</p>
-      {labCase.lab_fee != null && <p className="text-zinc-500">${labCase.lab_fee}</p>}
-      {labCase.due_back_at && (
-        <p className="text-xs text-zinc-400">Due: {new Date(labCase.due_back_at).toLocaleDateString()}</p>
-      )}
-      {labCase.remake_of_id && (
-        <p className="text-xs text-amber-600">Remake of #{labCase.remake_of_id}</p>
-      )}
-    </div>
+        <div className="flex items-center gap-1">
+          <Badge variant={STATUS_VARIANT[labCase.status] ?? 'secondary'}>
+            {LABELS[labCase.status]}
+          </Badge>
+          {/* drag handle */}
+          <span
+            {...listeners}
+            {...attributes}
+            onClick={(e) => e.stopPropagation()}
+            className="cursor-grab opacity-0 group-hover:opacity-100 transition-opacity text-zinc-400 hover:text-zinc-600"
+            aria-label="drag handle"
+          >
+            <GripVertical className="h-4 w-4" />
+          </span>
+        </div>
+      </CardHeader>
+      <CardContent className="p-3 pt-1 space-y-1">
+        {labCase.patient_id && (
+          <PatientChip patientId={labCase.patient_id} variant="inline" />
+        )}
+        {labCase.due_back_at && (
+          <p className="flex items-center gap-1 text-xs text-zinc-400">
+            <CalendarIcon className="h-3 w-3" />
+            {new Date(labCase.due_back_at).toLocaleDateString()}
+          </p>
+        )}
+      </CardContent>
+      <CardFooter className="p-3 pt-0 opacity-0 group-hover:opacity-100 transition-opacity">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+            <Button variant="outline" size="sm" className="h-6 text-xs">
+              Actions
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onSelect={() => onAction('send')}>Send</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onAction('return')}>Mark returned</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onAction('remake')}>Request remake</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </CardFooter>
+    </Card>
   );
 }
 
@@ -72,29 +135,29 @@ function KanbanColumn({
   status,
   cases,
   onCardClick,
+  onAction,
 }: {
   status: LabStatus;
   cases: LabCase[];
   onCardClick: (id: string) => void;
+  onAction: (caseId: string, action: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
-  const labels: Record<LabStatus, string> = {
-    draft: 'Draft',
-    sent: 'Sent',
-    in_progress: 'In Progress',
-    returned: 'Returned',
-    remake: 'Remake',
-  };
   return (
     <div
       ref={setNodeRef}
-      className={`flex min-h-48 w-48 flex-col gap-2 rounded-lg border border-zinc-200 p-3 ${isOver ? 'bg-zinc-100' : 'bg-zinc-50'}`}
+      className={`flex min-h-48 w-52 flex-col gap-2 rounded-lg border border-zinc-200 p-3 ${isOver ? 'bg-zinc-100' : 'bg-zinc-50'}`}
     >
-      <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-        {labels[status]} ({cases.length})
+      <h3 className="sticky top-0 mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-500 bg-zinc-50 py-1">
+        {LABELS[status]} ({cases.length})
       </h3>
       {cases.map((c) => (
-        <KanbanCard key={c.id} labCase={c} onClick={() => onCardClick(c.id)} />
+        <KanbanCard
+          key={c.id}
+          labCase={c}
+          onClick={() => onCardClick(c.id)}
+          onAction={(action) => onAction(c.id, action)}
+        />
       ))}
     </div>
   );
@@ -105,11 +168,14 @@ export default function LabCaseKanban() {
   const [remakeDialog, setRemakeDialog] = useState<{ caseId: string } | null>(null);
   const [remakeReason, setRemakeReason] = useState('');
   const [drawerCaseId, setDrawerCaseId] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
 
   const { data: cases = [] } = useQuery<LabCase[]>({
     queryKey: ['lab-cases'],
     queryFn: () => fetcher<LabCase[]>('/api/v2/lab/cases'),
   });
+
+  const activeCases = cases.filter((c) => c.status !== 'returned' && c.status !== 'remake');
 
   const updateStatus = useMutation({
     mutationFn: ({ id, status, remake_reason }: { id: string; status: string; remake_reason?: string }) =>
@@ -133,6 +199,16 @@ export default function LabCaseKanban() {
     }
   }
 
+  function handleAction(caseId: string, action: string) {
+    if (action === 'remake') {
+      setRemakeDialog({ caseId });
+    } else if (action === 'send') {
+      updateStatus.mutate({ id: caseId, status: 'sent' });
+    } else if (action === 'return') {
+      updateStatus.mutate({ id: caseId, status: 'returned' });
+    }
+  }
+
   function confirmRemake() {
     if (!remakeDialog) return;
     updateStatus.mutate({ id: remakeDialog.caseId, status: 'remake', remake_reason: remakeReason });
@@ -142,7 +218,23 @@ export default function LabCaseKanban() {
 
   return (
     <div>
-      <h2 className="mb-4 text-xl font-semibold">Lab Cases</h2>
+      <PageHeader
+        title="Lab"
+        description={`${activeCases.length} active cases`}
+        actions={
+          <Button onClick={() => setCreateOpen(true)}>+ New case</Button>
+        }
+      />
+
+      {/* Status legend */}
+      <div className="mb-4 flex flex-wrap gap-2">
+        {COLUMNS.map((col) => (
+          <Badge key={col} variant={STATUS_VARIANT[col] ?? 'secondary'}>
+            {LABELS[col]}
+          </Badge>
+        ))}
+      </div>
+
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
         <div className="flex gap-4 overflow-x-auto pb-4">
           {COLUMNS.map((col) => (
@@ -151,39 +243,46 @@ export default function LabCaseKanban() {
               status={col}
               cases={cases.filter((c) => c.status === col)}
               onCardClick={(id) => setDrawerCaseId(id)}
+              onAction={handleAction}
             />
           ))}
         </div>
       </DndContext>
 
-      {remakeDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-lg">
-            <h4 className="mb-3 font-medium">Remake Reason</h4>
-            <textarea
-              value={remakeReason}
-              onChange={(e) => setRemakeReason(e.target.value)}
-              placeholder="Describe the reason for remake…"
-              rows={3}
-              className="mb-4 w-full rounded border border-zinc-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400"
-            />
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setRemakeDialog(null)}
-                className="rounded border border-zinc-300 px-3 py-1.5 text-sm"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmRemake}
-                className="rounded bg-zinc-900 px-3 py-1.5 text-sm text-white"
-              >
-                Confirm Remake
-              </button>
-            </div>
+      {/* Remake reason dialog */}
+      <Dialog open={!!remakeDialog} onOpenChange={(open) => !open && setRemakeDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remake Reason</DialogTitle>
+          </DialogHeader>
+          <textarea
+            value={remakeReason}
+            onChange={(e) => setRemakeReason(e.target.value)}
+            placeholder="Describe the reason for remake…"
+            rows={3}
+            className="w-full rounded border border-zinc-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400"
+          />
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setRemakeDialog(null)}>Cancel</Button>
+            <Button onClick={confirmRemake}>Confirm Remake</Button>
           </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
+
+      {/* New case dialog */}
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>New Lab Case</DialogTitle>
+          </DialogHeader>
+          <LabCaseCreateForm
+            onCreated={() => {
+              setCreateOpen(false);
+              void qc.invalidateQueries({ queryKey: ['lab-cases'] });
+            }}
+          />
+        </DialogContent>
+      </Dialog>
 
       <LabCaseDrawer
         caseId={drawerCaseId}

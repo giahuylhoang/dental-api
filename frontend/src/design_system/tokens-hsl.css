@@ -1,0 +1,44 @@
+/* HSL token bridge — re-declares semantic colors as HSL triplets (no hsl() wrapper)
+   so Tailwind alpha modifiers work: bg-primary/50, text-destructive/80, etc.
+   These values mirror tokens.css exactly — no visual change. */
+
+:root {
+  /* primary = action-500 #0066CC */
+  --ds-primary:            210 100% 40%;
+  /* primary-foreground = clinical-50 #FAFBFC */
+  --ds-primary-foreground: 210 25% 98%;
+
+  /* secondary = clinical-100 #F3F5F7 */
+  --ds-secondary:            210 20% 96%;
+  /* secondary-foreground = clinical-900 #0F1722 */
+  --ds-secondary-foreground: 215 39% 10%;
+
+  /* destructive = danger-500 #C72030 */
+  --ds-destructive:            354 72% 45%;
+  /* destructive-foreground = clinical-50 */
+  --ds-destructive-foreground: 210 25% 98%;
+
+  /* accent = accent-500 #0F7A6E */
+  --ds-accent-hsl:            173 78% 27%;
+  /* accent-foreground = clinical-50 */
+  --ds-accent-foreground-hsl: 210 25% 98%;
+
+  /* muted = clinical-100 */
+  --ds-muted:            210 20% 96%;
+  /* muted-foreground = clinical-600 #6B7A8D */
+  --ds-muted-foreground: 214 14% 49%;
+
+  /* card / popover = clinical-50 */
+  --ds-card:       210 25% 98%;
+  --ds-popover:    210 25% 98%;
+  /* card/popover foreground = clinical-900 */
+  --ds-card-foreground:    215 39% 10%;
+  --ds-popover-foreground: 215 39% 10%;
+
+  /* border / input = clinical-300 #D4DAE0 */
+  --ds-border: 210 16% 85%;
+  --ds-input:  210 16% 85%;
+
+  /* ring = action-500 */
+  --ds-ring: 210 100% 40%;
+}

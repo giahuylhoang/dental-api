@@ -28,7 +28,7 @@ const ROWS: { key: keyof Props['integrations']; label: string }[] = [
 ];
 
 export default function IntegrationsCard({ integrations }: Props) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
 
   return (
     <div className="rounded-lg border border-zinc-200">

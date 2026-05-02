@@ -19,8 +19,9 @@ describe('LabCaseDrawer', () => {
       <LabCaseDrawer caseId="lc1" open={true} onClose={vi.fn()} onChanged={vi.fn()} />,
       { wrapper },
     );
-    await waitFor(() => expect(screen.getByText(/Precision Dental Lab/i)).toBeInTheDocument());
-    expect(screen.getByText(/sent/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByText(/Precision Dental Lab/i).length).toBeGreaterThan(0));
+    // E4 redesign: status appears in multiple places (header badge + body) — use getAllByText
+    expect(screen.getAllByText(/sent/i).length).toBeGreaterThan(0);
   });
 
   it('tabs switch correctly', async () => {
@@ -28,14 +29,23 @@ describe('LabCaseDrawer', () => {
       <LabCaseDrawer caseId="lc1" open={true} onClose={vi.fn()} onChanged={vi.fn()} />,
       { wrapper },
     );
-    await waitFor(() => screen.getByText(/Precision Dental Lab/i));
+    await waitFor(() => screen.getAllByText(/Precision Dental Lab/i)[0]);
 
-    // Switch to Implants tab
-    fireEvent.click(screen.getByRole('button', { name: /implants/i }));
+    // E4 redesign: Drawer uses Radix Tabs (role=tab) and needs pointerDown sequence
+    {
+      const t = screen.getByRole('tab', { name: /implants/i });
+      fireEvent.pointerDown(t, { pointerType: 'mouse', button: 0 });
+      fireEvent.mouseDown(t);
+      fireEvent.click(t);
+    }
     await waitFor(() => expect(screen.getByText(/Lot number/i)).toBeInTheDocument());
 
-    // Switch to Materials tab
-    fireEvent.click(screen.getByRole('button', { name: /materials/i }));
+    {
+      const t = screen.getByRole('tab', { name: /materials/i });
+      fireEvent.pointerDown(t, { pointerType: 'mouse', button: 0 });
+      fireEvent.mouseDown(t);
+      fireEvent.click(t);
+    }
     await waitFor(() => expect(screen.getByText(/Qty consumed/i)).toBeInTheDocument());
   });
 

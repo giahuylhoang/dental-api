@@ -24,9 +24,12 @@ import { pmsF3Handlers } from './pms-f3';
 import { pmsF4Handlers } from './pms-f4';
 import { pmsF5Handlers } from './pms-f5';
 import { pmsF6Handlers } from './pms-f6';
+import { pmsE2Handlers } from './pms-e2';
 
 export const handlers = [
   ...authHandlers,
+  // pmsE2: dashboard /api/leads fallback
+  ...pmsE2Handlers,
   // pmsF6: settings page
   ...pmsF6Handlers,
   // pmsF5: CRM kanban skeletons + correct endpoint + source pills

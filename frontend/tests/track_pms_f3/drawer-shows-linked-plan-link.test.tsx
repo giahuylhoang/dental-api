@@ -64,7 +64,7 @@ describe('drawer-shows-linked-plan-link', () => {
       { wrapper },
     );
 
-    await waitFor(() => screen.getByText(/Precision Dental Lab/i));
+    await waitFor(() => screen.getAllByText(/Precision Dental Lab/i)[0]);
     expect(screen.queryByText(/Linked Treatment Plan/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /open plan/i })).not.toBeInTheDocument();
   });

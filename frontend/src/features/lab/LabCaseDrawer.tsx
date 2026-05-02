@@ -1,11 +1,15 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import Drawer from '../../components/Drawer';
 import { fetcher } from '../../api/client';
 import ImplantForm from './ImplantForm';
 import MaterialConsumptionForm from './MaterialConsumptionForm';
 import DentureCaseDrawer from './DentureCaseDrawer';
 import { PatientChip } from '../patients/PatientChip';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface LabCase {
   id: string;
@@ -45,8 +49,6 @@ interface Implant {
   placed_date: string | null;
 }
 
-type Tab = 'detail' | 'implants' | 'materials';
-
 interface Props {
   caseId: string | null;
   open: boolean;
@@ -56,7 +58,7 @@ interface Props {
 
 export default function LabCaseDrawer({ caseId, open, onClose, onChanged }: Props) {
   const qc = useQueryClient();
-  const [tab, setTab] = useState<Tab>('detail');
+  const [tab, setTab] = useState('detail');
   const [showRemake, setShowRemake] = useState(false);
   const [remakeReason, setRemakeReason] = useState('');
   const [dentureCaseOpen, setDentureCaseOpen] = useState(false);
@@ -118,133 +120,148 @@ export default function LabCaseDrawer({ caseId, open, onClose, onChanged }: Prop
 
   return (
     <>
-      <Drawer open={open} onClose={onClose} title={`Lab Case #${caseId ?? ''}`} width="lg">
-        {!labCase ? (
-          <p className="text-sm text-zinc-500">Loading…</p>
-        ) : (
-          <div className="flex h-full flex-col">
-            {labCase.patient_id && (
-              <div className="mb-3">
-                <PatientChip patientId={labCase.patient_id} variant="breadcrumb" linkTo="/patients/:id" />
-              </div>
-            )}
-            {/* Tabs */}
-            <div className="mb-4 flex gap-1 border-b border-zinc-200">
-              {(['detail', 'implants', 'materials'] as Tab[]).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setTab(t)}
-                  className={`px-3 py-1.5 text-sm capitalize ${tab === t ? 'border-b-2 border-zinc-900 font-medium' : 'text-zinc-500 hover:text-zinc-900'}`}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-
-            {tab === 'detail' && (
-              <div className="space-y-2 text-sm">
-                <div><span className="text-zinc-500">Vendor: </span>{vendor?.name ?? labCase.vendor_id}</div>
-                <div><span className="text-zinc-500">Status: </span>{labCase.status}</div>
-                {labCase.due_back_at && (
-                  <div><span className="text-zinc-500">Due back: </span>{new Date(labCase.due_back_at).toLocaleDateString()}</div>
+      <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
+        <SheetContent side="right" className="w-full sm:max-w-lg flex flex-col">
+          <SheetHeader>
+            <SheetTitle>
+              <div className="flex flex-col gap-1">
+                {labCase?.patient_id && (
+                  <PatientChip patientId={labCase.patient_id} variant="card" />
                 )}
-                {labCase.lab_fee != null && (
-                  <div><span className="text-zinc-500">Lab fee: </span>${labCase.lab_fee}</div>
-                )}
-                {labCase.courier_tracking && (
-                  <div><span className="text-zinc-500">Tracking: </span>{labCase.courier_tracking}</div>
-                )}
-                {labCase.denture_case_id && (
-                  <div>
-                    <span className="text-zinc-500">Denture case: </span>
-                    <button
-                      onClick={() => setDentureCaseOpen(true)}
-                      className="text-blue-600 hover:underline"
-                    >
-                      Open denture case
-                    </button>
-                  </div>
-                )}
-                {labCase.treatment_plan_id && (
-                  <div>
-                    <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">Linked Treatment Plan</p>
-                    {linkedPlan && (
-                      <span className="mr-2 inline-block rounded bg-zinc-100 px-1.5 py-0.5 text-xs capitalize text-zinc-700">
-                        {linkedPlan.status}
-                      </span>
-                    )}
-                    <a
-                      href={`/plans?focus=${labCase.treatment_plan_id}`}
-                      className="text-sm text-blue-600 hover:underline"
-                    >
-                      Open plan →
-                    </a>
-                  </div>
-                )}
-                <div className="flex gap-2 border-t border-zinc-100 pt-3">
-                  <button
-                    onClick={() => sendMut.mutate()}
-                    disabled={sendMut.isPending}
-                    className="rounded bg-indigo-600 px-3 py-1 text-xs text-white hover:bg-indigo-700 disabled:opacity-40"
-                  >
-                    Send
-                  </button>
-                  <button
-                    onClick={() => returnMut.mutate()}
-                    disabled={returnMut.isPending}
-                    className="rounded bg-green-600 px-3 py-1 text-xs text-white hover:bg-green-700 disabled:opacity-40"
-                  >
-                    Return
-                  </button>
-                  <button
-                    onClick={() => setShowRemake(true)}
-                    className="rounded border border-zinc-300 px-3 py-1 text-xs hover:bg-zinc-50"
-                  >
-                    Remake
-                  </button>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="font-mono text-sm text-zinc-600">
+                    {labCase?.case_number ?? `#${caseId}`}
+                  </span>
+                  {vendor && <span className="text-sm text-zinc-500">{vendor.name}</span>}
+                  {labCase && (
+                    <Badge variant="secondary">{labCase.status}</Badge>
+                  )}
                 </div>
               </div>
-            )}
+            </SheetTitle>
+          </SheetHeader>
 
-            {tab === 'implants' && labCase.denture_case_id && (
-              <div className="space-y-4">
-                <ImplantForm
-                  dentureCaseId={labCase.denture_case_id}
-                  onSaved={() => void refetchImplants()}
-                />
-                {implants.length > 0 && (
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-b border-zinc-200 text-left text-zinc-500">
-                        <th className="pb-1">Tooth</th>
-                        <th className="pb-1">Vendor</th>
-                        <th className="pb-1">Lot #</th>
-                        <th className="pb-1">Surface</th>
-                        <th className="pb-1">Abutment</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {implants.map((imp) => (
-                        <tr key={imp.id} className="border-b border-zinc-100">
-                          <td className="py-1">{imp.tooth_position}</td>
-                          <td className="py-1">{imp.vendor}</td>
-                          <td className="py-1">{imp.lot_number}</td>
-                          <td className="py-1">{imp.surface_treatment}</td>
-                          <td className="py-1">{imp.abutment_type}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            )}
+          {!labCase ? (
+            <p className="text-sm text-zinc-500 mt-4">Loading…</p>
+          ) : (
+            <Tabs value={tab} onValueChange={setTab} className="flex-1 flex flex-col mt-4">
+              <TabsList>
+                <TabsTrigger value="detail">Detail</TabsTrigger>
+                <TabsTrigger value="implants">Implants</TabsTrigger>
+                <TabsTrigger value="materials">Materials</TabsTrigger>
+                <TabsTrigger value="events">Events</TabsTrigger>
+              </TabsList>
 
-            {tab === 'materials' && (
-              <MaterialConsumptionForm labCaseId={caseId!} onSaved={invalidate} />
-            )}
-          </div>
-        )}
-      </Drawer>
+              <TabsContent value="detail" className="flex-1">
+                <ScrollArea className="h-full">
+                  <div className="space-y-2 text-sm pt-2">
+                    <div><span className="text-zinc-500">Vendor: </span>{vendor?.name ?? labCase.vendor_id}</div>
+                    <div><span className="text-zinc-500">Status: </span>{labCase.status}</div>
+                    {labCase.due_back_at && (
+                      <div><span className="text-zinc-500">Due back: </span>{new Date(labCase.due_back_at).toLocaleDateString()}</div>
+                    )}
+                    {labCase.lab_fee != null && (
+                      <div><span className="text-zinc-500">Lab fee: </span>${labCase.lab_fee}</div>
+                    )}
+                    {labCase.courier_tracking && (
+                      <div><span className="text-zinc-500">Tracking: </span>{labCase.courier_tracking}</div>
+                    )}
+                    {labCase.denture_case_id && (
+                      <div>
+                        <span className="text-zinc-500">Denture case: </span>
+                        <button
+                          onClick={() => setDentureCaseOpen(true)}
+                          className="text-blue-600 hover:underline"
+                        >
+                          Open denture case
+                        </button>
+                      </div>
+                    )}
+                    {labCase.treatment_plan_id && (
+                      <div>
+                        <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">Linked Treatment Plan</p>
+                        {linkedPlan && (
+                          <span className="mr-2 inline-block rounded bg-zinc-100 px-1.5 py-0.5 text-xs capitalize text-zinc-700">
+                            {linkedPlan.status}
+                          </span>
+                        )}
+                        <a
+                          href={`/plans?focus=${labCase.treatment_plan_id}`}
+                          className="text-sm text-blue-600 hover:underline"
+                        >
+                          Open plan →
+                        </a>
+                      </div>
+                    )}
+                    <div className="flex gap-2 border-t border-zinc-100 pt-3">
+                      <Button size="sm" onClick={() => sendMut.mutate()} disabled={sendMut.isPending}>
+                        Send
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => returnMut.mutate()} disabled={returnMut.isPending}>
+                        Return
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setShowRemake(true)}>
+                        Remake
+                      </Button>
+                    </div>
+                  </div>
+                </ScrollArea>
+              </TabsContent>
+
+              <TabsContent value="implants" className="flex-1">
+                <ScrollArea className="h-full">
+                  {labCase.denture_case_id && (
+                    <div className="space-y-4 pt-2">
+                      <ImplantForm
+                        dentureCaseId={labCase.denture_case_id}
+                        onSaved={() => void refetchImplants()}
+                      />
+                      {implants.length > 0 && (
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b border-zinc-200 text-left text-zinc-500">
+                              <th className="pb-1">Tooth</th>
+                              <th className="pb-1">Vendor</th>
+                              <th className="pb-1">Lot #</th>
+                              <th className="pb-1">Surface</th>
+                              <th className="pb-1">Abutment</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {implants.map((imp) => (
+                              <tr key={imp.id} className="border-b border-zinc-100">
+                                <td className="py-1">{imp.tooth_position}</td>
+                                <td className="py-1">{imp.vendor}</td>
+                                <td className="py-1">{imp.lot_number}</td>
+                                <td className="py-1">{imp.surface_treatment}</td>
+                                <td className="py-1">{imp.abutment_type}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  )}
+                </ScrollArea>
+              </TabsContent>
+
+              <TabsContent value="materials" className="flex-1">
+                <ScrollArea className="h-full">
+                  <div className="pt-2">
+                    <MaterialConsumptionForm labCaseId={caseId!} onSaved={invalidate} />
+                  </div>
+                </ScrollArea>
+              </TabsContent>
+
+              <TabsContent value="events" className="flex-1">
+                <ScrollArea className="h-full">
+                  <p className="pt-2 text-sm text-zinc-400">No events recorded.</p>
+                </ScrollArea>
+              </TabsContent>
+            </Tabs>
+          )}
+        </SheetContent>
+      </Sheet>
 
       {/* Remake reason dialog */}
       {showRemake && (
@@ -259,16 +276,10 @@ export default function LabCaseDrawer({ caseId, open, onClose, onChanged }: Prop
               className="mb-4 w-full rounded border border-zinc-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400"
             />
             <div className="flex justify-end gap-2">
-              <button onClick={() => setShowRemake(false)} className="rounded border border-zinc-300 px-3 py-1.5 text-sm">
-                Cancel
-              </button>
-              <button
-                onClick={() => remakeMut.mutate(remakeReason)}
-                disabled={remakeMut.isPending}
-                className="rounded bg-zinc-900 px-3 py-1.5 text-sm text-white disabled:opacity-40"
-              >
+              <Button variant="outline" onClick={() => setShowRemake(false)}>Cancel</Button>
+              <Button onClick={() => remakeMut.mutate(remakeReason)} disabled={remakeMut.isPending}>
                 Confirm Remake
-              </button>
+              </Button>
             </div>
           </div>
         </div>

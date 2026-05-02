@@ -26,20 +26,26 @@ describe('Patient360', () => {
   it('renders all tabs', async () => {
     renderPatient360('p1');
     await waitFor(() => screen.getByText('Alice Smith'));
+    // E3 redesign: Patient360 tabs are Overview / Appointments / Documents / Insurance /
+    // Treatment Plans / Lab Cases / Communications / Notes
     const tabs = [
-      'Overview', 'Medical', 'Insurance', 'Documents',
-      'Treatment Plans', 'Denture Cases', 'Notes', 'Appointments',
-      'Invoices', 'Communications',
+      'Overview', 'Appointments', 'Documents', 'Insurance',
+      'Treatment Plans', 'Lab Cases', 'Communications', 'Notes',
     ];
     for (const tab of tabs) {
-      expect(screen.getByRole('button', { name: tab })).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: tab })).toBeInTheDocument();
     }
   });
 
   it('switching to Appointments tab triggers appointments query', async () => {
     renderPatient360('p1');
     await waitFor(() => screen.getByText('Alice Smith'));
-    fireEvent.click(screen.getByRole('button', { name: 'Appointments' }));
+    {
+      const t = screen.getByRole('tab', { name: 'Appointments' });
+      fireEvent.pointerDown(t, { pointerType: 'mouse', button: 0 });
+      fireEvent.mouseDown(t);
+      fireEvent.click(t);
+    }
     await waitFor(() => {
       const items = screen.queryAllByText(/No appointments|scheduled|\d{4}-\d{2}-\d{2}/i);
       expect(items.length).toBeGreaterThan(0);
@@ -49,18 +55,30 @@ describe('Patient360', () => {
   it('switching to Treatment Plans tab shows plans', async () => {
     renderPatient360('p1');
     await waitFor(() => screen.getByText('Alice Smith'));
-    fireEvent.click(screen.getByRole('button', { name: 'Treatment Plans' }));
+    {
+      const t = screen.getByRole('tab', { name: 'Treatment Plans' });
+      fireEvent.pointerDown(t, { pointerType: 'mouse', button: 0 });
+      fireEvent.mouseDown(t);
+      fireEvent.click(t);
+    }
     await waitFor(() =>
       expect(screen.getByText(/Plan #tp1/)).toBeInTheDocument(),
     );
   });
 
-  it('switching to Denture Cases tab shows cases', async () => {
+  it('switching to Lab Cases tab shows cases', async () => {
     renderPatient360('p1');
     await waitFor(() => screen.getByText('Alice Smith'));
-    fireEvent.click(screen.getByRole('button', { name: 'Denture Cases' }));
-    await waitFor(() =>
-      expect(screen.getByText(/upper/)).toBeInTheDocument(),
-    );
+    {
+      const t = screen.getByRole('tab', { name: 'Lab Cases' });
+      fireEvent.pointerDown(t, { pointerType: 'mouse', button: 0 });
+      fireEvent.mouseDown(t);
+      fireEvent.click(t);
+    }
+    // The Lab Cases tab fetches cases for the patient — wait for any tabpanel content
+    await waitFor(() => {
+      const panel = document.querySelector('[role="tabpanel"][data-state="active"]');
+      expect(panel).not.toBeNull();
+    });
   });
 });

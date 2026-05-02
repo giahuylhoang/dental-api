@@ -3,7 +3,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { fetcher } from '../../api/client';
 import { useAuthStore } from '../auth/store';
-import Drawer from '../../components/Drawer';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '../../components/ui/sheet';
+import { Button } from '../../components/ui/button';
 import LeadActivityTimeline from './LeadActivityTimeline';
 import AddActivityForm from './AddActivityForm';
 
@@ -43,7 +49,8 @@ interface Props {
   leadId: string;
 }
 
-type Tab = 'detail' | 'activities';
+type Tab = 'detail' | 'activities' | 'convert';
+const TABS: Tab[] = ['detail', 'activities', 'convert'];
 
 export default function LeadDrawer({ open, onClose, leadId }: Props) {
   const clinicId = useAuthStore((s) => s.clinicId);
@@ -93,58 +100,69 @@ export default function LeadDrawer({ open, onClose, leadId }: Props) {
   const title = lead ? `${lead.first_name} ${lead.last_name}` : 'Lead';
 
   return (
-    <Drawer open={open} onClose={onClose} title={title} width="lg">
-      {/* Tabs */}
-      <div className="mb-4 flex gap-2 border-b border-zinc-200">
-        {(['detail', 'activities'] as Tab[]).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`px-3 py-1.5 text-sm capitalize ${tab === t ? 'border-b-2 border-blue-600 font-medium text-blue-600' : 'text-zinc-500 hover:text-zinc-800'}`}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
+    <Sheet open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <SheetContent side="right" className="w-full max-w-lg overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle>{title}</SheetTitle>
+        </SheetHeader>
 
-      {tab === 'detail' && lead && (
-        <form onSubmit={handleSubmit((d) => save.mutate(d))} className="flex flex-col gap-3">
-          <input {...register('first_name')} aria-label="first_name" placeholder="First name" className="rounded border border-zinc-300 px-3 py-1.5 text-sm" />
-          <input {...register('last_name')} aria-label="last_name" placeholder="Last name" className="rounded border border-zinc-300 px-3 py-1.5 text-sm" />
-          <input {...register('phone')} aria-label="phone" placeholder="Phone" className="rounded border border-zinc-300 px-3 py-1.5 text-sm" />
-          <input {...register('email')} aria-label="email" placeholder="Email" type="email" className="rounded border border-zinc-300 px-3 py-1.5 text-sm" />
-          <select {...register('owner_id')} aria-label="owner_id" className="rounded border border-zinc-300 px-3 py-1.5 text-sm">
-            <option value="">No owner</option>
-            {providers.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
-          <select {...register('status')} aria-label="status" className="rounded border border-zinc-300 px-3 py-1.5 text-sm">
-            {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <textarea {...register('notes')} aria-label="notes" placeholder="Notes" rows={3} className="rounded border border-zinc-300 px-3 py-1.5 text-sm" />
-          <div className="flex items-center justify-between pt-2">
-            <button
-              type="button"
+        {/* Tab bar — uses Button so role="button" is preserved for tests */}
+        <div className="mb-4 mt-4 flex gap-2 border-b border-zinc-200">
+          {TABS.map((t) => (
+            <Button
+              key={t}
+              variant="ghost"
+              size="sm"
+              onClick={() => setTab(t)}
+              className={`capitalize ${tab === t ? 'border-b-2 border-blue-600 font-medium text-blue-600 rounded-none' : 'text-zinc-500'}`}
+            >
+              {t}
+            </Button>
+          ))}
+        </div>
+
+        {tab === 'detail' && lead && (
+          <form onSubmit={handleSubmit((d) => save.mutate(d))} className="flex flex-col gap-3">
+            <input {...register('first_name')} aria-label="first_name" placeholder="First name" className="rounded border border-zinc-300 px-3 py-1.5 text-sm" />
+            <input {...register('last_name')} aria-label="last_name" placeholder="Last name" className="rounded border border-zinc-300 px-3 py-1.5 text-sm" />
+            <input {...register('phone')} aria-label="phone" placeholder="Phone" className="rounded border border-zinc-300 px-3 py-1.5 text-sm" />
+            <input {...register('email')} aria-label="email" placeholder="Email" type="email" className="rounded border border-zinc-300 px-3 py-1.5 text-sm" />
+            <select {...register('owner_id')} aria-label="owner_id" className="rounded border border-zinc-300 px-3 py-1.5 text-sm">
+              <option value="">No owner</option>
+              {providers.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+            <select {...register('status')} aria-label="status" className="rounded border border-zinc-300 px-3 py-1.5 text-sm">
+              {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <textarea {...register('notes')} aria-label="notes" placeholder="Notes" rows={3} className="rounded border border-zinc-300 px-3 py-1.5 text-sm" />
+            <Button type="submit" disabled={save.isPending}>Save</Button>
+          </form>
+        )}
+
+        {tab === 'activities' && (
+          <div>
+            <AddActivityForm leadId={leadId} />
+            <LeadActivityTimeline activities={activities} />
+          </div>
+        )}
+
+        {tab === 'convert' && (
+          <div className="flex flex-col gap-3 pt-4">
+            <p className="text-sm text-zinc-600">
+              Convert this lead into a patient record.
+            </p>
+            <Button
               onClick={() => convert.mutate()}
               disabled={convert.isPending}
-              className="rounded bg-green-600 px-3 py-1.5 text-sm text-white hover:bg-green-700 disabled:opacity-50"
+              className="bg-green-600 hover:bg-green-700"
             >
               Convert to patient
-            </button>
-            <button type="submit" disabled={save.isPending} className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50">
-              Save
-            </button>
+            </Button>
           </div>
-        </form>
-      )}
-
-      {tab === 'activities' && (
-        <div>
-          <AddActivityForm leadId={leadId} />
-          <LeadActivityTimeline activities={activities} />
-        </div>
-      )}
-    </Drawer>
+        )}
+      </SheetContent>
+    </Sheet>
   );
 }

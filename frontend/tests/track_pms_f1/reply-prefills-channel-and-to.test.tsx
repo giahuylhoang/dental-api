@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../src/mocks/server';
@@ -47,17 +47,16 @@ describe('Reply prefills channel and to', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: /reply/i })).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: /reply/i }));
 
-    // ComposeDialog opens — scope to dialog
-    const dialog = await waitFor(() => screen.getByRole('heading', { name: /new message/i }).closest('div.w-96')!);
-    const compose = within(dialog);
+    // ComposeDialog opens — SMS tab should be active
+    await waitFor(() => expect(screen.getByRole('heading', { name: /new message/i })).toBeInTheDocument());
 
-    const smsBtn = compose.getByRole('button', { name: /^sms$/i });
-    expect(smsBtn).toHaveAttribute('aria-pressed', 'true');
+    const smsTab = screen.getByRole('tab', { name: /^sms$/i });
+    expect(smsTab.getAttribute('aria-selected')).toBe('true');
 
     expect(screen.getByDisplayValue('+15550000')).toBeInTheDocument();
 
     // Submit to verify patient_id is set
-    fireEvent.click(compose.getByRole('button', { name: /^send$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^send$/i }));
     await waitFor(() =>
       expect(captured).toMatchObject({ channel: 'sms', to: '+15550000', patient_id: 'p-77' }),
     );

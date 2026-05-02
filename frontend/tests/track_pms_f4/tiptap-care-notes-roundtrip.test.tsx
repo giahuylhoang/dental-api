@@ -18,6 +18,15 @@ describe('tiptap care notes roundtrip', () => {
   it('saves care_notes text via PATCH /api/v2/treatment-plans/{id}/items', async () => {
     render(<TreatmentPlanEditor patientId="p1" planId="tp1" />, { wrapper });
 
+    // E4 moved care notes into the "Care Notes" tab — open it first
+    await waitFor(() => expect(screen.getByRole('tab', { name: /care notes/i })).toBeInTheDocument());
+    {
+      const t = screen.getByRole('tab', { name: /care notes/i });
+      fireEvent.pointerDown(t, { pointerType: 'mouse', button: 0 });
+      fireEvent.mouseDown(t);
+      fireEvent.click(t);
+    }
+
     // Wait for the plan to load and care_notes editor to appear
     await waitFor(() => {
       const editors = screen.getAllByRole('textbox', { name: /care notes/i });

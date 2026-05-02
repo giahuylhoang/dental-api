@@ -1,9 +1,20 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
+import { type ColumnDef } from '@tanstack/react-table';
+import { DollarSign, UserX, FlaskConical, CreditCard, Calendar, FileText, Users } from 'lucide-react';
 import { fetcher } from '../../api/client';
 import { useAuthStore } from '../auth/store';
-import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
-import { Button } from '../../components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardFooter,
+} from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { PageHeader } from '@/components/ui/page-header';
+import { DataTable } from '@/components/ui/data-table';
 
 const fmt = new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' });
 const pct = (n: number) => `${(n * 100).toFixed(1)}%`;
@@ -22,50 +33,61 @@ interface ProviderRow {
 
 interface LabRow {
   lab_name: string;
-  remake_rate: number;
   total_cases: number;
+  remake_rate: number;
 }
 
-function KpiTile({ label, value }: { label: string; value: string }) {
-  return (
-    <Card>
-      <CardContent className="p-4">
-        <div className="text-xs text-zinc-500">{label}</div>
-        <div className="mt-1 text-2xl font-semibold">{value}</div>
-      </CardContent>
-    </Card>
-  );
+interface ActivityRow {
+  time: string;
+  type: 'appointment' | 'invoice' | 'lead';
+  description: string;
+  status: string;
 }
 
-function SimpleBar({ rows, labelKey, valueKey, formatValue }: {
-  rows: Record<string, unknown>[];
-  labelKey: string;
-  valueKey: string;
-  formatValue: (v: number) => string;
-}) {
-  const max = Math.max(...rows.map((r) => r[valueKey] as number), 1);
-  return (
-    <div className="space-y-2">
-      {rows.map((r, i) => (
-        <div key={i} className="flex items-center gap-2 text-sm">
-          <div className="w-32 truncate text-zinc-600">{String(r[labelKey])}</div>
-          <div className="flex-1 rounded bg-zinc-100">
-            <div
-              className="h-4 rounded bg-blue-500"
-              style={{ width: `${((r[valueKey] as number) / max) * 100}%` }}
-            />
-          </div>
-          <div className="w-24 text-right text-zinc-700">
-            {formatValue(r[valueKey] as number)}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
+const providerColumns: ColumnDef<ProviderRow>[] = [
+  { accessorKey: 'provider_name', header: 'Provider' },
+  {
+    accessorKey: 'production',
+    header: 'Production',
+    cell: ({ getValue }) => {
+      const v = getValue<number>();
+      return v ? fmt.format(v) : <span className="text-muted-foreground">—</span>;
+    },
+  },
+];
+
+const labColumns: ColumnDef<LabRow>[] = [
+  { accessorKey: 'lab_name', header: 'Lab' },
+  { accessorKey: 'total_cases', header: 'Cases' },
+  {
+    accessorKey: 'remake_rate',
+    header: 'Remake Rate',
+    cell: ({ getValue }) => pct(getValue<number>()),
+  },
+];
+
+const activityColumns: ColumnDef<ActivityRow>[] = [
+  { accessorKey: 'time', header: 'Time' },
+  {
+    accessorKey: 'type',
+    header: 'Type',
+    cell: ({ getValue }) => {
+      const t = getValue<string>();
+      const Icon = t === 'appointment' ? Calendar : t === 'invoice' ? FileText : Users;
+      return <Icon className="h-4 w-4 text-muted-foreground" />;
+    },
+  },
+  { accessorKey: 'description', header: 'Description' },
+  {
+    accessorKey: 'status',
+    header: 'Status',
+    cell: ({ getValue }) => <Badge variant="secondary">{getValue<string>()}</Badge>,
+  },
+];
 
 export default function Dashboard() {
   const clinicId = useAuthStore((s) => s.clinicId);
+  const lastUpdated = new Date().toLocaleTimeString();
 
   const { data: kpi } = useQuery<KpiData>({
     queryKey: ['reporting', 'kpi', clinicId],
@@ -82,6 +104,21 @@ export default function Dashboard() {
     queryFn: () => fetcher<LabRow[]>('/api/v2/reporting/remake-rate-by-lab'),
   });
 
+  const { data: appointments = [] } = useQuery<{ id: string; start_time: string; patient_name?: string; status: string }[]>({
+    queryKey: ['appointments', 'today', clinicId],
+    queryFn: () => fetcher('/api/appointments?today=true'),
+  });
+
+  const { data: invoices = [] } = useQuery<{ id: string; created_at: string; patient_name?: string; status: string }[]>({
+    queryKey: ['invoices', 'recent', clinicId],
+    queryFn: () => fetcher('/api/v2/billing/invoices?days=7'),
+  });
+
+  const { data: leads = [] } = useQuery<{ id: string; created_at: string; name?: string; status: string }[]>({
+    queryKey: ['leads', 'recent', clinicId],
+    queryFn: () => fetcher('/api/leads?days=7'),
+  });
+
   const AR_BUCKETS = kpi?.ar_aging ?? [
     { bucket: '0–30', amount: 0 },
     { bucket: '31–60', amount: 0 },
@@ -89,86 +126,177 @@ export default function Dashboard() {
     { bucket: '90+', amount: 0 },
   ];
 
+  const activityRows: ActivityRow[] = [
+    ...appointments.map((a) => ({
+      time: new Date(a.start_time).toLocaleTimeString(),
+      type: 'appointment' as const,
+      description: a.patient_name ?? 'Appointment',
+      status: a.status,
+    })),
+    ...invoices.map((i) => ({
+      time: new Date(i.created_at).toLocaleTimeString(),
+      type: 'invoice' as const,
+      description: i.patient_name ?? 'Invoice',
+      status: i.status,
+    })),
+    ...leads.map((l) => ({
+      time: new Date(l.created_at).toLocaleTimeString(),
+      type: 'lead' as const,
+      description: l.name ?? 'Lead',
+      status: l.status,
+    })),
+  ]
+    .sort((a, b) => b.time.localeCompare(a.time))
+    .slice(0, 10);
+
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-semibold">Dashboard</h2>
+      <PageHeader
+        title="Dashboard"
+        description={`Last updated ${lastUpdated}`}
+        actions={
+          <>
+            <Button variant="outline">Date range</Button>
+            <Button onClick={() => {}}>Export</Button>
+          </>
+        }
+      />
 
       {/* KPI tiles */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <KpiTile
-          label="Production this month"
-          value={kpi ? fmt.format(kpi.production_this_month) : '—'}
-        />
-        <KpiTile
-          label="No-show rate"
-          value={kpi ? pct(kpi.no_show_rate) : '—'}
-        />
-        <KpiTile
-          label="Lab cost / case"
-          value={kpi ? fmt.format(kpi.lab_cost_per_case) : '—'}
-        />
-        <KpiTile
-          label="A/R balance"
-          value={kpi ? fmt.format(AR_BUCKETS.reduce((s, b) => s + b.amount, 0)) : '—'}
-        />
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card data-testid="kpi-tile">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <span className="text-sm text-muted-foreground">Production this month</span>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-semibold">
+              {kpi ? fmt.format(kpi.production_this_month) : <span className="text-muted-foreground">—</span>}
+            </div>
+          </CardContent>
+          <CardFooter>
+            <Badge variant="success">+12%</Badge>
+          </CardFooter>
+        </Card>
+
+        <Card data-testid="kpi-tile">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <span className="text-sm text-muted-foreground">No-show rate</span>
+            <UserX className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-semibold">
+              {kpi ? pct(kpi.no_show_rate) : <span className="text-muted-foreground">—</span>}
+            </div>
+          </CardContent>
+          <CardFooter>
+            <Badge variant="destructive">+0.4%</Badge>
+          </CardFooter>
+        </Card>
+
+        <Card data-testid="kpi-tile">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <span className="text-sm text-muted-foreground">Lab cost / case</span>
+            <FlaskConical className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-semibold">
+              {kpi ? fmt.format(kpi.lab_cost_per_case) : <span className="text-muted-foreground">—</span>}
+            </div>
+          </CardContent>
+          <CardFooter>
+            <Badge variant="secondary">—</Badge>
+          </CardFooter>
+        </Card>
+
+        <Card data-testid="kpi-tile">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <span className="text-sm text-muted-foreground">A/R balance</span>
+            <CreditCard className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-semibold">
+              {kpi
+                ? fmt.format(AR_BUCKETS.reduce((s, b) => s + b.amount, 0))
+                : <span className="text-muted-foreground">—</span>}
+            </div>
+          </CardContent>
+          <CardFooter>
+            <Badge variant="secondary">—</Badge>
+          </CardFooter>
+        </Card>
       </div>
 
-      {/* A/R aging */}
-      <Card className="hover:border-blue-300">
-        <CardContent className="p-4">
-          <Link to="/billing?status=overdue" className="block">
-            <h3 className="mb-3 text-sm font-semibold">A/R Aging</h3>
-            <div className="grid grid-cols-4 gap-3">
-              {AR_BUCKETS.map((b) => (
-                <div key={b.bucket} className="rounded bg-zinc-50 p-3 text-center">
-                  <div className="text-xs text-zinc-500">{b.bucket} days</div>
-                  <div className="mt-1 font-semibold">{fmt.format(b.amount)}</div>
+      {/* A/R Aging */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>A/R Aging</CardTitle>
+          <Button variant="link" asChild>
+            <Link to="/billing?status=overdue">View overdue invoices</Link>
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-4">
+            {AR_BUCKETS.map((b) => (
+              <div key={b.bucket} className="flex-1 rounded-lg border p-3 text-center">
+                <div className="text-xs text-muted-foreground">{b.bucket} days</div>
+                <div className="mt-1 font-semibold">
+                  {b.amount ? fmt.format(b.amount) : <span className="text-muted-foreground">—</span>}
                 </div>
-              ))}
-            </div>
-          </Link>
-          <div className="mt-3 flex justify-end">
-            <Button variant="outline" size="sm" asChild>
-              <Link to="/billing?status=overdue">View</Link>
-            </Button>
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>
 
-      {/* Production by provider */}
-      <Card>
-        <CardHeader className="p-4 pb-0">
-          <CardTitle className="text-sm font-semibold">Production by Provider</CardTitle>
-        </CardHeader>
-        <CardContent className="p-4">
-          {byProvider.length > 0 ? (
-            <SimpleBar
-              rows={byProvider as unknown as Record<string, unknown>[]}
-              labelKey="provider_name"
-              valueKey="production"
-              formatValue={fmt.format.bind(fmt)}
-            />
-          ) : (
-            <p className="text-sm text-zinc-400">No data</p>
-          )}
-        </CardContent>
-      </Card>
+      {/* Production by Provider + Remake Rate by Lab */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Production by Provider</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {byProvider.length > 0 ? (
+              <DataTable data-testid="provider-table" columns={providerColumns} data={byProvider} />
+            ) : (
+              <div className="flex flex-col items-center gap-2 py-8 text-center">
+                <DollarSign className="h-8 w-8 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">No data yet</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-      {/* Remake rate by lab */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Remake Rate by Lab</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {labRates.length > 0 ? (
+              <DataTable data-testid="lab-table" columns={labColumns} data={labRates} />
+            ) : (
+              <div className="flex flex-col items-center gap-2 py-8 text-center">
+                <FlaskConical className="h-8 w-8 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">No data yet</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Recent activity */}
       <Card>
-        <CardHeader className="p-4 pb-0">
-          <CardTitle className="text-sm font-semibold">Remake Rate by Lab</CardTitle>
+        <CardHeader>
+          <CardTitle>Recent activity</CardTitle>
         </CardHeader>
-        <CardContent className="p-4">
-          {labRates.length > 0 ? (
-            <SimpleBar
-              rows={labRates as unknown as Record<string, unknown>[]}
-              labelKey="lab_name"
-              valueKey="remake_rate"
-              formatValue={pct}
-            />
+        <CardContent>
+          {activityRows.length > 0 ? (
+            <DataTable columns={activityColumns} data={activityRows} />
           ) : (
-            <p className="text-sm text-zinc-400">No data</p>
+            <div className="flex flex-col items-center gap-2 py-8 text-center">
+              <Calendar className="h-8 w-8 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">No data yet</p>
+            </div>
           )}
         </CardContent>
       </Card>

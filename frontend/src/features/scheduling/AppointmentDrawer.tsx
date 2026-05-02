@@ -1,6 +1,13 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import Drawer from '../../components/Drawer';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import DateTimePicker from './DateTimePicker';
 import { fetcher } from '../../api/client';
 import { useAuthStore } from '../auth/store';
@@ -98,136 +105,142 @@ export default function AppointmentDrawer({ appointmentId, open, onClose, onChan
 
   const currentStatus = appt ? normalizeStatus(appt.status) : 'SCHEDULED';
   const allowed = nextAllowed(currentStatus);
-
   const canDo = (s: ApptStatus) => allowed.includes(s);
 
   return (
-    <Drawer open={open} onClose={onClose} title="Appointment Details" width="md">
-      {isLoading && <p className="text-sm text-zinc-500">Loading…</p>}
-      {appt && (
-        <div className="space-y-4 text-sm">
-          <div className="space-y-1">
-            <div>
-              <span className="text-zinc-500">Patient: </span>
-              <PatientChip patientId={appt.patient_id} variant="card" linkTo="/patients/:id" />
-            </div>
-            <div>
-              <span className="text-zinc-500">Provider: </span>
-              {appt.doctor_name ?? `Doctor #${appt.doctor_id}`}
-            </div>
-            <div>
-              <span className="text-zinc-500">Service: </span>
-              {appt.service_name ?? `Service #${appt.service_id}`}
-            </div>
-            <div>
-              <span className="text-zinc-500">Time: </span>
-              {new Date(appt.start_time).toLocaleString()} – {new Date(appt.end_time).toLocaleTimeString()}
-            </div>
-            {appt.notes && (
+    <Sheet open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <SheetContent side="right" className="w-[400px] sm:max-w-[400px] overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle>Appointment Details</SheetTitle>
+        </SheetHeader>
+
+        {isLoading && <p className="text-sm text-zinc-500 mt-4">Loading…</p>}
+        {appt && (
+          <div className="space-y-4 text-sm mt-4">
+            <div className="space-y-1">
               <div>
-                <span className="text-zinc-500">Notes: </span>
-                {appt.notes}
+                <span className="text-zinc-500">Patient: </span>
+                <PatientChip patientId={appt.patient_id} variant="card" linkTo="/patients/:id" />
+              </div>
+              <div>
+                <span className="text-zinc-500">Provider: </span>
+                {appt.doctor_name ?? `Doctor #${appt.doctor_id}`}
+              </div>
+              <div>
+                <span className="text-zinc-500">Service: </span>
+                {appt.service_name ?? `Service #${appt.service_id}`}
+              </div>
+              <div>
+                <span className="text-zinc-500">Time: </span>
+                {new Date(appt.start_time).toLocaleString()} – {new Date(appt.end_time).toLocaleTimeString()}
+              </div>
+              {appt.notes && (
+                <div>
+                  <span className="text-zinc-500">Notes: </span>
+                  {appt.notes}
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <span className="text-zinc-500">Status: </span>
+                <Badge className={statusColor(currentStatus)} variant="outline">
+                  {statusLabel(currentStatus)}
+                </Badge>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2 border-t border-zinc-100 pt-3">
+              <Button
+                size="sm"
+                variant="default"
+                disabled={!canDo('CONFIRMED')}
+                onClick={() => updateStatus.mutate('CONFIRMED')}
+              >
+                Confirm
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!canDo('CHECKED_IN')}
+                onClick={() => updateStatus.mutate('CHECKED_IN')}
+              >
+                Check in
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!canDo('IN_PROGRESS')}
+                onClick={() => updateStatus.mutate('IN_PROGRESS')}
+              >
+                Start
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!canDo('COMPLETED')}
+                onClick={() => updateStatus.mutate('COMPLETED')}
+              >
+                Complete
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!canDo('NO_SHOW')}
+                onClick={() => updateStatus.mutate('NO_SHOW')}
+              >
+                No show
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => setShowCancel(true)}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowReschedule((v) => !v)}
+              >
+                Reschedule
+              </Button>
+            </div>
+
+            {showReschedule && (
+              <div className="flex items-center gap-2 border-t border-zinc-100 pt-3">
+                <DateTimePicker value={newStart} onChange={setNewStart} />
+                <Button
+                  size="sm"
+                  disabled={!newStart || rescheduleMut.isPending}
+                  onClick={handleReschedule}
+                >
+                  Save
+                </Button>
               </div>
             )}
-            <div className="flex items-center gap-2">
-              <span className="text-zinc-500">Status: </span>
-              <span className={`rounded px-2 py-0.5 text-xs font-medium ${statusColor(currentStatus)}`}>
-                {statusLabel(currentStatus)}
-              </span>
+
+            {updateStatus.error && (
+              <p className="text-xs text-red-600">{(updateStatus.error as Error).message}</p>
+            )}
+          </div>
+        )}
+
+        {/* Cancel confirmation */}
+        {showCancel && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40">
+            <div className="w-72 rounded-lg bg-white p-5 shadow-xl">
+              <p className="mb-4 text-sm">Cancel this appointment?</p>
+              <div className="flex justify-end gap-2">
+                <Button variant="ghost" size="sm" onClick={() => setShowCancel(false)}>
+                  No
+                </Button>
+                <Button variant="destructive" size="sm" onClick={() => cancelMut.mutate()}>
+                  Yes, cancel
+                </Button>
+              </div>
             </div>
           </div>
-
-          <div className="flex flex-wrap gap-2 border-t border-zinc-100 pt-3">
-            <button
-              disabled={!canDo('CONFIRMED')}
-              onClick={() => updateStatus.mutate('CONFIRMED')}
-              className="rounded bg-indigo-600 px-3 py-1 text-xs text-white hover:bg-indigo-700 disabled:opacity-40"
-            >
-              Confirm
-            </button>
-            <button
-              disabled={!canDo('CHECKED_IN')}
-              onClick={() => updateStatus.mutate('CHECKED_IN')}
-              className="rounded bg-yellow-500 px-3 py-1 text-xs text-white hover:bg-yellow-600 disabled:opacity-40"
-            >
-              Check in
-            </button>
-            <button
-              disabled={!canDo('IN_PROGRESS')}
-              onClick={() => updateStatus.mutate('IN_PROGRESS')}
-              className="rounded bg-orange-500 px-3 py-1 text-xs text-white hover:bg-orange-600 disabled:opacity-40"
-            >
-              Start
-            </button>
-            <button
-              disabled={!canDo('COMPLETED')}
-              onClick={() => updateStatus.mutate('COMPLETED')}
-              className="rounded bg-green-600 px-3 py-1 text-xs text-white hover:bg-green-700 disabled:opacity-40"
-            >
-              Complete
-            </button>
-            <button
-              disabled={!canDo('NO_SHOW')}
-              onClick={() => updateStatus.mutate('NO_SHOW')}
-              className="rounded bg-red-500 px-3 py-1 text-xs text-white hover:bg-red-600 disabled:opacity-40"
-            >
-              No show
-            </button>
-            <button
-              onClick={() => setShowCancel(true)}
-              className="rounded border border-red-300 px-3 py-1 text-xs text-red-600 hover:bg-red-50"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => setShowReschedule((v) => !v)}
-              className="rounded border border-zinc-300 px-3 py-1 text-xs hover:bg-zinc-50"
-            >
-              Reschedule
-            </button>
-          </div>
-
-          {showReschedule && (
-            <div className="flex items-center gap-2 border-t border-zinc-100 pt-3">
-              <DateTimePicker value={newStart} onChange={setNewStart} />
-              <button
-                disabled={!newStart || rescheduleMut.isPending}
-                onClick={handleReschedule}
-                className="rounded bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700 disabled:opacity-40"
-              >
-                Save
-              </button>
-            </div>
-          )}
-
-          {updateStatus.error && (
-            <p className="text-xs text-red-600">{(updateStatus.error as Error).message}</p>
-          )}
-        </div>
-      )}
-
-      {/* Cancel confirmation dialog */}
-      {showCancel && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40">
-          <div className="w-72 rounded-lg bg-white p-5 shadow-xl">
-            <p className="mb-4 text-sm">Cancel this appointment?</p>
-            <div className="flex justify-end gap-2">
-              <button
-                className="rounded px-3 py-1 text-sm hover:bg-zinc-100"
-                onClick={() => setShowCancel(false)}
-              >
-                No
-              </button>
-              <button
-                className="rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
-                onClick={() => cancelMut.mutate()}
-              >
-                Yes, cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </Drawer>
+        )}
+      </SheetContent>
+    </Sheet>
   );
 }
