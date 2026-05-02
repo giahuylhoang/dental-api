@@ -4,11 +4,17 @@ import './index.css';
 import App from './App.tsx';
 
 async function prepare() {
-  if (import.meta.env.DEV) {
+  if (import.meta.env.DEV && import.meta.env.VITE_USE_MSW !== 'false') {
     const { worker } = await import('./mocks/browser');
-    return worker.start({ onUnhandledRequest: 'bypass' });
+    await worker.start({ onUnhandledRequest: 'bypass' });
+    return;
   }
-  return Promise.resolve();
+  // MSW disabled: tear down any service worker left over from a previous session
+  // so requests reach the real backend (via the Vite proxy).
+  if ('serviceWorker' in navigator) {
+    const regs = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(regs.map((r) => r.unregister()));
+  }
 }
 
 void prepare().then(() => {

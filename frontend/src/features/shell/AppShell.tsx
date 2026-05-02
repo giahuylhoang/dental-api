@@ -3,12 +3,14 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../auth/store';
 
 const NAV = [
+  { label: 'Dashboard', to: '/dashboard' },
   { label: 'Patients', to: '/patients' },
   { label: 'Schedule', to: '/schedule' },
   { label: 'Lab', to: '/lab' },
   { label: 'Plans', to: '/plans' },
   { label: 'CRM', to: '/crm' },
   { label: 'Billing', to: '/billing' },
+  { label: 'Communications', to: '/communications' },
   { label: 'Settings', to: '/settings' },
 ];
 

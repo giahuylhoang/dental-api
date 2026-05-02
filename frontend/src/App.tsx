@@ -6,6 +6,11 @@ import { Authed } from './features/auth/guards';
 import PatientList from './features/patients/PatientList';
 import Patient360 from './features/patients/Patient360';
 import LabCaseKanban from './features/lab/LabCaseKanban';
+import Calendar from './features/scheduling/Calendar';
+import InvoiceList from './features/billing/InvoiceList';
+import CommInbox from './features/communications/CommInbox';
+import LeadKanban from './features/crm/LeadKanban';
+import Dashboard from './features/reporting/Dashboard';
 
 const queryClient = new QueryClient();
 
@@ -30,14 +35,16 @@ export default function App() {
               <Authed>
                 <AppShell>
                   <Routes>
-                    <Route path="/" element={<Navigate to="/patients" replace />} />
+                    <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                    <Route path="/dashboard" element={<Dashboard />} />
                     <Route path="/patients" element={<PatientList />} />
                     <Route path="/patients/:id" element={<Patient360 />} />
+                    <Route path="/schedule" element={<Calendar />} />
                     <Route path="/lab" element={<LabCaseKanban />} />
-                    <Route path="/schedule" element={<Placeholder title="Schedule" />} />
+                    <Route path="/billing" element={<InvoiceList />} />
+                    <Route path="/communications" element={<CommInbox />} />
+                    <Route path="/crm" element={<LeadKanban />} />
                     <Route path="/plans" element={<Placeholder title="Treatment Plans" />} />
-                    <Route path="/crm" element={<Placeholder title="CRM" />} />
-                    <Route path="/billing" element={<Placeholder title="Billing" />} />
                     <Route path="/settings" element={<Placeholder title="Settings" />} />
                   </Routes>
                 </AppShell>

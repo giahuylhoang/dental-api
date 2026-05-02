@@ -5,12 +5,12 @@ import { fetcher } from '../../api/client';
 
 interface Patient {
   id: string;
-  first_name: string;
-  last_name: string;
+  first_name: string | null;
+  last_name: string | null;
   email: string | null;
   phone: string | null;
-  date_of_birth: string | null;
-  status: string;
+  date_of_birth?: string | null;
+  status?: string;
 }
 
 interface PatientsPage {
@@ -25,12 +25,22 @@ export default function PatientList() {
   const [page, setPage] = useState(1);
   const limit = 20;
 
-  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
-  if (search) params.set('q', search);
+  // v1 GET /api/patients accepts only `phone` / `email` query params and returns
+  // a flat array. Filter client-side for free-text search.
+  const params = new URLSearchParams();
+  if (/^[0-9+\-\s()]{4,}$/.test(search)) params.set('phone', search.replace(/[^\d+]/g, ''));
+  else if (/@/.test(search)) params.set('email', search);
 
   const { data, isLoading } = useQuery<PatientsPage>({
     queryKey: ['patients', search, page],
-    queryFn: () => fetcher<PatientsPage>(`/api/patients?${params}`),
+    queryFn: async () => {
+      const arr = await fetcher<Patient[]>(`/api/patients?${params}`);
+      const filtered = search && !params.toString()
+        ? arr.filter((p) => `${p.first_name ?? ''} ${p.last_name ?? ''}`.toLowerCase().includes(search.toLowerCase()))
+        : arr;
+      const start = (page - 1) * limit;
+      return { items: filtered.slice(start, start + limit), total: filtered.length, page, limit };
+    },
   });
 
   return (
@@ -69,8 +79,8 @@ export default function PatientList() {
                   <td className="py-2 pr-4 text-zinc-600">{p.phone ?? '—'}</td>
                   <td className="py-2 pr-4 text-zinc-600">{p.email ?? '—'}</td>
                   <td className="py-2">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${p.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-zinc-100 text-zinc-600'}`}>
-                      {p.status}
+                    <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                      active
                     </span>
                   </td>
                 </tr>
