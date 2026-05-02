@@ -1495,3 +1495,10 @@ try:
     app.include_router(_crm_router)
 except ImportError:
     pass  # v2 ops modules not yet present
+
+# v2 routers (F0 — Settings)
+try:
+    from api.v2.settings.router import router as _settings_router
+    app.include_router(_settings_router)
+except ImportError:
+    pass

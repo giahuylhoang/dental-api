@@ -2,6 +2,7 @@ import { http, HttpResponse } from 'msw';
 
 export interface MockLabCase {
   id: string;
+  case_number?: string;
   denture_case_id: string;
   vendor_id: string;
   status: string;
@@ -13,11 +14,13 @@ export interface MockLabCase {
   lab_fee: number | null;
   courier_tracking: string | null;
   clinic_id: string;
+  treatment_plan_id?: string | null;
 }
 
 export const labCasesDb: MockLabCase[] = [
   {
     id: 'lc1',
+    case_number: 'LC-2026-0001',
     denture_case_id: 'dc1',
     vendor_id: 'v1',
     status: 'sent',
@@ -29,9 +32,11 @@ export const labCasesDb: MockLabCase[] = [
     lab_fee: 350,
     courier_tracking: null,
     clinic_id: 'default',
+    treatment_plan_id: 'tp1',
   },
   {
     id: 'lc2',
+    case_number: 'LC-2026-0002',
     denture_case_id: 'dc1',
     vendor_id: 'v1',
     status: 'in_progress',
@@ -43,6 +48,7 @@ export const labCasesDb: MockLabCase[] = [
     lab_fee: 400,
     courier_tracking: null,
     clinic_id: 'default',
+    treatment_plan_id: null,
   },
 ];
 

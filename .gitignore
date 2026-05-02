@@ -37,3 +37,4 @@ logs/
 .claude/
 frontend/test-results/
 frontend/playwright-report/
+var/

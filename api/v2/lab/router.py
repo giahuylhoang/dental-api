@@ -10,6 +10,7 @@ from database.connection import get_db
 from database.models import Clinic
 from database.clinical.models import LabVendor, LabCase, LabCaseEvent, DentureCase
 from api.main import get_clinic
+from clients.lab_case_numbering import next_lab_case_number
 
 router = APIRouter(prefix="/api/v2/lab", tags=["lab"])
 
@@ -46,6 +47,7 @@ class LabCaseIn(BaseModel):
     due_back_at: Optional[datetime] = None
     lab_fee: Optional[float] = None
     courier_tracking: Optional[str] = None
+    treatment_plan_id: Optional[str] = None
 
 
 class LabCaseOut(BaseModel):
@@ -54,6 +56,8 @@ class LabCaseOut(BaseModel):
     clinic_id: str
     denture_case_id: str
     vendor_id: str
+    case_number: Optional[str] = None
+    treatment_plan_id: Optional[str] = None
     sent_at: Optional[datetime] = None
     due_back_at: Optional[datetime] = None
     returned_at: Optional[datetime] = None
@@ -140,7 +144,8 @@ def create_lab_case(body: LabCaseIn, clinic: Clinic = Depends(get_clinic), db: S
     if not dc:
         raise HTTPException(status_code=404, detail="Denture case not found")
     _get_vendor(body.vendor_id, clinic, db)
-    obj = LabCase(clinic_id=clinic.id, status="draft", **body.model_dump())
+    case_num = next_lab_case_number(db, clinic.id)
+    obj = LabCase(clinic_id=clinic.id, status="draft", case_number=case_num, **body.model_dump())
     db.add(obj)
     db.commit()
     db.refresh(obj)

@@ -36,6 +36,66 @@ export const treatmentPlansDb: MockTreatmentPlan[] = [
     ],
     clinic_id: 'default',
   },
+  {
+    id: 'tp2',
+    patient_id: 'p2',
+    status: 'presented',
+    total_estimate: 800,
+    insurance_estimate: 400,
+    patient_estimate: 400,
+    items: [
+      { id: 'tpi2', sequence: 1, procedure_code: '01202', description: 'Periodic Oral Exam', fee: 800, insurance_coverage_pct: 50, completed_at: null },
+    ],
+    clinic_id: 'default',
+  },
+  {
+    id: 'tp3',
+    patient_id: 'p3',
+    status: 'accepted',
+    total_estimate: 2400,
+    insurance_estimate: 1200,
+    patient_estimate: 1200,
+    items: [
+      { id: 'tpi3', sequence: 1, procedure_code: '31320', description: 'Complete lower denture', fee: 2400, insurance_coverage_pct: 50, completed_at: null },
+    ],
+    clinic_id: 'default',
+  },
+  {
+    id: 'tp4',
+    patient_id: 'p3',
+    status: 'in_progress',
+    total_estimate: 600,
+    insurance_estimate: 300,
+    patient_estimate: 300,
+    items: [
+      { id: 'tpi4', sequence: 1, procedure_code: '31410', description: 'Partial upper denture', fee: 600, insurance_coverage_pct: 50, completed_at: null },
+    ],
+    clinic_id: 'default',
+  },
+  {
+    id: 'tp5',
+    patient_id: 'p2',
+    status: 'completed',
+    total_estimate: 1200,
+    insurance_estimate: 600,
+    patient_estimate: 600,
+    items: [
+      { id: 'tpi5', sequence: 1, procedure_code: '31310', description: 'Complete upper denture', fee: 1200, insurance_coverage_pct: 50, completed_at: '2025-01-15T10:00:00Z' },
+    ],
+    clinic_id: 'default',
+  },
+  {
+    id: 'tp6',
+    patient_id: 'p3',
+    status: 'declined',
+    total_estimate: 3000,
+    insurance_estimate: 0,
+    patient_estimate: 3000,
+    items: [
+      { id: 'tpi6', sequence: 1, procedure_code: '31320', description: 'Complete lower denture', fee: 3000, insurance_coverage_pct: 0, completed_at: null },
+    ],
+    clinic_id: 'default',
+  },
 ];
 
 export const proceduresDb = [

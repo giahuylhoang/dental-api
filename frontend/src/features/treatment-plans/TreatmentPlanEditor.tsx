@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { fetcher } from '../../api/client';
 import ToothChart from '../patients/ToothChart';
+import { nextActions } from './statusFlow';
 
 interface PlanItem {
   id?: string;
@@ -85,7 +86,7 @@ export default function TreatmentPlanEditor({ patientId, planId, onSaved }: Trea
 
   const saveMutation = useMutation({
     mutationFn: (plan: Partial<TreatmentPlan>) =>
-      fetcher<TreatmentPlan>(`/api/v2/clinical/patients/${patientId}/treatment-plans`, {
+      fetcher<TreatmentPlan>(`/api/v2/treatment-plans`, {
         method: 'POST',
         body: JSON.stringify(plan),
       }),
@@ -104,11 +105,10 @@ export default function TreatmentPlanEditor({ patientId, planId, onSaved }: Trea
     },
   });
 
-  const updateStatusMutation = useMutation({
-    mutationFn: (newStatus: string) =>
-      fetcher<TreatmentPlan>(`/api/v2/treatment-plans/${planId}/status`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status: newStatus }),
+  const transitionMutation = useMutation({
+    mutationFn: (endpoint: string) =>
+      fetcher<TreatmentPlan>(`/api/v2/treatment-plans/${planId}/${endpoint}`, {
+        method: 'POST',
       }),
     onSuccess: (saved) => {
       qc.setQueryData(['treatment-plan', planId], saved);
@@ -333,45 +333,28 @@ export default function TreatmentPlanEditor({ patientId, planId, onSaved }: Trea
         >
           Save Draft
         </button>
-        {planId && status === 'draft' && (
+        {planId && nextActions(status).map((action) => (
           <button
-            onClick={() => updateStatusMutation.mutate('presented')}
-            className="rounded border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50"
+            key={action.endpoint}
+            onClick={() => transitionMutation.mutate(action.endpoint)}
+            className={
+              action.variant === 'green'
+                ? 'rounded border border-green-300 px-3 py-1.5 text-sm text-green-700 hover:bg-green-50'
+                : action.variant === 'red'
+                ? 'rounded border border-red-300 px-3 py-1.5 text-sm text-red-700 hover:bg-red-50'
+                : 'rounded border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50'
+            }
           >
-            Present
+            {action.label}
           </button>
-        )}
-        {planId && status === 'presented' && (
-          <>
-            <button
-              onClick={() => updateStatusMutation.mutate('accepted')}
-              className="rounded border border-green-300 px-3 py-1.5 text-sm text-green-700 hover:bg-green-50"
-            >
-              Accept
-            </button>
-            <button
-              onClick={() => updateStatusMutation.mutate('declined')}
-              className="rounded border border-red-300 px-3 py-1.5 text-sm text-red-700 hover:bg-red-50"
-            >
-              Decline
-            </button>
-          </>
-        )}
+        ))}
         {planId && status === 'accepted' && (
-          <>
-            <button
-              onClick={() => updateStatusMutation.mutate('completed')}
-              className="rounded border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50"
-            >
-              Complete
-            </button>
-            <button
-              onClick={() => generateInvoiceMutation.mutate()}
-              className="rounded border border-blue-300 px-3 py-1.5 text-sm text-blue-700 hover:bg-blue-50"
-            >
-              Generate invoice from plan
-            </button>
-          </>
+          <button
+            onClick={() => generateInvoiceMutation.mutate()}
+            className="rounded border border-blue-300 px-3 py-1.5 text-sm text-blue-700 hover:bg-blue-50"
+          >
+            Generate invoice from plan
+          </button>
         )}
       </div>
       {toastMsg && (

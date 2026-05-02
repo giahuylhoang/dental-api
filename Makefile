@@ -181,13 +181,14 @@ define run_pms_loop
 	  echo "$$gate" >> logs/pms-track-$(1).log; \
 	  echo "[pms-track-$(1)] gate red; invoking $(KIRO_BIN)..." | tee -a logs/pms-track-$(1).log; \
 	  prompt=$$(printf '%s\n\n---\n\nGate command: `$(MAKE) test-pms-$(1)`\nLatest gate failure (last 200 lines):\n```\n%s\n```\n\nImplement / fix according to the brief above so the gate exits 0. You MUST keep `$(MAKE) test-v1` green at every step.' "$$brief" "$$(echo "$$gate" | tail -n 200)"); \
-	  $(KIRO_BIN) chat --no-interactive --trust-all-tools "$$prompt" 2>&1 | tee -a logs/pms-track-$(1).log; \
+	  $(KIRO_BIN) chat --no-interactive --trust-all-tools --model $(KIRO_PMS_MODEL) "$$prompt" 2>&1 | tee -a logs/pms-track-$(1).log; \
 	done; \
 	echo "[pms-track-$(1)] iteration budget ($(KIRO_MAX_ITERATIONS_PMS)) exhausted; gate still red." | tee -a logs/pms-track-$(1).log; \
 	exit 1
 endef
 
 KIRO_MAX_ITERATIONS_PMS ?= 20
+KIRO_PMS_MODEL ?= claude-sonnet-4.6
 
 .PHONY: pms-loop-p0 pms-loop-p1 pms-loop-p2 pms-loop-p3 pms-loop-p4 pms-loop-p5 pms-loop-all
 pms-loop-p0: ; $(call run_pms_loop,p0)
@@ -370,6 +371,107 @@ test-pms-p5:
 	done
 	cd frontend && npm run -s lint && npm run -s build && \
 	  npm run -s test:pms-p5 && npm run -s e2e:pms-p5
+	$(V1_GATE)
+
+# ---------------------------------------------------------------------------
+# PMS Phase 3 — Feature data fill (F0..F6)
+# Goal: every page shows believable data on first paint; Settings real;
+# Communications threaded; schema gaps closed; OSS adoption continued.
+# ---------------------------------------------------------------------------
+
+.PHONY: pms-fill-f0 pms-fill-f1 pms-fill-f2 pms-fill-f3 pms-fill-f4 pms-fill-f5 pms-fill-f6 pms-fill-all
+pms-fill-f0: ; $(call run_pms_loop,f0)
+pms-fill-f1: ; $(call run_pms_loop,f1)
+pms-fill-f2: ; $(call run_pms_loop,f2)
+pms-fill-f3: ; $(call run_pms_loop,f3)
+pms-fill-f4: ; $(call run_pms_loop,f4)
+pms-fill-f5: ; $(call run_pms_loop,f5)
+pms-fill-f6: ; $(call run_pms_loop,f6)
+pms-fill-all: pms-fill-f0 pms-fill-f1 pms-fill-f2 pms-fill-f3 pms-fill-f4 pms-fill-f5 pms-fill-f6
+
+.PHONY: test-pms-f0
+test-pms-f0:
+	@for f in \
+	  tests/track_pms_f0/__init__.py \
+	  tests/track_pms_f0/test_f0_endpoints.py \
+	  scripts/seed_demo_clinic.py \
+	  api/v2/settings/router.py ; do \
+	  [ -e $$f ] || { echo "F0 deliverable missing: $$f"; exit 1; }; \
+	done
+	uv run pytest tests/track_pms_f0 -q
+	$(V1_GATE)
+	cd frontend && npm run -s gen:api && npm run -s build
+
+.PHONY: test-pms-f1
+test-pms-f1:
+	@for f in \
+	  frontend/tests/track_pms_f1/thread-list-renders.test.tsx \
+	  frontend/tests/track_pms_f1/compose-patient-autocomplete.test.tsx \
+	  frontend/tests/track_pms_f1/reply-prefills-channel-and-to.test.tsx \
+	  frontend/src/features/communications/ThreadList.tsx \
+	  frontend/src/features/communications/ThreadDetail.tsx \
+	  frontend/src/features/communications/ComposeDialog.tsx ; do \
+	  [ -e $$f ] || { echo "F1 deliverable missing: $$f"; exit 1; }; \
+	done
+	cd frontend && npm run -s lint && npm run -s build && \
+	  npm run -s test:pms-f1
+	$(V1_GATE)
+
+.PHONY: test-pms-f2
+test-pms-f2:
+	@for f in \
+	  frontend/tests/track_pms_f2/invoice-list-renders-seeded.test.tsx \
+	  frontend/tests/track_pms_f2/invoice-pdf-renders.test.tsx \
+	  frontend/src/features/billing/InvoicePdf.tsx ; do \
+	  [ -e $$f ] || { echo "F2 deliverable missing: $$f"; exit 1; }; \
+	done
+	cd frontend && npm run -s lint && npm run -s build && \
+	  npm run -s test:pms-f2
+	$(V1_GATE)
+
+.PHONY: test-pms-f3
+test-pms-f3:
+	@for f in \
+	  frontend/tests/track_pms_f3/case-number-visible-on-card.test.tsx \
+	  frontend/tests/track_pms_f3/drawer-shows-linked-plan-link.test.tsx ; do \
+	  [ -e $$f ] || { echo "F3 deliverable missing: $$f"; exit 1; }; \
+	done
+	cd frontend && npm run -s lint && npm run -s build && \
+	  npm run -s test:pms-f3
+	$(V1_GATE)
+
+.PHONY: test-pms-f4
+test-pms-f4:
+	@for f in \
+	  frontend/tests/track_pms_f4/plan-list-shows-status-pills.test.tsx \
+	  frontend/tests/track_pms_f4/endpoint-consistency.test.tsx ; do \
+	  [ -e $$f ] || { echo "F4 deliverable missing: $$f"; exit 1; }; \
+	done
+	cd frontend && npm run -s lint && npm run -s build && \
+	  npm run -s test:pms-f4
+	$(V1_GATE)
+
+.PHONY: test-pms-f5
+test-pms-f5:
+	@for f in \
+	  frontend/tests/track_pms_f5/kanban-shows-skeletons-while-loading.test.tsx \
+	  frontend/tests/track_pms_f5/drag-fires-correct-status-endpoint.test.tsx ; do \
+	  [ -e $$f ] || { echo "F5 deliverable missing: $$f"; exit 1; }; \
+	done
+	cd frontend && npm run -s lint && npm run -s build && \
+	  npm run -s test:pms-f5
+	$(V1_GATE)
+
+.PHONY: test-pms-f6
+test-pms-f6:
+	@for f in \
+	  frontend/tests/track_pms_f6/settings-loads-clinic-config.test.tsx \
+	  frontend/tests/track_pms_f6/save-clinic-info-puts-correct-body.test.tsx \
+	  frontend/src/features/settings/SettingsPage.tsx ; do \
+	  [ -e $$f ] || { echo "F6 deliverable missing: $$f"; exit 1; }; \
+	done
+	cd frontend && npm run -s lint && npm run -s build && \
+	  npm run -s test:pms-f6
 	$(V1_GATE)
 
 # ---------------------------------------------------------------------------

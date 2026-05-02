@@ -12,17 +12,9 @@ import CommInbox from './features/communications/CommInbox';
 import LeadKanban from './features/crm/LeadKanban';
 import Dashboard from './features/reporting/Dashboard';
 import TreatmentPlansPage from './features/treatment-plans/TreatmentPlansPage';
+import SettingsPage from './features/settings/SettingsPage';
 
 const queryClient = new QueryClient();
-
-function Placeholder({ title }: { title: string }) {
-  return (
-    <div>
-      <h2 className="mb-2 text-2xl font-semibold">{title}</h2>
-      <p className="text-sm text-zinc-600">Coming soon.</p>
-    </div>
-  );
-}
 
 export default function App() {
   return (
@@ -46,7 +38,7 @@ export default function App() {
                     <Route path="/communications" element={<CommInbox />} />
                     <Route path="/crm" element={<LeadKanban />} />
                     <Route path="/plans" element={<TreatmentPlansPage />} />
-                    <Route path="/settings" element={<Placeholder title="Settings" />} />
+                    <Route path="/settings" element={<SettingsPage />} />
                   </Routes>
                 </AppShell>
               </Authed>

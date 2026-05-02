@@ -34,6 +34,9 @@ def _comm_out(c: Communication) -> dict:
         "direction": c.direction,
         "body": c.body,
         "status": c.status,
+        "thread_key": c.thread_key,
+        "read_at": c.read_at.isoformat() if c.read_at else None,
+        "attachments": c.attachments or [],
         "related_appointment_id": c.related_appointment_id,
         "related_invoice_id": c.related_invoice_id,
         "created_at": c.created_at.isoformat(),
@@ -75,6 +78,7 @@ def send_communication(body: SendIn, clinic: Clinic = Depends(get_clinic), db: S
         direction="out",
         body=body.body,
         status="queued",
+        thread_key=f"{body.patient_id}:{body.channel}",
         related_appointment_id=body.related_appointment_id,
         related_invoice_id=body.related_invoice_id,
     )
@@ -104,6 +108,24 @@ def list_communications(
     if channel:
         q = q.filter(Communication.channel == channel)
     return [_comm_out(c) for c in q.order_by(Communication.created_at.desc()).all()]
+
+
+@router.patch("/threads/{thread_key}/read")
+def mark_thread_read(thread_key: str, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+    now = datetime.utcnow()
+    rows = (
+        db.query(Communication)
+        .filter(
+            Communication.clinic_id == clinic.id,
+            Communication.thread_key == thread_key,
+            Communication.read_at.is_(None),
+        )
+        .all()
+    )
+    for r in rows:
+        r.read_at = now
+    db.commit()
+    return {"updated": len(rows)}
 
 
 # ---------------------------------------------------------------------------

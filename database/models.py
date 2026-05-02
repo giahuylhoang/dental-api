@@ -43,6 +43,7 @@ class Clinic(Base):
 
     id = Column(String, primary_key=True, default=DEFAULT_CLINIC_ID)
     name = Column(String, nullable=False)
+    display_name = Column(Text, nullable=True)
     timezone = Column(String, default="America/Edmonton")
     working_hour_start = Column(Integer, default=9)
     working_hour_end = Column(Integer, default=17)

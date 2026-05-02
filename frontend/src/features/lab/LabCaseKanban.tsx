@@ -16,6 +16,7 @@ type LabStatus = (typeof COLUMNS)[number];
 
 interface LabCase {
   id: string;
+  case_number?: string;
   denture_case_id: string;
   vendor_id: string;
   status: LabStatus;
@@ -24,6 +25,7 @@ interface LabCase {
   lab_fee: number | null;
   remake_of_id: string | null;
   remake_reason: string | null;
+  treatment_plan_id?: string | null;
 }
 
 function KanbanCard({ labCase, onClick }: { labCase: LabCase; onClick: () => void }) {
@@ -42,6 +44,11 @@ function KanbanCard({ labCase, onClick }: { labCase: LabCase; onClick: () => voi
       onClick={onClick}
       className={`cursor-grab rounded border border-zinc-200 bg-white p-3 text-sm shadow-sm ${isDragging ? 'opacity-50' : ''}`}
     >
+      {labCase.case_number && (
+        <span className="mb-1 inline-block rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-xs text-zinc-600">
+          {labCase.case_number}
+        </span>
+      )}
       <p className="font-medium">Case #{labCase.id}</p>
       {labCase.lab_fee != null && <p className="text-zinc-500">${labCase.lab_fee}</p>}
       {labCase.due_back_at && (

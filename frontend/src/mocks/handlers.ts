@@ -19,9 +19,24 @@ import { pmsM1Handlers } from './pms-m1';
 import { pmsM2Handlers } from './pms-m2';
 import { pmsM3Handlers } from './pms-m3';
 import { pmsM4Handlers } from './pms-m4';
+import { pmsF1Handlers } from './pms-f1';
+import { pmsF3Handlers } from './pms-f3';
+import { pmsF4Handlers } from './pms-f4';
+import { pmsF5Handlers } from './pms-f5';
+import { pmsF6Handlers } from './pms-f6';
 
 export const handlers = [
   ...authHandlers,
+  // pmsF6: settings page
+  ...pmsF6Handlers,
+  // pmsF5: CRM kanban skeletons + correct endpoint + source pills
+  ...pmsF5Handlers,
+  // pmsF4: treatment plan status transitions + create endpoint
+  ...pmsF4Handlers,
+  // pmsF3: lab case numbers, linked plan, create with plan
+  ...pmsF3Handlers,
+  // pmsF1: communications thread read
+  ...pmsF1Handlers,
   // pmsM4: CRM full CRUD
   ...pmsM4Handlers,
   // pmsM3: treatment plan tooth chart + care notes

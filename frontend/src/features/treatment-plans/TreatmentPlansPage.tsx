@@ -18,7 +18,16 @@ interface Patient {
   last_name: string;
 }
 
-const STATUSES = ['draft', 'presented', 'accepted', 'declined', 'completed'] as const;
+const STATUSES = ['draft', 'presented', 'accepted', 'in_progress', 'completed', 'declined'] as const;
+
+const STATUS_COLORS: Record<string, string> = {
+  draft: 'bg-zinc-100 text-zinc-600',
+  presented: 'bg-blue-100 text-blue-700',
+  accepted: 'bg-green-100 text-green-700',
+  in_progress: 'bg-yellow-100 text-yellow-700',
+  completed: 'bg-emerald-100 text-emerald-700',
+  declined: 'bg-red-100 text-red-700',
+};
 
 export default function TreatmentPlansPage() {
   const qc = useQueryClient();
@@ -193,7 +202,7 @@ export default function TreatmentPlansPage() {
             >
               <td className="py-2 pr-4">{plan.patient_name ?? plan.patient_id}</td>
               <td className="py-2 pr-4">
-                <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600">{plan.status}</span>
+                <span className={`rounded-full px-2 py-0.5 text-xs ${STATUS_COLORS[plan.status] ?? 'bg-zinc-100 text-zinc-600'}`}>{plan.status}</span>
               </td>
               <td className="py-2">${plan.total_estimate.toFixed(2)}</td>
             </tr>

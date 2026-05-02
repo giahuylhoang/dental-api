@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { pdf } from '@react-pdf/renderer';
 import { fetcher } from '../../api/client';
 import { useAuthStore } from '../auth/store';
 import Drawer from '../../components/Drawer';
 import FormField from '../../components/forms/FormField';
 import SubmitClaimForm from './SubmitClaimForm';
 import ClaimDrawer from './ClaimDrawer';
+import InvoicePdf from './InvoicePdf';
 
 const fmt = new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' });
 
@@ -33,11 +35,14 @@ interface Claim {
 
 interface Invoice {
   id: string;
+  invoice_number?: string;
   patient_id: string;
+  patient_name?: string;
   status: 'draft' | 'issued' | 'partial' | 'paid' | 'void';
   subtotal: number;
   gst: number;
   total: number;
+  total_cents?: number;
   balance: number;
   lines?: InvoiceLine[];
   payments?: Payment[];
@@ -46,8 +51,9 @@ interface Invoice {
 }
 
 interface Props {
-  invoiceId: string | null;
-  open: boolean;
+  invoiceId?: string | null;
+  invoice?: Invoice;
+  open?: boolean;
   onClose: () => void;
   onChanged?: () => void;
 }
@@ -142,24 +148,39 @@ function RecordPaymentForm({
   );
 }
 
-export default function InvoiceDrawer({ invoiceId, open, onClose, onChanged }: Props) {
+export default function InvoiceDrawer({ invoiceId, invoice: invoiceProp, open = true, onClose, onChanged }: Props) {
   const qc = useQueryClient();
   const clinicId = useAuthStore((s) => s.clinicId);
   const [showPayment, setShowPayment] = useState(false);
   const [showClaim, setShowClaim] = useState(false);
   const [openClaimId, setOpenClaimId] = useState<string | null>(null);
 
-  const { data: invoice, isLoading } = useQuery<Invoice>({
-    queryKey: ['invoice', invoiceId],
-    queryFn: () => fetcher<Invoice>(`/api/v2/billing/invoices/${invoiceId}`),
-    enabled: !!invoiceId && open,
+  const resolvedId = invoiceProp?.id ?? invoiceId ?? null;
+
+  const { data: fetchedInvoice, isLoading } = useQuery<Invoice>({
+    queryKey: ['invoice', resolvedId],
+    queryFn: () => fetcher<Invoice>(`/api/v2/billing/invoices/${resolvedId}`),
+    enabled: !!resolvedId && open && !invoiceProp,
   });
+
+  const invoice = invoiceProp ?? fetchedInvoice;
+
+  async function handleDownloadPdf() {
+    if (!invoice) return;
+    const blob = await pdf(<InvoicePdf invoice={invoice} />).toBlob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `invoice-${invoice.invoice_number ?? invoice.id}.pdf`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   const issue = useMutation({
     mutationFn: () =>
-      fetcher(`/api/v2/billing/invoices/${invoiceId}/issue`, { method: 'POST' }),
+      fetcher(`/api/v2/billing/invoices/${resolvedId}/issue`, { method: 'POST' }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['invoice', invoiceId] });
+      qc.invalidateQueries({ queryKey: ['invoice', resolvedId] });
       qc.invalidateQueries({ queryKey: ['invoices', clinicId] });
       onChanged?.();
     },
@@ -167,9 +188,9 @@ export default function InvoiceDrawer({ invoiceId, open, onClose, onChanged }: P
 
   const voidInv = useMutation({
     mutationFn: () =>
-      fetcher(`/api/v2/billing/invoices/${invoiceId}/void`, { method: 'POST' }),
+      fetcher(`/api/v2/billing/invoices/${resolvedId}/void`, { method: 'POST' }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['invoice', invoiceId] });
+      qc.invalidateQueries({ queryKey: ['invoice', resolvedId] });
       qc.invalidateQueries({ queryKey: ['invoices', clinicId] });
       onChanged?.();
       onClose();
@@ -181,7 +202,7 @@ export default function InvoiceDrawer({ invoiceId, open, onClose, onChanged }: P
       <Drawer
         open={open}
         onClose={onClose}
-        title={`Invoice ${invoiceId?.slice(0, 8) ?? ''}`}
+        title={`Invoice ${resolvedId?.slice(0, 8) ?? ''}`}
         width="lg"
         footer={
           invoice ? (
@@ -222,6 +243,12 @@ export default function InvoiceDrawer({ invoiceId, open, onClose, onChanged }: P
                   Submit Claim
                 </button>
               )}
+              <button
+                onClick={handleDownloadPdf}
+                className="rounded border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50"
+              >
+                Download PDF
+              </button>
             </div>
           ) : undefined
         }
@@ -358,7 +385,7 @@ export default function InvoiceDrawer({ invoiceId, open, onClose, onChanged }: P
         open={!!openClaimId}
         onClose={() => setOpenClaimId(null)}
         onChanged={() => {
-          qc.invalidateQueries({ queryKey: ['invoice', invoiceId] });
+          qc.invalidateQueries({ queryKey: ['invoice', resolvedId] });
           onChanged?.();
         }}
       />

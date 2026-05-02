@@ -29,6 +29,42 @@ const COL_COLORS: Record<LeadStatus, string> = {
   LOST: 'bg-red-50',
 };
 
+const SOURCE_ICONS: Record<string, string> = {
+  phone: '📞',
+  web: '🌐',
+  referral: '👥',
+  'walk-in': '🚶',
+};
+
+function sourcePill(source: string | null) {
+  if (!source) return null;
+  const icon = SOURCE_ICONS[source] ?? '❓';
+  return (
+    <span className="mt-1 inline-block rounded-full bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-600">
+      {icon} {source}
+    </span>
+  );
+}
+
+function SkeletonColumn() {
+  return (
+    <div className="flex w-56 shrink-0 flex-col rounded-lg border border-zinc-200 bg-zinc-50">
+      <div className="border-b border-zinc-200 px-3 py-2">
+        <div className="h-3 w-20 animate-pulse rounded bg-zinc-200" />
+      </div>
+      <div className="flex flex-1 flex-col gap-2 p-2">
+        {[0, 1].map((i) => (
+          <div
+            key={i}
+            data-testid="lead-skeleton"
+            className="h-16 animate-pulse rounded bg-zinc-200"
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function LeadKanban() {
   const clinicId = useAuthStore((s) => s.clinicId);
   const qc = useQueryClient();
@@ -44,7 +80,7 @@ export default function LeadKanban() {
 
   const updateStatus = useMutation({
     mutationFn: ({ id, status }: { id: string; status: LeadStatus }) =>
-      fetcher(`/api/leads/${id}/status`, {
+      fetcher(`/api/v2/crm/leads/${id}`, {
         method: 'PUT',
         body: JSON.stringify({ status }),
       }),
@@ -74,7 +110,20 @@ export default function LeadKanban() {
     },
   });
 
-  if (isLoading) return <p className="text-sm text-zinc-500">Loading…</p>;
+  if (isLoading) {
+    return (
+      <>
+        <div className="mb-3 flex justify-end">
+          <button className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700">
+            + New Lead
+          </button>
+        </div>
+        <div className="flex gap-3 overflow-x-auto pb-4">
+          {COLUMNS.map((col) => <SkeletonColumn key={col} />)}
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
@@ -119,9 +168,7 @@ export default function LeadKanban() {
                   {lead.phone && (
                     <div className="text-xs text-zinc-500">{lead.phone}</div>
                   )}
-                  {lead.source && (
-                    <div className="text-xs text-zinc-400">{lead.source}</div>
-                  )}
+                  {sourcePill(lead.source)}
                   {col !== 'CONVERTED' && col !== 'LOST' && (
                     <button
                       className="mt-2 w-full rounded bg-green-600 px-2 py-0.5 text-xs text-white hover:bg-green-700"

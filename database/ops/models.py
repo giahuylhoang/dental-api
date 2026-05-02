@@ -185,10 +185,13 @@ class Communication(Base):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     clinic_id = Column(String, ForeignKey("clinics.id"), nullable=False)
     patient_id = Column(String, ForeignKey("patients.id"), nullable=False)
-    channel = Column(String, nullable=False)  # sms|email|inbound_sms|inbound_email
+    channel = Column(String, nullable=False)  # sms|email|whatsapp|inbound_sms|inbound_email
     direction = Column(String, nullable=False)  # out|in
     body = Column(Text, nullable=False)
     status = Column(String, default="queued")  # queued|sent|delivered|failed|received
+    thread_key = Column(Text, nullable=True)
+    read_at = Column(DateTime, nullable=True)
+    attachments = Column(JSON, default=list)
     related_appointment_id = Column(String, ForeignKey("appointments.id"), nullable=True)
     related_invoice_id = Column(String, ForeignKey("invoices.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -240,6 +243,7 @@ Index(
 )
 Index("ix_communications_patient_created", Communication.patient_id, Communication.created_at.desc())
 Index("ix_communications_clinic_created", Communication.clinic_id, Communication.created_at.desc())
+Index("ix_communications_thread_key", Communication.thread_key)
 Index("ix_lead_events_lead_created", LeadEvent.lead_id, LeadEvent.occurred_at.desc())
 Index("ix_appointment_resources_appointment", AppointmentResource.appointment_id)
 Index("ix_appointment_resources_operatory", AppointmentResource.operatory_id)

@@ -253,6 +253,8 @@ class LabCase(Base):
     clinic_id = Column(String, ForeignKey("clinics.id"), nullable=False)
     denture_case_id = Column(String, ForeignKey("denture_cases.id"), nullable=False)
     vendor_id = Column(String, ForeignKey("lab_vendors.id"), nullable=False)
+    case_number = Column(Text, nullable=True, unique=True)
+    treatment_plan_id = Column(String, ForeignKey("treatment_plans.id"), nullable=True)
     sent_at = Column(DateTime, nullable=True)
     due_back_at = Column(DateTime, nullable=True)
     returned_at = Column(DateTime, nullable=True)

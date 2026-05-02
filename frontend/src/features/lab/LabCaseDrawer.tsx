@@ -8,6 +8,7 @@ import DentureCaseDrawer from './DentureCaseDrawer';
 
 interface LabCase {
   id: string;
+  case_number?: string;
   denture_case_id: string;
   vendor_id: string;
   status: string;
@@ -18,11 +19,18 @@ interface LabCase {
   remake_reason: string | null;
   lab_fee: number | null;
   courier_tracking: string | null;
+  treatment_plan_id?: string | null;
 }
 
 interface Vendor {
   id: string;
   name: string;
+}
+
+interface TreatmentPlan {
+  id: string;
+  status: string;
+  patient_id: string;
 }
 
 interface Implant {
@@ -64,6 +72,12 @@ export default function LabCaseDrawer({ caseId, open, onClose, onChanged }: Prop
     enabled: open,
   });
   const vendor = vendors.find((v) => v.id === labCase?.vendor_id);
+
+  const { data: linkedPlan } = useQuery<TreatmentPlan>({
+    queryKey: ['treatment-plan', labCase?.treatment_plan_id],
+    queryFn: () => fetcher<TreatmentPlan>(`/api/v2/treatment-plans/${labCase!.treatment_plan_id}`),
+    enabled: open && !!labCase?.treatment_plan_id,
+  });
 
   const { data: implants = [], refetch: refetchImplants } = useQuery<Implant[]>({
     queryKey: ['denture-implants', labCase?.denture_case_id],
@@ -142,6 +156,22 @@ export default function LabCaseDrawer({ caseId, open, onClose, onChanged }: Prop
                     >
                       Open denture case
                     </button>
+                  </div>
+                )}
+                {labCase.treatment_plan_id && (
+                  <div>
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">Linked Treatment Plan</p>
+                    {linkedPlan && (
+                      <span className="mr-2 inline-block rounded bg-zinc-100 px-1.5 py-0.5 text-xs capitalize text-zinc-700">
+                        {linkedPlan.status}
+                      </span>
+                    )}
+                    <a
+                      href={`/plans?focus=${labCase.treatment_plan_id}`}
+                      className="text-sm text-blue-600 hover:underline"
+                    >
+                      Open plan →
+                    </a>
                   </div>
                 )}
                 <div className="flex gap-2 border-t border-zinc-100 pt-3">

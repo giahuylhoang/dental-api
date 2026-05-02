@@ -1,6 +1,14 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  flexRender,
+  createColumnHelper,
+  type SortingState,
+} from '@tanstack/react-table';
 import Fuse from 'fuse.js';
 import { fetcher } from '../../api/client';
 import { useAuthStore } from '../auth/store';
@@ -36,6 +44,43 @@ const STATUS_COLORS: Record<Invoice['status'], string> = {
   void: 'bg-red-100 text-red-600',
 };
 
+const col = createColumnHelper<Invoice>();
+
+const columns = [
+  col.accessor('invoice_number', {
+    header: 'Invoice #',
+    cell: (info) => info.getValue() ?? info.row.original.id.slice(0, 8),
+  }),
+  col.accessor(
+    (row) => row.patient_name ?? row.patient_id,
+    {
+      id: 'patient',
+      header: 'Patient',
+    },
+  ),
+  col.accessor('status', {
+    header: 'Status',
+    cell: (info) => (
+      <span className={`rounded px-1.5 py-0.5 text-xs ${STATUS_COLORS[info.getValue()]}`}>
+        {info.getValue()}
+      </span>
+    ),
+  }),
+  col.accessor((row) => (row.total_cents != null ? row.total_cents / 100 : row.total), {
+    id: 'total',
+    header: 'Total',
+    cell: (info) => <span className="text-right">{fmt.format(info.getValue())}</span>,
+  }),
+  col.accessor(
+    (row) => Math.floor((Date.now() - new Date(row.created_at).getTime()) / 86_400_000),
+    {
+      id: 'age',
+      header: 'Age',
+      cell: (info) => `${info.getValue()}d`,
+    },
+  ),
+];
+
 export default function InvoiceList({ patientId }: { patientId?: string }) {
   const clinicId = useAuthStore((s) => s.clinicId);
   const qc = useQueryClient();
@@ -45,6 +90,7 @@ export default function InvoiceList({ patientId }: { patientId?: string }) {
   const [statusFilter, setStatusFilter] = useState<string>(statusFromUrl);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [sorting, setSorting] = useState<SortingState>([]);
 
   const qs = new URLSearchParams();
   if (patientId) qs.set('patient_id', patientId);
@@ -56,7 +102,6 @@ export default function InvoiceList({ patientId }: { patientId?: string }) {
     queryFn: () => fetcher<Invoice[]>(`/api/v2/billing/invoices${qsStr}`),
   });
 
-  // Debounce search query 200ms
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(searchQuery), 200);
     return () => clearTimeout(t);
@@ -82,7 +127,6 @@ export default function InvoiceList({ patientId }: { patientId?: string }) {
     enabled: !!patientId,
   });
 
-  // New invoice form state
   const [showNewForm, setShowNewForm] = useState(false);
   const [newPatientId, setNewPatientId] = useState(patientId ?? '');
   const [newDentureCaseId, setNewDentureCaseId] = useState('');
@@ -102,6 +146,15 @@ export default function InvoiceList({ patientId }: { patientId?: string }) {
       setShowNewForm(false);
       setNewDentureCaseId('');
     },
+  });
+
+  const table = useReactTable({
+    data: visibleInvoices,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
   });
 
   if (isLoading) return <p className="text-sm text-zinc-500">Loading…</p>;
@@ -184,39 +237,38 @@ export default function InvoiceList({ patientId }: { patientId?: string }) {
 
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b text-left text-zinc-500">
-            <th className="pb-1">ID</th>
-            <th className="pb-1">Patient</th>
-            <th className="pb-1">Status</th>
-            <th className="pb-1 text-right">Total</th>
-            <th className="pb-1 text-right">Balance</th>
-            <th className="pb-1">Date</th>
-          </tr>
-        </thead>
-        <tbody>
-          {visibleInvoices.map((inv) => (
-            <tr
-              key={inv.id}
-              className="cursor-pointer border-b border-zinc-100 hover:bg-zinc-50"
-              onClick={() => setDrawerInvoiceId(inv.id)}
-            >
-              <td className="py-1 pr-2 font-mono text-xs">{inv.id.slice(0, 8)}</td>
-              <td className="py-1 pr-2 text-sm">{inv.patient_name ?? inv.patient_id.slice(0, 8)}</td>
-              <td className="py-1 pr-2">
-                <span className={`rounded px-1.5 py-0.5 text-xs ${STATUS_COLORS[inv.status]}`}>
-                  {inv.status}
-                </span>
-              </td>
-              <td className="py-1 pr-2 text-right">{fmt.format(inv.total)}</td>
-              <td className="py-1 pr-2 text-right">{fmt.format(inv.balance)}</td>
-              <td className="py-1 pr-2 text-xs text-zinc-500">
-                {new Date(inv.created_at).toLocaleDateString('en-CA')}
-              </td>
+          {table.getHeaderGroups().map((hg) => (
+            <tr key={hg.id} className="border-b text-left text-zinc-500">
+              {hg.headers.map((header) => (
+                <th
+                  key={header.id}
+                  className="pb-1 cursor-pointer select-none"
+                  onClick={header.column.getToggleSortingHandler()}
+                >
+                  {flexRender(header.column.columnDef.header, header.getContext())}
+                  {header.column.getIsSorted() === 'asc' ? ' ↑' : header.column.getIsSorted() === 'desc' ? ' ↓' : ''}
+                </th>
+              ))}
             </tr>
           ))}
-          {visibleInvoices.length === 0 && (
+        </thead>
+        <tbody>
+          {table.getRowModel().rows.map((row) => (
+            <tr
+              key={row.id}
+              className="cursor-pointer border-b border-zinc-100 hover:bg-zinc-50"
+              onClick={() => setDrawerInvoiceId(row.original.id)}
+            >
+              {row.getVisibleCells().map((cell) => (
+                <td key={cell.id} className="py-1 pr-2">
+                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                </td>
+              ))}
+            </tr>
+          ))}
+          {table.getRowModel().rows.length === 0 && (
             <tr>
-              <td colSpan={6} className="py-4 text-center text-zinc-400">
+              <td colSpan={columns.length} className="py-4 text-center text-zinc-400">
                 No invoices
               </td>
             </tr>
