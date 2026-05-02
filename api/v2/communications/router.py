@@ -12,7 +12,7 @@ from database.connection import get_db
 from database.models import Clinic, Patient
 from database.ops.models import Communication
 from api.main import get_clinic
-from clients.sms_client import _send_sms_sync, SEND_BOOKING_SMS
+from clients.sms_client import _send_sms_sync, SEND_BOOKING_SMS, send_whatsapp
 
 router = APIRouter(prefix="/api/v2/communications", tags=["v2-communications"])
 
@@ -46,6 +46,11 @@ def _send_patient_message(channel: str, patient: Patient, body: str) -> bool:
     if channel == "sms":
         if patient.phone:
             return _send_sms_sync(patient.phone, body)
+        return False
+    elif channel == "whatsapp":
+        if patient.phone:
+            result = send_whatsapp(to=patient.phone, body=body)
+            return result.get("sid") is not None
         return False
     elif channel == "email":
         # Stub: log only (no SMTP for patient messages in v1)

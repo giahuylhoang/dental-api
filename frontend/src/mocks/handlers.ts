@@ -15,9 +15,21 @@ import { pmsP2Handlers } from './pms-p2';
 import { pmsP3Handlers } from './pms-p3';
 import { pmsP4Handlers } from './pms-p4';
 import { pmsP5Handlers } from './pms-p5';
+import { pmsM1Handlers } from './pms-m1';
+import { pmsM2Handlers } from './pms-m2';
+import { pmsM3Handlers } from './pms-m3';
+import { pmsM4Handlers } from './pms-m4';
 
 export const handlers = [
   ...authHandlers,
+  // pmsM4: CRM full CRUD
+  ...pmsM4Handlers,
+  // pmsM3: treatment plan tooth chart + care notes
+  ...pmsM3Handlers,
+  // pmsM2: document upload
+  ...pmsM2Handlers,
+  // pmsM1: calendar events, doctors, services, quick-book
+  ...pmsM1Handlers,
   // pmsP5 first: overrides /api/v2/billing/invoices/:id and adds insurance/claims
   ...pmsP5Handlers,
   // pmsP4 first: overrides /api/v2/treatment-plans and /api/v2/patients

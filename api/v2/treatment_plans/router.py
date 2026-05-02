@@ -23,6 +23,8 @@ class PlanItemIn(BaseModel):
     description: Optional[str] = None
     fee: Optional[float] = None
     insurance_coverage_pct: Optional[float] = 0.0
+    tooth_number: Optional[int] = None
+    care_notes: Optional[str] = None
 
 
 class PlanItemOut(BaseModel):
@@ -34,6 +36,8 @@ class PlanItemOut(BaseModel):
     description: Optional[str] = None
     fee: float
     insurance_coverage_pct: float
+    tooth_number: Optional[int] = None
+    care_notes: Optional[str] = None
     completed_at: Optional[datetime] = None
 
 
@@ -100,6 +104,8 @@ def _resolve_items(items_in: List[PlanItemIn], clinic_id: str, plan_id: str, db:
             description=description or item.procedure_code,
             fee=fee or 0.0,
             insurance_coverage_pct=item.insurance_coverage_pct or 0.0,
+            tooth_number=item.tooth_number,
+            care_notes=item.care_notes,
         ))
     return result
 

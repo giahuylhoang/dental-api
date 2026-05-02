@@ -6,6 +6,7 @@ type Document = components['schemas']['Document'];
 
 interface DocumentListProps {
   patientId: string;
+  kindFilter?: string;
 }
 
 const KIND_LABELS: Record<string, string> = {
@@ -15,16 +16,18 @@ const KIND_LABELS: Record<string, string> = {
   other: 'Other',
 };
 
-export default function DocumentList({ patientId }: DocumentListProps) {
+export default function DocumentList({ patientId, kindFilter }: DocumentListProps) {
   const { data: docs = [], isLoading } = useQuery<Document[]>({
     queryKey: ['documents', patientId],
     queryFn: () => fetcher<Document[]>(`/api/v2/clinical/patients/${patientId}/documents`),
   });
 
   if (isLoading) return <p className="text-sm text-zinc-500">Loading…</p>;
-  if (docs.length === 0) return <p className="text-sm text-zinc-500">No documents.</p>;
 
-  const grouped = docs.reduce<Record<string, Document[]>>((acc, doc) => {
+  const filtered = kindFilter ? docs.filter((d) => d.kind === kindFilter) : docs;
+  if (filtered.length === 0) return <p className="text-sm text-zinc-500">No documents.</p>;
+
+  const grouped = filtered.reduce<Record<string, Document[]>>((acc, doc) => {
     const k = doc.kind;
     if (!acc[k]) acc[k] = [];
     acc[k].push(doc);

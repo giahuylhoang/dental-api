@@ -19,6 +19,8 @@ export interface MockTreatmentPlanItem {
   fee: number;
   insurance_coverage_pct: number | null;
   completed_at: string | null;
+  tooth_number?: number | null;
+  care_notes?: string | null;
 }
 
 export const treatmentPlansDb: MockTreatmentPlan[] = [

@@ -3,15 +3,18 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetcher } from '../../api/client';
 import { useAuthStore } from '../auth/store';
 
+type Channel = 'sms' | 'email' | 'whatsapp';
+
 interface Message {
   id: string;
   patient_id: string;
-  channel: 'sms' | 'email';
+  channel: Channel;
   direction: 'inbound' | 'outbound';
   body: string;
   status: string;
   created_at: string;
   patient_name?: string;
+  from?: string;
 }
 
 interface Thread {
@@ -20,6 +23,12 @@ interface Thread {
   messages: Message[];
   last_at: string;
 }
+
+const CHANNEL_ICONS: Record<Channel, string> = {
+  sms: '📱',
+  email: '✉️',
+  whatsapp: '💬',
+};
 
 function groupByPatient(msgs: Message[]): Thread[] {
   const map = new Map<string, Thread>();
@@ -39,28 +48,37 @@ function groupByPatient(msgs: Message[]): Thread[] {
   return Array.from(map.values()).sort((a, b) => b.last_at.localeCompare(a.last_at));
 }
 
+interface ComposeState {
+  channel: Channel;
+  to: string;
+}
+
 interface ComposeProps {
+  initial?: Partial<ComposeState>;
   onClose: () => void;
 }
 
-function ComposeDialog({ onClose }: ComposeProps) {
+function ComposeDialog({ initial, onClose }: ComposeProps) {
   const qc = useQueryClient();
   const clinicId = useAuthStore((s) => s.clinicId);
   const [patientId, setPatientId] = useState('');
-  const [channel, setChannel] = useState<'sms' | 'email'>('sms');
+  const [channel, setChannel] = useState<Channel>(initial?.channel ?? 'sms');
+  const [to, setTo] = useState(initial?.to ?? '');
   const [body, setBody] = useState('');
 
   const send = useMutation({
     mutationFn: () =>
       fetcher('/api/v2/communications/send', {
         method: 'POST',
-        body: JSON.stringify({ patient_id: patientId, channel, body }),
+        body: JSON.stringify({ patient_id: patientId, channel, body, to }),
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['communications', clinicId] });
       onClose();
     },
   });
+
+  const channels: Channel[] = ['sms', 'email', 'whatsapp'];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
@@ -77,15 +95,32 @@ function ComposeDialog({ onClose }: ComposeProps) {
             />
           </div>
           <div>
-            <label className="block text-zinc-600">Channel</label>
-            <select
+            <label className="block text-zinc-600">To</label>
+            <input
               className="mt-1 w-full rounded border px-2 py-1"
-              value={channel}
-              onChange={(e) => setChannel(e.target.value as 'sms' | 'email')}
-            >
-              <option value="sms">SMS</option>
-              <option value="email">Email</option>
-            </select>
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="block text-zinc-600">Channel</label>
+            <div className="mt-1 flex gap-1">
+              {channels.map((ch) => (
+                <button
+                  key={ch}
+                  type="button"
+                  aria-pressed={channel === ch}
+                  onClick={() => setChannel(ch)}
+                  className={`flex-1 rounded border px-2 py-1 capitalize ${
+                    channel === ch
+                      ? 'border-blue-600 bg-blue-600 text-white'
+                      : 'border-zinc-300 hover:bg-zinc-50'
+                  }`}
+                >
+                  {ch}
+                </button>
+              ))}
+            </div>
           </div>
           <div>
             <label className="block text-zinc-600">Message</label>
@@ -120,7 +155,7 @@ function ComposeDialog({ onClose }: ComposeProps) {
 export default function CommInbox() {
   const clinicId = useAuthStore((s) => s.clinicId);
   const [selected, setSelected] = useState<string | null>(null);
-  const [composing, setComposing] = useState(false);
+  const [compose, setCompose] = useState<Partial<ComposeState> | null>(null);
 
   const { data: messages = [], isLoading } = useQuery<Message[]>({
     queryKey: ['communications', clinicId],
@@ -138,7 +173,7 @@ export default function CommInbox() {
           <span className="text-sm font-medium">Inbox</span>
           <button
             className="rounded bg-blue-600 px-2 py-0.5 text-xs text-white hover:bg-blue-700"
-            onClick={() => setComposing(true)}
+            onClick={() => setCompose({})}
           >
             Compose
           </button>
@@ -190,8 +225,16 @@ export default function CommInbox() {
                   >
                     <div>{m.body}</div>
                     <div className="mt-0.5 text-xs opacity-60">
-                      {m.channel} · {new Date(m.created_at).toLocaleTimeString('en-CA')}
+                      {CHANNEL_ICONS[m.channel]} {m.channel} · {new Date(m.created_at).toLocaleTimeString('en-CA')}
                     </div>
+                    {m.direction === 'inbound' && (
+                      <button
+                        className="mt-1 text-xs underline opacity-70 hover:opacity-100"
+                        onClick={() => setCompose({ channel: m.channel, to: m.from })}
+                      >
+                        Reply
+                      </button>
+                    )}
                   </div>
                 </li>
               ))}
@@ -204,7 +247,9 @@ export default function CommInbox() {
         )}
       </div>
 
-      {composing && <ComposeDialog onClose={() => setComposing(false)} />}
+      {compose !== null && (
+        <ComposeDialog initial={compose} onClose={() => setCompose(null)} />
+      )}
     </div>
   );
 }

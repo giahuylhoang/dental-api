@@ -1123,6 +1123,263 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/crm/leads": {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Clinic-Id"?: components["parameters"]["XClinicId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a new lead */
+        post: {
+            parameters: {
+                query?: never;
+                header?: {
+                    "X-Clinic-Id"?: components["parameters"]["XClinicId"];
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        first_name: string;
+                        last_name: string;
+                        phone: string;
+                        email?: string | null;
+                        source?: string | null;
+                        notes?: string | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LeadOut"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/crm/leads/{lead_id}": {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Clinic-Id"?: components["parameters"]["XClinicId"];
+            };
+            path: {
+                lead_id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Partial update a lead (owner_id, status, notes, etc.) */
+        put: {
+            parameters: {
+                query?: never;
+                header?: {
+                    "X-Clinic-Id"?: components["parameters"]["XClinicId"];
+                };
+                path: {
+                    lead_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        owner_id?: string | null;
+                        status?: string | null;
+                        notes?: string | null;
+                        first_name?: string | null;
+                        last_name?: string | null;
+                        phone?: string | null;
+                        email?: string | null;
+                        source?: string | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LeadOut"];
+                    };
+                };
+                /** @description Lead not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/crm/leads/{lead_id}/activities": {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Clinic-Id"?: components["parameters"]["XClinicId"];
+            };
+            path: {
+                lead_id: string;
+            };
+            cookie?: never;
+        };
+        /** List activities for a lead, sorted by created_at DESC */
+        get: {
+            parameters: {
+                query?: never;
+                header?: {
+                    "X-Clinic-Id"?: components["parameters"]["XClinicId"];
+                };
+                path: {
+                    lead_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LeadActivity"][];
+                    };
+                };
+                /** @description Lead not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        /** Create an activity (note/call/email/meeting) for a lead */
+        post: {
+            parameters: {
+                query?: never;
+                header?: {
+                    "X-Clinic-Id"?: components["parameters"]["XClinicId"];
+                };
+                path: {
+                    lead_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        kind: "note" | "call" | "email" | "meeting";
+                        body: string;
+                        payload?: Record<string, never> | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LeadActivity"];
+                    };
+                };
+                /** @description Lead not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/clinical/appointments/{appointment_id}": {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Clinic-Id"?: components["parameters"]["XClinicId"];
+            };
+            path: {
+                appointment_id: string;
+            };
+            cookie?: never;
+        };
+        /** Get appointment by ID (v2 — includes chief_complaint) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: {
+                    "X-Clinic-Id"?: components["parameters"]["XClinicId"];
+                };
+                path: {
+                    appointment_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AppointmentV2"];
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1453,6 +1710,46 @@ export interface components {
             patient_id: string;
             /** @default 0.05 */
             gst_rate: number;
+        };
+        LeadOut: {
+            id: string;
+            clinic_id: string;
+            name?: string | null;
+            first_name?: string | null;
+            last_name?: string | null;
+            phone: string;
+            email?: string | null;
+            source?: string | null;
+            status?: string;
+            notes?: string | null;
+            owner_id?: string | null;
+            /** Format: date-time */
+            created_at?: string;
+            /** Format: date-time */
+            updated_at?: string;
+        };
+        LeadActivity: {
+            id: string;
+            lead_id: string;
+            /** @enum {string} */
+            kind: "note" | "call" | "email" | "meeting";
+            body?: string | null;
+            /** Format: date-time */
+            occurred_at: string;
+            payload?: Record<string, never> | null;
+        };
+        AppointmentV2: {
+            id: string;
+            patient_id: string;
+            provider_id: number;
+            service_id?: number | null;
+            /** Format: date-time */
+            start_time: string;
+            /** Format: date-time */
+            end_time: string;
+            reason_note?: string | null;
+            chief_complaint?: string | null;
+            status: string;
         };
     };
     responses: never;

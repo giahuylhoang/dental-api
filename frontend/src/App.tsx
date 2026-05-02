@@ -6,7 +6,7 @@ import { Authed } from './features/auth/guards';
 import PatientList from './features/patients/PatientList';
 import Patient360 from './features/patients/Patient360';
 import LabCaseKanban from './features/lab/LabCaseKanban';
-import Calendar from './features/scheduling/Calendar';
+import Scheduler from './features/scheduling/Scheduler';
 import InvoiceList from './features/billing/InvoiceList';
 import CommInbox from './features/communications/CommInbox';
 import LeadKanban from './features/crm/LeadKanban';
@@ -40,7 +40,7 @@ export default function App() {
                     <Route path="/dashboard" element={<Dashboard />} />
                     <Route path="/patients" element={<PatientList />} />
                     <Route path="/patients/:id" element={<Patient360 />} />
-                    <Route path="/schedule" element={<Calendar />} />
+                    <Route path="/schedule" element={<Scheduler />} />
                     <Route path="/lab" element={<LabCaseKanban />} />
                     <Route path="/billing" element={<InvoiceList />} />
                     <Route path="/communications" element={<CommInbox />} />

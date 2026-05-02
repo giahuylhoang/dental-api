@@ -164,6 +164,33 @@ async def send_reschedule_confirmation_sms(
         return False
 
 
+def send_whatsapp(to: str, body: str) -> dict:
+    """Send a WhatsApp message via Twilio using the whatsapp: prefix.
+
+    Uses TWILIO_WHATSAPP_FROM env var; falls back to TWILIO_PHONE_NUMBER.
+    Returns a dict with 'sid' on success. Never raises.
+    """
+    account_sid = os.getenv("TWILIO_ACCOUNT_SID")
+    auth_token = os.getenv("TWILIO_AUTH_TOKEN")
+    from_number = os.getenv("TWILIO_WHATSAPP_FROM") or os.getenv("TWILIO_PHONE_NUMBER")
+
+    if not all([account_sid, auth_token, from_number]):
+        logger.warning("Twilio not configured for WhatsApp")
+        return {"sid": None}
+
+    from_wa = from_number if from_number.startswith("whatsapp:") else f"whatsapp:{from_number}"
+    to_wa = to if to.startswith("whatsapp:") else f"whatsapp:{to}"
+
+    try:
+        from twilio.rest import Client
+        client = Client(account_sid, auth_token)
+        msg = client.messages.create(body=body, from_=from_wa, to=to_wa)
+        return {"sid": msg.sid}
+    except Exception as e:
+        logger.error("Twilio WhatsApp failed: %s", e, exc_info=True)
+        return {"sid": None}
+
+
 def _patient_opts_in(channel: str, clinic_id: Optional[str], patient_id: Optional[str]) -> bool:
     """Honor v1.1 patient_communication_preferences. Defaults to True for
     legacy callers that don't pass clinic_id+patient_id (preserves v1 behavior)."""

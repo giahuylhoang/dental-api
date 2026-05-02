@@ -161,6 +161,7 @@ class Appointment(Base):
     start_time = Column(DateTime, nullable=False)
     end_time = Column(DateTime, nullable=False)
     reason_note = Column(Text, nullable=True)
+    chief_complaint = Column(Text, nullable=True)
     status = Column(SQLEnum(AppointmentStatus), default=AppointmentStatus.SCHEDULED)
     calendar_event_id = Column(String, nullable=True)  # Google Calendar event ID for sync
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -185,6 +186,7 @@ class Lead(Base):
     source = Column(String, nullable=True)  # Ad campaign source
     status = Column(SQLEnum(LeadStatus), default=LeadStatus.NEW)
     notes = Column(Text, nullable=True)  # Qualification notes, needs, budget, timeline, etc.
+    owner_id = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

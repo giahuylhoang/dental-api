@@ -1,6 +1,7 @@
 import { type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../auth/store';
+import CommandPalette from '../search/CommandPalette';
 
 const NAV = [
   { label: 'Dashboard', to: '/dashboard' },
@@ -54,6 +55,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
         </header>
         <main className="flex-1 p-6">{children}</main>
       </div>
+      <CommandPalette />
     </div>
   );
 }

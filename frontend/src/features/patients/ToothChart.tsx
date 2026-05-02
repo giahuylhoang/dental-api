@@ -35,6 +35,8 @@ const BOTTOM_ROW = [32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 
 
 interface ToothChartProps {
   patientId: string;
+  onToothClick?: (toothNumber: number) => void;
+  highlightedTeeth?: (number | null | undefined)[];
 }
 
 interface Popover {
@@ -43,7 +45,7 @@ interface Popover {
   notes: string;
 }
 
-export default function ToothChart({ patientId }: ToothChartProps) {
+export default function ToothChart({ patientId, onToothClick, highlightedTeeth = [] }: ToothChartProps) {
   const qc = useQueryClient();
   const [popover, setPopover] = useState<Popover | null>(null);
 
@@ -69,6 +71,10 @@ export default function ToothChart({ patientId }: ToothChartProps) {
   }
 
   function handleToothClick(n: number) {
+    if (onToothClick) {
+      onToothClick(n);
+      return;
+    }
     const entry = getEntry(n);
     setPopover({
       toothNumber: n,
@@ -83,6 +89,7 @@ export default function ToothChart({ patientId }: ToothChartProps) {
     const fill = STATUS_COLOR[status];
     const stroke = STATUS_STROKE[status];
     const dashArray = status === 'extracted' ? '3,2' : undefined;
+    const isHighlighted = highlightedTeeth.includes(n);
 
     return (
       <g
@@ -103,6 +110,9 @@ export default function ToothChart({ patientId }: ToothChartProps) {
         <text x={10} y={16} textAnchor="middle" fontSize={8} fill="#52525b">
           {n}
         </text>
+        {isHighlighted && (
+          <circle cx={17} cy={3} r={3} fill="#f97316" />
+        )}
       </g>
     );
   }

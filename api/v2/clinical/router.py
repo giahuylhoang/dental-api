@@ -886,3 +886,35 @@ def create_implant(
     db.commit()
     db.refresh(obj)
     return obj
+
+
+# ---------------------------------------------------------------------------
+# Appointments (v2 — includes chief_complaint)
+# ---------------------------------------------------------------------------
+
+from database.models import Appointment
+
+
+@router.get("/appointments/{appointment_id}")
+def get_appointment_v2(
+    appointment_id: str,
+    clinic: Clinic = Depends(get_clinic),
+    db: Session = Depends(get_db),
+):
+    appt = db.query(Appointment).filter(
+        Appointment.id == appointment_id,
+        Appointment.clinic_id == clinic.id,
+    ).first()
+    if not appt:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    return {
+        "id": appt.id,
+        "patient_id": appt.patient_id,
+        "provider_id": appt.provider_id,
+        "service_id": appt.service_id,
+        "start_time": appt.start_time.isoformat(),
+        "end_time": appt.end_time.isoformat(),
+        "reason_note": appt.reason_note,
+        "chief_complaint": appt.chief_complaint,
+        "status": appt.status.value if hasattr(appt.status, "value") else appt.status,
+    }

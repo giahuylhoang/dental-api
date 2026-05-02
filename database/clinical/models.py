@@ -209,6 +209,8 @@ class TreatmentPlanItem(Base):
     description = Column(Text, nullable=True)
     fee = Column(Float, default=0.0)
     insurance_coverage_pct = Column(Float, default=0.0)
+    tooth_number = Column(Integer, nullable=True)
+    care_notes = Column(Text, nullable=True)
     completed_at = Column(DateTime, nullable=True)
 
     plan = relationship("TreatmentPlan", back_populates="items")

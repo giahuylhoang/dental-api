@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
+import Fuse from 'fuse.js';
 import { fetcher } from '../../api/client';
 import { useAuthStore } from '../auth/store';
 import InvoiceDrawer from './InvoiceDrawer';
@@ -9,11 +10,14 @@ const fmt = new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' 
 
 interface Invoice {
   id: string;
+  invoice_number?: string;
   patient_id: string;
+  patient_name?: string;
   status: 'draft' | 'issued' | 'partial' | 'paid' | 'void';
   subtotal: number;
   gst: number;
   total: number;
+  total_cents?: number;
   balance: number;
   created_at: string;
 }
@@ -39,6 +43,8 @@ export default function InvoiceList({ patientId }: { patientId?: string }) {
   const [drawerInvoiceId, setDrawerInvoiceId] = useState<string | null>(null);
   const statusFromUrl = searchParams.get('status') ?? '';
   const [statusFilter, setStatusFilter] = useState<string>(statusFromUrl);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
 
   const qs = new URLSearchParams();
   if (patientId) qs.set('patient_id', patientId);
@@ -49,6 +55,26 @@ export default function InvoiceList({ patientId }: { patientId?: string }) {
     queryKey: ['invoices', clinicId, patientId, statusFilter],
     queryFn: () => fetcher<Invoice[]>(`/api/v2/billing/invoices${qsStr}`),
   });
+
+  // Debounce search query 200ms
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(searchQuery), 200);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  const fuse = useMemo(
+    () =>
+      new Fuse(invoices, {
+        keys: ['invoice_number', 'patient_name', 'status'],
+        threshold: 0.2,
+        ignoreLocation: true,
+      }),
+    [invoices],
+  );
+
+  const visibleInvoices = debouncedQuery
+    ? fuse.search(debouncedQuery).map((r) => r.item)
+    : invoices;
 
   const { data: dentureCases = [] } = useQuery<DentureCase[]>({
     queryKey: ['denture-cases', patientId],
@@ -83,6 +109,14 @@ export default function InvoiceList({ patientId }: { patientId?: string }) {
   return (
     <>
       <div className="mb-3 flex items-center gap-3">
+        <input
+          type="search"
+          placeholder="Search invoices…"
+          aria-label="Search invoices"
+          className="rounded border border-zinc-300 px-2 py-1 text-sm"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
         <select
           className="rounded border border-zinc-300 px-2 py-1 text-sm"
           value={statusFilter}
@@ -152,6 +186,7 @@ export default function InvoiceList({ patientId }: { patientId?: string }) {
         <thead>
           <tr className="border-b text-left text-zinc-500">
             <th className="pb-1">ID</th>
+            <th className="pb-1">Patient</th>
             <th className="pb-1">Status</th>
             <th className="pb-1 text-right">Total</th>
             <th className="pb-1 text-right">Balance</th>
@@ -159,13 +194,14 @@ export default function InvoiceList({ patientId }: { patientId?: string }) {
           </tr>
         </thead>
         <tbody>
-          {invoices.map((inv) => (
+          {visibleInvoices.map((inv) => (
             <tr
               key={inv.id}
               className="cursor-pointer border-b border-zinc-100 hover:bg-zinc-50"
               onClick={() => setDrawerInvoiceId(inv.id)}
             >
               <td className="py-1 pr-2 font-mono text-xs">{inv.id.slice(0, 8)}</td>
+              <td className="py-1 pr-2 text-sm">{inv.patient_name ?? inv.patient_id.slice(0, 8)}</td>
               <td className="py-1 pr-2">
                 <span className={`rounded px-1.5 py-0.5 text-xs ${STATUS_COLORS[inv.status]}`}>
                   {inv.status}
@@ -178,9 +214,9 @@ export default function InvoiceList({ patientId }: { patientId?: string }) {
               </td>
             </tr>
           ))}
-          {invoices.length === 0 && (
+          {visibleInvoices.length === 0 && (
             <tr>
-              <td colSpan={5} className="py-4 text-center text-zinc-400">
+              <td colSpan={6} className="py-4 text-center text-zinc-400">
                 No invoices
               </td>
             </tr>

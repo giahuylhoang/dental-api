@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetcher } from '../../api/client';
 import { useAuthStore } from '../auth/store';
 import { useNavigate } from 'react-router-dom';
+import LeadCreateDialog from './LeadCreateDialog';
+import LeadDrawer from './LeadDrawer';
 
 type LeadStatus = 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'CONVERTED' | 'LOST';
 
@@ -32,10 +34,12 @@ export default function LeadKanban() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [dragging, setDragging] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [drawerLeadId, setDrawerLeadId] = useState<string | null>(null);
 
   const { data: leads = [], isLoading } = useQuery<Lead[]>({
     queryKey: ['leads', clinicId],
-    queryFn: () => fetcher<Lead[]>('/api/leads'),
+    queryFn: () => fetcher<Lead[]>('/api/v2/crm/leads'),
   });
 
   const updateStatus = useMutation({
@@ -73,7 +77,16 @@ export default function LeadKanban() {
   if (isLoading) return <p className="text-sm text-zinc-500">Loading…</p>;
 
   return (
-    <div className="flex gap-3 overflow-x-auto pb-4">
+    <>
+      <div className="mb-3 flex justify-end">
+        <button
+          onClick={() => setCreateOpen(true)}
+          className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700"
+        >
+          + New Lead
+        </button>
+      </div>
+      <div className="flex gap-3 overflow-x-auto pb-4">
       {COLUMNS.map((col) => {
         const colLeads = leads.filter((l) => l.status === col);
         return (
@@ -97,7 +110,8 @@ export default function LeadKanban() {
                   draggable
                   onDragStart={() => setDragging(lead.id)}
                   onDragEnd={() => setDragging(null)}
-                  className="cursor-grab rounded bg-white p-3 shadow-sm"
+                  onClick={() => setDrawerLeadId(lead.id)}
+                  className="cursor-pointer rounded bg-white p-3 shadow-sm"
                 >
                   <div className="text-sm font-medium">
                     {lead.first_name} {lead.last_name}
@@ -111,7 +125,7 @@ export default function LeadKanban() {
                   {col !== 'CONVERTED' && col !== 'LOST' && (
                     <button
                       className="mt-2 w-full rounded bg-green-600 px-2 py-0.5 text-xs text-white hover:bg-green-700"
-                      onClick={() => convert.mutate(lead.id)}
+                      onClick={(e) => { e.stopPropagation(); convert.mutate(lead.id); }}
                       disabled={convert.isPending}
                     >
                       Convert →
@@ -127,5 +141,10 @@ export default function LeadKanban() {
         );
       })}
     </div>
+      <LeadCreateDialog open={createOpen} onClose={() => setCreateOpen(false)} />
+      {drawerLeadId && (
+        <LeadDrawer open={!!drawerLeadId} onClose={() => setDrawerLeadId(null)} leadId={drawerLeadId} />
+      )}
+    </>
   );
 }

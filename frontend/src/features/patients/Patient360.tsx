@@ -267,8 +267,22 @@ export default function Patient360() {
         {activeTab === 'Insurance' && <InsuranceList patientId={patient.id} />}
         {activeTab === 'Documents' && (
           <div className="space-y-6">
-            <DocumentUploader patientId={patient.id} />
-            <DocumentList patientId={patient.id} />
+            <div className="flex gap-2 border-b border-zinc-100 pb-2">
+              <button
+                onClick={() => setSearchParams({ tab: TAB_PARAM['Documents'], subtab: 'all' }, { replace: true })}
+                className={`px-3 py-1 text-xs font-medium rounded ${(searchParams.get('subtab') ?? 'all') === 'all' ? 'bg-zinc-900 text-white' : 'text-zinc-500 hover:text-zinc-700'}`}
+              >
+                All Documents
+              </button>
+              <button
+                onClick={() => setSearchParams({ tab: TAB_PARAM['Documents'], subtab: 'insurance' }, { replace: true })}
+                className={`px-3 py-1 text-xs font-medium rounded ${searchParams.get('subtab') === 'insurance' ? 'bg-zinc-900 text-white' : 'text-zinc-500 hover:text-zinc-700'}`}
+              >
+                Insurance Documents
+              </button>
+            </div>
+            <DocumentUploader patientId={patient.id} defaultKind={searchParams.get('subtab') === 'insurance' ? 'insurance' : 'other'} />
+            <DocumentList patientId={patient.id} kindFilter={searchParams.get('subtab') === 'insurance' ? 'insurance' : undefined} />
           </div>
         )}
         {activeTab === 'Tooth Chart' && <ToothChart patientId={patient.id} />}
