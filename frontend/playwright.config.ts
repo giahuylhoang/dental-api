@@ -18,7 +18,7 @@ export default defineConfig({
   webServer: process.env['E2E_BASE_URL']
     ? undefined
     : {
-        command: 'npm run preview -- --port 4173',
+        command: 'npm run dev -- --port 4173',
         url: 'http://localhost:4173',
         reuseExistingServer: !process.env['CI'],
         timeout: 60000,

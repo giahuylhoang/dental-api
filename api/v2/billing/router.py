@@ -187,3 +187,63 @@ def void_invoice(inv_id: str, clinic: Clinic = Depends(get_clinic), db: Session 
     db.commit()
     db.refresh(inv)
     return _invoice_out(inv)
+
+
+class FromPlanIn(BaseModel):
+    treatment_plan_id: str
+    patient_id: str
+    gst_rate: float = 0.05
+
+
+@router.post("/invoices/from-plan", status_code=201)
+def create_invoice_from_plan(body: FromPlanIn, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+    from database.clinical.models import TreatmentPlan, TreatmentPlanItem
+    plan = db.query(TreatmentPlan).filter(
+        TreatmentPlan.id == body.treatment_plan_id,
+        TreatmentPlan.clinic_id == clinic.id,
+    ).first()
+    if not plan:
+        raise HTTPException(404, "Treatment plan not found")
+
+    items = db.query(TreatmentPlanItem).filter(
+        TreatmentPlanItem.plan_id == plan.id,
+    ).order_by(TreatmentPlanItem.sequence).all()
+
+    subtotal = Decimal("0")
+    line_objs = []
+    for i, item in enumerate(items):
+        unit_price = Decimal(str(item.fee))
+        line_total = unit_price * 1
+        subtotal += line_total
+        desc = f"{item.procedure_code} — {item.description or ''}"
+        line_objs.append(InvoiceLine(
+            sequence=i + 1,
+            procedure_code=item.procedure_code,
+            description=desc,
+            qty=1,
+            unit_price=unit_price,
+            total=line_total,
+        ))
+
+    gst = (subtotal * Decimal(str(body.gst_rate))).quantize(Decimal("0.01"))
+    total = subtotal + gst
+
+    inv = Invoice(
+        clinic_id=clinic.id,
+        patient_id=body.patient_id,
+        treatment_plan_id=body.treatment_plan_id,
+        status="draft",
+        subtotal=subtotal,
+        gst=gst,
+        total=total,
+        balance=total,
+        currency="CAD",
+    )
+    db.add(inv)
+    db.flush()
+    for lo in line_objs:
+        lo.invoice_id = inv.id
+        db.add(lo)
+    db.commit()
+    db.refresh(inv)
+    return _invoice_out(inv)

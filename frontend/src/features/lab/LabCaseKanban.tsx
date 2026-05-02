@@ -9,6 +9,7 @@ import {
 } from '@dnd-kit/core';
 import { useDroppable, useDraggable } from '@dnd-kit/core';
 import { fetcher } from '../../api/client';
+import LabCaseDrawer from './LabCaseDrawer';
 
 const COLUMNS = ['draft', 'sent', 'in_progress', 'returned', 'remake'] as const;
 type LabStatus = (typeof COLUMNS)[number];
@@ -25,7 +26,7 @@ interface LabCase {
   remake_reason: string | null;
 }
 
-function KanbanCard({ labCase }: { labCase: LabCase }) {
+function KanbanCard({ labCase, onClick }: { labCase: LabCase; onClick: () => void }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: labCase.id,
   });
@@ -38,6 +39,7 @@ function KanbanCard({ labCase }: { labCase: LabCase }) {
       style={style}
       {...listeners}
       {...attributes}
+      onClick={onClick}
       className={`cursor-grab rounded border border-zinc-200 bg-white p-3 text-sm shadow-sm ${isDragging ? 'opacity-50' : ''}`}
     >
       <p className="font-medium">Case #{labCase.id}</p>
@@ -52,7 +54,15 @@ function KanbanCard({ labCase }: { labCase: LabCase }) {
   );
 }
 
-function KanbanColumn({ status, cases }: { status: LabStatus; cases: LabCase[] }) {
+function KanbanColumn({
+  status,
+  cases,
+  onCardClick,
+}: {
+  status: LabStatus;
+  cases: LabCase[];
+  onCardClick: (id: string) => void;
+}) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
   const labels: Record<LabStatus, string> = {
     draft: 'Draft',
@@ -70,7 +80,7 @@ function KanbanColumn({ status, cases }: { status: LabStatus; cases: LabCase[] }
         {labels[status]} ({cases.length})
       </h3>
       {cases.map((c) => (
-        <KanbanCard key={c.id} labCase={c} />
+        <KanbanCard key={c.id} labCase={c} onClick={() => onCardClick(c.id)} />
       ))}
     </div>
   );
@@ -80,6 +90,7 @@ export default function LabCaseKanban() {
   const qc = useQueryClient();
   const [remakeDialog, setRemakeDialog] = useState<{ caseId: string } | null>(null);
   const [remakeReason, setRemakeReason] = useState('');
+  const [drawerCaseId, setDrawerCaseId] = useState<string | null>(null);
 
   const { data: cases = [] } = useQuery<LabCase[]>({
     queryKey: ['lab-cases'],
@@ -125,6 +136,7 @@ export default function LabCaseKanban() {
               key={col}
               status={col}
               cases={cases.filter((c) => c.status === col)}
+              onCardClick={(id) => setDrawerCaseId(id)}
             />
           ))}
         </div>
@@ -158,6 +170,13 @@ export default function LabCaseKanban() {
           </div>
         </div>
       )}
+
+      <LabCaseDrawer
+        caseId={drawerCaseId}
+        open={drawerCaseId !== null}
+        onClose={() => setDrawerCaseId(null)}
+        onChanged={() => void qc.invalidateQueries({ queryKey: ['lab-cases'] })}
+      />
     </div>
   );
 }

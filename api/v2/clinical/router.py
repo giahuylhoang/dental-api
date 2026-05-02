@@ -1,9 +1,11 @@
 """Clinical router: patient extensions, clinical notes, denture cases."""
+import hashlib
 import os
 from datetime import datetime
+from pathlib import Path
 from typing import Optional, List
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 
@@ -13,6 +15,7 @@ from database.clinical.models import (
     PatientMedicalHistory, PatientInsurance, PatientConsent, Document,
     ClinicalNote, DentureCase, DentureCaseEvent,
 )
+from database.v1_1.models import ToothChartEntry, DentureCaseImplant
 from database.v1_1.lifecycle import (
     get_status, set_status, promote_if_complete, PATIENT_STATUSES,
 )
@@ -613,3 +616,273 @@ def list_denture_cases(
     if stage:
         q = q.filter(DentureCase.current_stage == stage)
     return q.all()
+
+
+# ---------------------------------------------------------------------------
+# Document upload (multipart)
+# ---------------------------------------------------------------------------
+
+class DocumentUploadOut(BaseModel):
+    id: str
+    storage_url: str
+    sha256: str
+    mime_type: Optional[str] = None
+    size_bytes: Optional[int] = None
+    kind: str
+    patient_id: str
+    deduped: bool
+
+
+@router.post("/documents/upload", response_model=DocumentUploadOut)
+def upload_document(
+    file: UploadFile = File(...),
+    kind: str = Form(...),
+    patient_id: str = Form(...),
+    clinic: Clinic = Depends(get_clinic),
+    db: Session = Depends(get_db),
+):
+    _get_patient(patient_id, clinic, db)
+    data = file.file.read()
+    sha256 = hashlib.sha256(data).hexdigest()
+
+    existing = db.query(Document).filter(
+        Document.clinic_id == clinic.id,
+        Document.content_sha256 == sha256,
+    ).first()
+    if existing:
+        return DocumentUploadOut(
+            id=existing.id,
+            storage_url=existing.storage_url,
+            sha256=existing.content_sha256,
+            mime_type=existing.mime,
+            size_bytes=existing.size_bytes,
+            kind=existing.kind,
+            patient_id=existing.patient_id,
+            deduped=True,
+        )
+
+    ext = Path(file.filename).suffix if file.filename else ""
+    rel_path = f"var/uploads/{clinic.id}/{sha256[:2]}/{sha256}{ext}"
+    abs_path = Path(rel_path)
+    abs_path.parent.mkdir(parents=True, exist_ok=True)
+    abs_path.write_bytes(data)
+
+    doc = Document(
+        clinic_id=clinic.id,
+        patient_id=patient_id,
+        kind=kind,
+        storage_url=rel_path,
+        content_sha256=sha256,
+        mime=file.content_type,
+        size_bytes=len(data),
+    )
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
+    return DocumentUploadOut(
+        id=doc.id,
+        storage_url=doc.storage_url,
+        sha256=doc.content_sha256,
+        mime_type=doc.mime,
+        size_bytes=doc.size_bytes,
+        kind=doc.kind,
+        patient_id=doc.patient_id,
+        deduped=False,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Tooth chart
+# ---------------------------------------------------------------------------
+
+class ToothChartEntryOut(BaseModel):
+    tooth_number: int
+    status: str
+    surface_notes: Optional[dict] = None
+
+
+class ToothChartEntryIn(BaseModel):
+    tooth_number: int
+    status: str
+    surface_notes: Optional[dict] = None
+
+
+def _build_tooth_chart(rows: list) -> List[ToothChartEntryOut]:
+    by_tooth = {r.tooth_number: r for r in rows}
+    result = []
+    for n in range(1, 33):
+        if n in by_tooth:
+            r = by_tooth[n]
+            result.append(ToothChartEntryOut(
+                tooth_number=r.tooth_number,
+                status=r.status,
+                surface_notes=r.surface_notes,
+            ))
+        else:
+            result.append(ToothChartEntryOut(tooth_number=n, status="present", surface_notes=None))
+    return result
+
+
+@router.get("/patients/{patient_id}/tooth-chart", response_model=List[ToothChartEntryOut])
+def get_tooth_chart(
+    patient_id: str,
+    clinic: Clinic = Depends(get_clinic),
+    db: Session = Depends(get_db),
+):
+    _get_patient(patient_id, clinic, db)
+    rows = db.query(ToothChartEntry).filter(
+        ToothChartEntry.clinic_id == clinic.id,
+        ToothChartEntry.patient_id == patient_id,
+    ).all()
+    return _build_tooth_chart(rows)
+
+
+@router.post("/patients/{patient_id}/tooth-chart", response_model=List[ToothChartEntryOut])
+def upsert_tooth_chart(
+    patient_id: str,
+    body: List[ToothChartEntryIn],
+    clinic: Clinic = Depends(get_clinic),
+    db: Session = Depends(get_db),
+):
+    _get_patient(patient_id, clinic, db)
+    now = datetime.utcnow()
+    for entry in body:
+        existing = db.query(ToothChartEntry).filter(
+            ToothChartEntry.clinic_id == clinic.id,
+            ToothChartEntry.patient_id == patient_id,
+            ToothChartEntry.tooth_number == entry.tooth_number,
+        ).first()
+        if existing:
+            existing.status = entry.status
+            if entry.surface_notes is not None:
+                existing.surface_notes = entry.surface_notes
+            existing.last_examined_at = now
+            existing.updated_at = now
+        else:
+            db.add(ToothChartEntry(
+                clinic_id=clinic.id,
+                patient_id=patient_id,
+                tooth_number=entry.tooth_number,
+                status=entry.status,
+                surface_notes=entry.surface_notes,
+                last_examined_at=now,
+            ))
+    db.commit()
+    rows = db.query(ToothChartEntry).filter(
+        ToothChartEntry.clinic_id == clinic.id,
+        ToothChartEntry.patient_id == patient_id,
+    ).all()
+    return _build_tooth_chart(rows)
+
+
+# ---------------------------------------------------------------------------
+# Insurance PUT / DELETE
+# ---------------------------------------------------------------------------
+
+@router.put("/patients/{patient_id}/insurance/{insurance_id}", response_model=InsuranceOut)
+def update_insurance(
+    patient_id: str,
+    insurance_id: str,
+    body: InsuranceIn,
+    clinic: Clinic = Depends(get_clinic),
+    db: Session = Depends(get_db),
+):
+    _get_patient(patient_id, clinic, db)
+    obj = db.query(PatientInsurance).filter(
+        PatientInsurance.id == insurance_id,
+        PatientInsurance.patient_id == patient_id,
+        PatientInsurance.clinic_id == clinic.id,
+    ).first()
+    if not obj:
+        raise HTTPException(status_code=404, detail="Insurance not found")
+    for k, v in body.model_dump(exclude_unset=True).items():
+        setattr(obj, k, v)
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+
+@router.delete("/patients/{patient_id}/insurance/{insurance_id}", status_code=204)
+def delete_insurance(
+    patient_id: str,
+    insurance_id: str,
+    clinic: Clinic = Depends(get_clinic),
+    db: Session = Depends(get_db),
+):
+    _get_patient(patient_id, clinic, db)
+    obj = db.query(PatientInsurance).filter(
+        PatientInsurance.id == insurance_id,
+        PatientInsurance.patient_id == patient_id,
+        PatientInsurance.clinic_id == clinic.id,
+    ).first()
+    if not obj:
+        raise HTTPException(status_code=404, detail="Insurance not found")
+    db.delete(obj)
+    db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Denture case implants
+# ---------------------------------------------------------------------------
+
+class ImplantIn(BaseModel):
+    tooth_position: int
+    vendor: str
+    model: Optional[str] = None
+    lot_number: str
+    surface_treatment: Optional[str] = None
+    abutment_type: Optional[str] = None
+    placed_date: Optional[str] = None
+
+
+class ImplantOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    denture_case_id: str
+    tooth_position: int
+    vendor: str
+    model: Optional[str] = None
+    lot_number: str
+    surface_treatment: Optional[str] = None
+    abutment_type: Optional[str] = None
+    placed_date: Optional[str] = None
+
+
+@router.get("/denture-cases/{case_id}/implants", response_model=List[ImplantOut])
+def list_implants(
+    case_id: str,
+    clinic: Clinic = Depends(get_clinic),
+    db: Session = Depends(get_db),
+):
+    _get_denture_case(case_id, clinic, db)
+    return db.query(DentureCaseImplant).filter(
+        DentureCaseImplant.denture_case_id == case_id,
+    ).all()
+
+
+@router.post("/denture-cases/{case_id}/implants", response_model=ImplantOut, status_code=201)
+def create_implant(
+    case_id: str,
+    body: ImplantIn,
+    clinic: Clinic = Depends(get_clinic),
+    db: Session = Depends(get_db),
+):
+    _get_denture_case(case_id, clinic, db)
+    from datetime import date as _date
+    placed = None
+    if body.placed_date:
+        placed = _date.fromisoformat(body.placed_date)
+    obj = DentureCaseImplant(
+        denture_case_id=case_id,
+        tooth_position=body.tooth_position,
+        vendor=body.vendor,
+        model=body.model,
+        lot_number=body.lot_number,
+        surface_treatment=body.surface_treatment,
+        abutment_type=body.abutment_type,
+        placed_date=placed,
+    )
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return obj

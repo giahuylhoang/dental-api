@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { fetcher } from '../../api/client';
 import { useAuthStore } from '../auth/store';
 
@@ -109,7 +110,7 @@ export default function Dashboard() {
       </div>
 
       {/* A/R aging */}
-      <div className="rounded-lg border border-zinc-200 bg-white p-4">
+      <Link to="/billing?status=overdue" className="block rounded-lg border border-zinc-200 bg-white p-4 hover:border-blue-300">
         <h3 className="mb-3 text-sm font-semibold">A/R Aging</h3>
         <div className="grid grid-cols-4 gap-3">
           {AR_BUCKETS.map((b) => (
@@ -119,7 +120,7 @@ export default function Dashboard() {
             </div>
           ))}
         </div>
-      </div>
+      </Link>
 
       {/* Production by provider */}
       <div className="rounded-lg border border-zinc-200 bg-white p-4">

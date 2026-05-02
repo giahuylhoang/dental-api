@@ -35,3 +35,5 @@ frontend/.vite/
 # Track loop outputs and local Claude Code state
 logs/
 .claude/
+frontend/test-results/
+frontend/playwright-report/

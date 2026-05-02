@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { fetcher } from '../../api/client';
 
 interface PlanItem {
@@ -48,9 +49,12 @@ function computeTotals(items: PlanItem[]) {
 }
 
 export default function TreatmentPlanEditor({ patientId, planId, onSaved }: TreatmentPlanEditorProps) {
+  const navigate = useNavigate();
+  const qc = useQueryClient();
   const [localItems, setLocalItems] = useState<PlanItem[]>([]);
   const [codeSearch, setCodeSearch] = useState('');
   const [localStatus] = useState('draft');
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   const { data: existingPlan } = useQuery<TreatmentPlan>({
     queryKey: ['treatment-plan', planId],
@@ -86,7 +90,22 @@ export default function TreatmentPlanEditor({ patientId, planId, onSaved }: Trea
         method: 'PATCH',
         body: JSON.stringify({ status: newStatus }),
       }),
-    onSuccess: (saved) => onSaved?.(saved),
+    onSuccess: (saved) => {
+      qc.setQueryData(['treatment-plan', planId], saved);
+      onSaved?.(saved);
+    },
+  });
+
+  const generateInvoiceMutation = useMutation({
+    mutationFn: () =>
+      fetcher<{ id: string }>('/api/v2/billing/invoices/from-plan', {
+        method: 'POST',
+        body: JSON.stringify({ treatment_plan_id: planId, patient_id: patientId }),
+      }),
+    onSuccess: (inv) => {
+      setToastMsg(`Invoice ${inv.id} created`);
+      navigate('/billing');
+    },
   });
 
   function addProcedure(proc: Procedure) {
@@ -239,14 +258,27 @@ export default function TreatmentPlanEditor({ patientId, planId, onSaved }: Trea
           </>
         )}
         {planId && status === 'accepted' && (
-          <button
-            onClick={() => updateStatusMutation.mutate('completed')}
-            className="rounded border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50"
-          >
-            Complete
-          </button>
+          <>
+            <button
+              onClick={() => updateStatusMutation.mutate('completed')}
+              className="rounded border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50"
+            >
+              Complete
+            </button>
+            <button
+              onClick={() => generateInvoiceMutation.mutate()}
+              className="rounded border border-blue-300 px-3 py-1.5 text-sm text-blue-700 hover:bg-blue-50"
+            >
+              Generate invoice from plan
+            </button>
+          </>
         )}
       </div>
+      {toastMsg && (
+        <div className="rounded bg-green-50 border border-green-200 px-3 py-2 text-sm text-green-800">
+          {toastMsg}
+        </div>
+      )}
     </div>
   );
 }

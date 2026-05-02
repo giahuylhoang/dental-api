@@ -317,6 +317,85 @@ components:
         user_agent: { type: string, nullable: true }
         created_at: { type: string, format: date-time }
 
+    # ----- PMS P0 -----
+    DocumentUpload:
+      type: object
+      required: [id, storage_url, sha256, kind, patient_id, deduped]
+      properties:
+        id: { type: string }
+        storage_url: { type: string }
+        sha256: { type: string }
+        mime_type: { type: string, nullable: true }
+        size_bytes: { type: integer, nullable: true }
+        kind: { type: string, enum: [photo, xray, consent, other] }
+        patient_id: { type: string }
+        deduped: { type: boolean }
+
+    ToothChartEntry:
+      type: object
+      required: [tooth_number, status]
+      properties:
+        tooth_number: { type: integer, minimum: 1, maximum: 32 }
+        status: { type: string }
+        surface_notes: { type: object, nullable: true }
+
+    ToothChartEntryIn:
+      type: object
+      required: [tooth_number, status]
+      properties:
+        tooth_number: { type: integer, minimum: 1, maximum: 32 }
+        status: { type: string }
+        surface_notes: { type: object, nullable: true }
+
+    InsuranceIn:
+      type: object
+      required: [carrier]
+      properties:
+        carrier: { type: string }
+        policy_number: { type: string, nullable: true }
+        group_number: { type: string, nullable: true }
+        holder_name: { type: string, nullable: true }
+        holder_relationship: { type: string, nullable: true }
+        assignment_of_benefits: { type: boolean, default: false }
+        coverage_pct_by_category: { type: object, additionalProperties: { type: number } }
+        valid_from: { type: string, format: date-time, nullable: true }
+        valid_to: { type: string, format: date-time, nullable: true }
+        is_primary: { type: boolean, default: false }
+
+    DentureCaseImplant:
+      type: object
+      required: [id, denture_case_id, tooth_position, vendor, lot_number]
+      properties:
+        id: { type: string }
+        denture_case_id: { type: string }
+        tooth_position: { type: integer }
+        vendor: { type: string }
+        model: { type: string, nullable: true }
+        lot_number: { type: string }
+        surface_treatment: { type: string, nullable: true }
+        abutment_type: { type: string, nullable: true }
+        placed_date: { type: string, format: date, nullable: true }
+
+    DentureCaseImplantIn:
+      type: object
+      required: [tooth_position, vendor, lot_number]
+      properties:
+        tooth_position: { type: integer }
+        vendor: { type: string }
+        model: { type: string, nullable: true }
+        lot_number: { type: string }
+        surface_treatment: { type: string, nullable: true }
+        abutment_type: { type: string, nullable: true }
+        placed_date: { type: string, format: date, nullable: true }
+
+    InvoiceFromPlanIn:
+      type: object
+      required: [treatment_plan_id, patient_id]
+      properties:
+        treatment_plan_id: { type: string }
+        patient_id: { type: string }
+        gst_rate: { type: number, default: 0.05 }
+
 security:
   - bearerAuth: []
   - {}
@@ -494,3 +573,85 @@ paths:
         - { name: offset, in: query, schema: { type: integer, default: 0 } }
       responses:
         '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/AuditLogEntry" } } } } }
+
+  # ---- PMS P0 new endpoints ----
+
+  /api/v2/clinical/documents/upload:
+    parameters: [{ $ref: "#/components/parameters/XClinicId" }]
+    post:
+      summary: Upload a document (multipart); deduplicates by sha256
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, kind, patient_id]
+              properties:
+                file: { type: string, format: binary }
+                kind: { type: string, enum: [photo, xray, consent, other] }
+                patient_id: { type: string }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/DocumentUpload" } } } }
+
+  /api/v2/clinical/patients/{patient_id}/tooth-chart:
+    parameters:
+      - { $ref: "#/components/parameters/XClinicId" }
+      - { name: patient_id, in: path, required: true, schema: { type: string } }
+    get:
+      summary: Get tooth chart (always 32 entries)
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/ToothChartEntry" } } } } }
+    post:
+      summary: Upsert tooth chart entries (partial)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/ToothChartEntryIn" } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/ToothChartEntry" } } } } }
+
+  /api/v2/clinical/patients/{patient_id}/insurance/{insurance_id}:
+    parameters:
+      - { $ref: "#/components/parameters/XClinicId" }
+      - { name: patient_id, in: path, required: true, schema: { type: string } }
+      - { name: insurance_id, in: path, required: true, schema: { type: string } }
+    put:
+      summary: Update a patient insurance record
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/InsuranceIn" } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/PatientInsurance" } } } }
+        '404': { description: Not found }
+    delete:
+      summary: Delete a patient insurance record
+      responses:
+        '204': { description: Deleted }
+        '404': { description: Not found }
+
+  /api/v2/clinical/denture-cases/{case_id}/implants:
+    parameters:
+      - { $ref: "#/components/parameters/XClinicId" }
+      - { name: case_id, in: path, required: true, schema: { type: string } }
+    get:
+      summary: List implants for a denture case
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/DentureCaseImplant" } } } } }
+    post:
+      summary: Add an implant to a denture case
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/DentureCaseImplantIn" } } }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/DentureCaseImplant" } } } }
+
+  /api/v2/billing/invoices/from-plan:
+    parameters: [{ $ref: "#/components/parameters/XClinicId" }]
+    post:
+      summary: Create a draft invoice from a treatment plan
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/InvoiceFromPlanIn" } } }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Invoice" } } } }
+        '404': { description: Treatment plan not found }

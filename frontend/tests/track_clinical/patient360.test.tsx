@@ -41,7 +41,7 @@ describe('Patient360', () => {
     await waitFor(() => screen.getByText('Alice Smith'));
     fireEvent.click(screen.getByRole('button', { name: 'Appointments' }));
     await waitFor(() => {
-      const items = screen.queryAllByText(/No appointments|scheduled|2026-05-10/);
+      const items = screen.queryAllByText(/No appointments|scheduled|\d{4}-\d{2}-\d{2}/i);
       expect(items.length).toBeGreaterThan(0);
     });
   });

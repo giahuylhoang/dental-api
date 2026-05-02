@@ -11,6 +11,7 @@ import InvoiceList from './features/billing/InvoiceList';
 import CommInbox from './features/communications/CommInbox';
 import LeadKanban from './features/crm/LeadKanban';
 import Dashboard from './features/reporting/Dashboard';
+import TreatmentPlansPage from './features/treatment-plans/TreatmentPlansPage';
 
 const queryClient = new QueryClient();
 
@@ -44,7 +45,7 @@ export default function App() {
                     <Route path="/billing" element={<InvoiceList />} />
                     <Route path="/communications" element={<CommInbox />} />
                     <Route path="/crm" element={<LeadKanban />} />
-                    <Route path="/plans" element={<Placeholder title="Treatment Plans" />} />
+                    <Route path="/plans" element={<TreatmentPlansPage />} />
                     <Route path="/settings" element={<Placeholder title="Settings" />} />
                   </Routes>
                 </AppShell>

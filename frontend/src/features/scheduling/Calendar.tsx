@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetcher } from '../../api/client';
 import { useAuthStore } from '../auth/store';
+import AppointmentDrawer from './AppointmentDrawer';
+import { APPT_STATUSES, statusColor, statusLabel, type ApptStatus } from './appt-status';
 
 interface Appointment {
   id: string;
@@ -39,12 +41,17 @@ function weekDays(anchor: Date): Date[] {
   return days;
 }
 
+function apptStatusColor(status: string): string {
+  return statusColor(status.toUpperCase() as ApptStatus);
+}
+
 export default function Calendar() {
   const clinicId = useAuthStore((s) => s.clinicId);
   const qc = useQueryClient();
   const [anchor, setAnchor] = useState(() => new Date());
   const [pending, setPending] = useState<DragState | null>(null);
   const [conflictMsg, setConflictMsg] = useState<string | null>(null);
+  const [drawerApptId, setDrawerApptId] = useState<string | null>(null);
 
   const days = weekDays(anchor);
   const weekStart = formatDate(days[0]);
@@ -94,7 +101,7 @@ export default function Calendar() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <button
           className="rounded border px-3 py-1 text-sm hover:bg-zinc-100"
           onClick={() => {
@@ -118,6 +125,14 @@ export default function Calendar() {
         >
           Next →
         </button>
+        {/* Status legend */}
+        <div className="ml-auto flex flex-wrap gap-1">
+          {APPT_STATUSES.map((s) => (
+            <span key={s} className={`rounded px-2 py-0.5 text-xs font-medium ${statusColor(s)}`}>
+              {statusLabel(s)}
+            </span>
+          ))}
+        </div>
       </div>
 
       <div className="overflow-x-auto rounded border border-zinc-200">
@@ -159,7 +174,8 @@ export default function Calendar() {
                         <div
                           draggable
                           onDragStart={(e) => e.dataTransfer.setData('appt-id', appt.id)}
-                          className="cursor-grab rounded bg-blue-100 px-1 py-0.5 text-blue-800"
+                          onClick={() => setDrawerApptId(appt.id)}
+                          className={`cursor-pointer rounded px-1 py-0.5 ${apptStatusColor(appt.status)}`}
                           title={`${formatTime(appt.start_time)} – ${formatTime(appt.end_time)}`}
                         >
                           {formatTime(appt.start_time)} #{appt.patient_id.slice(0, 4)}
@@ -173,6 +189,14 @@ export default function Calendar() {
           </tbody>
         </table>
       </div>
+
+      {/* Appointment detail drawer */}
+      <AppointmentDrawer
+        appointmentId={drawerApptId}
+        open={!!drawerApptId}
+        onClose={() => setDrawerApptId(null)}
+        onChanged={() => qc.invalidateQueries({ queryKey: ['appointments', clinicId] })}
+      />
 
       {/* Drag-reschedule confirm dialog */}
       {pending && (

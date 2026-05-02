@@ -791,6 +791,338 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/clinical/documents/upload": {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Clinic-Id"?: components["parameters"]["XClinicId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upload a document (multipart); deduplicates by sha256 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: {
+                    "X-Clinic-Id"?: components["parameters"]["XClinicId"];
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "multipart/form-data": {
+                        /** Format: binary */
+                        file: string;
+                        /** @enum {string} */
+                        kind: "photo" | "xray" | "consent" | "other";
+                        patient_id: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DocumentUpload"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/clinical/patients/{patient_id}/tooth-chart": {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Clinic-Id"?: components["parameters"]["XClinicId"];
+            };
+            path: {
+                patient_id: string;
+            };
+            cookie?: never;
+        };
+        /** Get tooth chart (always 32 entries) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: {
+                    "X-Clinic-Id"?: components["parameters"]["XClinicId"];
+                };
+                path: {
+                    patient_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ToothChartEntry"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Upsert tooth chart entries (partial) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: {
+                    "X-Clinic-Id"?: components["parameters"]["XClinicId"];
+                };
+                path: {
+                    patient_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ToothChartEntryIn"][];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ToothChartEntry"][];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/clinical/patients/{patient_id}/insurance/{insurance_id}": {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Clinic-Id"?: components["parameters"]["XClinicId"];
+            };
+            path: {
+                patient_id: string;
+                insurance_id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Update a patient insurance record */
+        put: {
+            parameters: {
+                query?: never;
+                header?: {
+                    "X-Clinic-Id"?: components["parameters"]["XClinicId"];
+                };
+                path: {
+                    patient_id: string;
+                    insurance_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["InsuranceIn"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PatientInsurance"];
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        /** Delete a patient insurance record */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: {
+                    "X-Clinic-Id"?: components["parameters"]["XClinicId"];
+                };
+                path: {
+                    patient_id: string;
+                    insurance_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Deleted */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/clinical/denture-cases/{case_id}/implants": {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Clinic-Id"?: components["parameters"]["XClinicId"];
+            };
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        /** List implants for a denture case */
+        get: {
+            parameters: {
+                query?: never;
+                header?: {
+                    "X-Clinic-Id"?: components["parameters"]["XClinicId"];
+                };
+                path: {
+                    case_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DentureCaseImplant"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Add an implant to a denture case */
+        post: {
+            parameters: {
+                query?: never;
+                header?: {
+                    "X-Clinic-Id"?: components["parameters"]["XClinicId"];
+                };
+                path: {
+                    case_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["DentureCaseImplantIn"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DentureCaseImplant"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/billing/invoices/from-plan": {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Clinic-Id"?: components["parameters"]["XClinicId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a draft invoice from a treatment plan */
+        post: {
+            parameters: {
+                query?: never;
+                header?: {
+                    "X-Clinic-Id"?: components["parameters"]["XClinicId"];
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["InvoiceFromPlanIn"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Invoice"];
+                    };
+                };
+                /** @description Treatment plan not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1054,6 +1386,73 @@ export interface components {
             user_agent?: string | null;
             /** Format: date-time */
             created_at: string;
+        };
+        DocumentUpload: {
+            id: string;
+            storage_url: string;
+            sha256: string;
+            mime_type?: string | null;
+            size_bytes?: number | null;
+            /** @enum {string} */
+            kind: "photo" | "xray" | "consent" | "other";
+            patient_id: string;
+            deduped: boolean;
+        };
+        ToothChartEntry: {
+            tooth_number: number;
+            status: string;
+            surface_notes?: Record<string, never> | null;
+        };
+        ToothChartEntryIn: {
+            tooth_number: number;
+            status: string;
+            surface_notes?: Record<string, never> | null;
+        };
+        InsuranceIn: {
+            carrier: string;
+            policy_number?: string | null;
+            group_number?: string | null;
+            holder_name?: string | null;
+            holder_relationship?: string | null;
+            /** @default false */
+            assignment_of_benefits: boolean;
+            coverage_pct_by_category?: {
+                [key: string]: number;
+            };
+            /** Format: date-time */
+            valid_from?: string | null;
+            /** Format: date-time */
+            valid_to?: string | null;
+            /** @default false */
+            is_primary: boolean;
+        };
+        DentureCaseImplant: {
+            id: string;
+            denture_case_id: string;
+            tooth_position: number;
+            vendor: string;
+            model?: string | null;
+            lot_number: string;
+            surface_treatment?: string | null;
+            abutment_type?: string | null;
+            /** Format: date */
+            placed_date?: string | null;
+        };
+        DentureCaseImplantIn: {
+            tooth_position: number;
+            vendor: string;
+            model?: string | null;
+            lot_number: string;
+            surface_treatment?: string | null;
+            abutment_type?: string | null;
+            /** Format: date */
+            placed_date?: string | null;
+        };
+        InvoiceFromPlanIn: {
+            treatment_plan_id: string;
+            patient_id: string;
+            /** @default 0.05 */
+            gst_rate: number;
         };
     };
     responses: never;
