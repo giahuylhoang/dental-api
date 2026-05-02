@@ -187,7 +187,7 @@ define run_pms_loop
 	exit 1
 endef
 
-KIRO_MAX_ITERATIONS_PMS ?= 30
+KIRO_MAX_ITERATIONS_PMS ?= 20
 
 .PHONY: pms-loop-p0 pms-loop-p1 pms-loop-p2 pms-loop-p3 pms-loop-p4 pms-loop-p5 pms-loop-all
 pms-loop-p0: ; $(call run_pms_loop,p0)
@@ -199,6 +199,98 @@ pms-loop-p5: ; $(call run_pms_loop,p5)
 
 # Sequential chain — Make stops at the first failing dependency.
 pms-loop-all: pms-loop-p0 pms-loop-p1 pms-loop-p2 pms-loop-p3 pms-loop-p4 pms-loop-p5
+
+# ---------------------------------------------------------------------------
+# PMS Modules M0..M6 (interactive overhaul, OSS-adopting)
+# ---------------------------------------------------------------------------
+
+.PHONY: pms-mod-m0 pms-mod-m1 pms-mod-m2 pms-mod-m3 pms-mod-m4 pms-mod-m5 pms-mod-m6 pms-mod-all
+pms-mod-m0: ; $(call run_pms_loop,m0)
+pms-mod-m1: ; $(call run_pms_loop,m1)
+pms-mod-m2: ; $(call run_pms_loop,m2)
+pms-mod-m3: ; $(call run_pms_loop,m3)
+pms-mod-m4: ; $(call run_pms_loop,m4)
+pms-mod-m5: ; $(call run_pms_loop,m5)
+pms-mod-m6: ; $(call run_pms_loop,m6)
+pms-mod-all: pms-mod-m0 pms-mod-m1 pms-mod-m2 pms-mod-m3 pms-mod-m4 pms-mod-m5 pms-mod-m6
+
+.PHONY: test-pms-m0
+test-pms-m0:
+	@for f in tests/track_pms_m0/__init__.py tests/track_pms_m0/test_m0_endpoints.py ; do \
+	  [ -e $$f ] || { echo "M0 test missing: $$f"; exit 1; }; \
+	done
+	uv run pytest tests/track_pms_m0 -q
+	$(V1_GATE)
+	cd frontend && npm run -s gen:api && npm run -s build
+
+.PHONY: test-pms-m1
+test-pms-m1:
+	@for f in \
+	  frontend/tests/track_pms_m1/calendar-renders-fullcalendar.test.tsx \
+	  frontend/tests/track_pms_m1/select-opens-dialog.test.tsx \
+	  frontend/src/features/scheduling/Scheduler.tsx \
+	  frontend/src/features/patients/QuickBookPopover.tsx ; do \
+	  [ -e $$f ] || { echo "M1 deliverable missing: $$f"; exit 1; }; \
+	done
+	cd frontend && npm run -s lint && npm run -s build && \
+	  npm run -s test:pms-m1 && npm run -s e2e:pms-m1
+	$(V1_GATE)
+
+.PHONY: test-pms-m2
+test-pms-m2:
+	@for f in \
+	  frontend/tests/track_pms_m2/dropzone-renders.test.tsx \
+	  frontend/src/features/patients/DocumentUploader.tsx ; do \
+	  [ -e $$f ] || { echo "M2 deliverable missing: $$f"; exit 1; }; \
+	done
+	cd frontend && npm run -s lint && npm run -s build && \
+	  npm run -s test:pms-m2 && npm run -s e2e:pms-m2
+	$(V1_GATE)
+
+.PHONY: test-pms-m3
+test-pms-m3:
+	@for f in \
+	  frontend/tests/track_pms_m3/editor-shows-tooth-chart.test.tsx \
+	  frontend/src/features/treatment-plans/TreatmentPlanEditor.tsx ; do \
+	  [ -e $$f ] || { echo "M3 deliverable missing: $$f"; exit 1; }; \
+	done
+	cd frontend && npm run -s lint && npm run -s build && \
+	  npm run -s test:pms-m3 && npm run -s e2e:pms-m3
+	$(V1_GATE)
+
+.PHONY: test-pms-m4
+test-pms-m4:
+	@for f in \
+	  frontend/tests/track_pms_m4/lead-create-dialog.test.tsx \
+	  frontend/src/features/crm/LeadCreateDialog.tsx \
+	  frontend/src/features/crm/LeadDrawer.tsx ; do \
+	  [ -e $$f ] || { echo "M4 deliverable missing: $$f"; exit 1; }; \
+	done
+	cd frontend && npm run -s lint && npm run -s build && \
+	  npm run -s test:pms-m4 && npm run -s e2e:pms-m4
+	$(V1_GATE)
+
+.PHONY: test-pms-m5
+test-pms-m5:
+	@for f in \
+	  frontend/tests/track_pms_m5/command-palette-opens-on-cmdk.test.tsx \
+	  frontend/src/features/search/CommandPalette.tsx ; do \
+	  [ -e $$f ] || { echo "M5 deliverable missing: $$f"; exit 1; }; \
+	done
+	cd frontend && npm run -s lint && npm run -s build && \
+	  npm run -s test:pms-m5 && npm run -s e2e:pms-m5
+	$(V1_GATE)
+
+.PHONY: test-pms-m6
+test-pms-m6:
+	@for f in \
+	  frontend/tests/track_pms_m6/compose-channel-toggle.test.tsx \
+	  frontend/src/features/communications/CommInbox.tsx ; do \
+	  [ -e $$f ] || { echo "M6 deliverable missing: $$f"; exit 1; }; \
+	done
+	cd frontend && npm run -s lint && npm run -s build && \
+	  npm run -s test:pms-m6 && npm run -s e2e:pms-m6
+	$(V1_GATE)
 
 # --- Test gates ------------------------------------------------------------
 
