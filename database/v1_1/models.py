@@ -24,6 +24,48 @@ def _uuid() -> str:
 
 
 # ---------------------------------------------------------------------------
+# Patient lifecycle status (v1.1)
+# ---------------------------------------------------------------------------
+#
+# Use case: a phone-booking patient gives only name + phone. They land in
+# `pending` and are auto-promoted to `active` once consent + DOB + insurance
+# are captured. Sibling table — v1 `patients` rows stay untouched.
+#
+# Status values:
+#   pending   — quick-booked; missing identifying / consent fields
+#   active    — fully registered, can be billed
+#   inactive  — opted out / soft-archived
+#   deceased  — record retained for billing / family history
+#   merged    — duplicate; record kept for FK integrity but pointer in `notes`
+#               or audit log links to surviving patient
+#
+# Default behavior when NO row exists: read as `active`. This preserves v1
+# semantics (every existing patient was effectively active before this table
+# existed) so backfill is optional, not load-bearing.
+
+PATIENT_STATUSES = ("pending", "active", "inactive", "deceased", "merged")
+
+
+class PatientLifecycle(Base):
+    __tablename__ = "patient_lifecycle"
+
+    id = Column(String, primary_key=True, default=_uuid)
+    clinic_id = Column(String, ForeignKey("clinics.id"), nullable=False, index=True)
+    patient_id = Column(String, ForeignKey("patients.id"), nullable=False)
+    status = Column(String, nullable=False, default="pending")
+    registered_at = Column(DateTime, nullable=True)         # set when status -> active
+    last_status_change_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        # One lifecycle row per patient.
+        UniqueConstraint("patient_id", name="ux_patient_lifecycle_patient"),
+    )
+
+
+# ---------------------------------------------------------------------------
 # Tier 2a — Per-weekday clinic hours + closures
 # ---------------------------------------------------------------------------
 
@@ -323,3 +365,4 @@ Index("ix_claim_response_codes_claim_severity", ClaimResponseCode.claim_id, Clai
 Index("ix_clinic_sequences_clinic_kind", ClinicSequence.clinic_id, ClinicSequence.sequence_kind)
 Index("ix_human_identifiers_entity", HumanIdentifier.entity_type, HumanIdentifier.entity_id)
 Index("ix_human_identifiers_clinic_kind", HumanIdentifier.clinic_id, HumanIdentifier.kind)
+Index("ix_patient_lifecycle_clinic_status", PatientLifecycle.clinic_id, PatientLifecycle.status)

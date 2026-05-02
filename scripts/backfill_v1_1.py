@@ -24,11 +24,13 @@ from datetime import time
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
+from datetime import datetime
+
 from database.connection import SessionLocal
 from database.models import Clinic, Patient
 from database.clinical.models import PatientCommunicationPreference
 from database.ops.models import Invoice, InsuranceClaim
-from database.v1_1.models import ClinicOperatingHours, HumanIdentifier
+from database.v1_1.models import ClinicOperatingHours, HumanIdentifier, PatientLifecycle
 from database.v1_1.sequences import mint_mrn, mint_invoice_number, mint_claim_number
 
 
@@ -141,6 +143,29 @@ def backfill_communication_preferences(db) -> int:
     return inserted
 
 
+def backfill_patient_lifecycle(db) -> int:
+    """Seed PatientLifecycle.status='active' for every existing patient that
+    doesn't have a lifecycle row yet. Preserves prior behavior — every
+    pre-existing patient was effectively active before this table existed."""
+    patients_without_row = (
+        db.query(Patient)
+        .outerjoin(PatientLifecycle, PatientLifecycle.patient_id == Patient.id)
+        .filter(PatientLifecycle.id.is_(None))
+        .all()
+    )
+    now = datetime.utcnow()
+    for p in patients_without_row:
+        db.add(PatientLifecycle(
+            clinic_id=p.clinic_id,
+            patient_id=p.id,
+            status="active",
+            registered_at=p.created_at or now,
+            last_status_change_at=now,
+            notes="backfilled — pre-lifecycle patient",
+        ))
+    return len(patients_without_row)
+
+
 def main() -> None:
     db = SessionLocal()
     try:
@@ -150,12 +175,14 @@ def main() -> None:
         claim_count = backfill_claim_numbers(db)
         hours_count = backfill_operating_hours(db)
         prefs_count = backfill_communication_preferences(db)
+        lifecycle_count = backfill_patient_lifecycle(db)
         db.commit()
         print(f"  MRNs minted:                    {mrn_count}")
         print(f"  Invoice numbers minted:         {inv_count}")
         print(f"  Claim numbers minted:           {claim_count}")
         print(f"  Operating hours rows seeded:    {hours_count}")
         print(f"  Communication preferences seeded: {prefs_count}")
+        print(f"  Patient lifecycle rows seeded:  {lifecycle_count}")
     except Exception:
         db.rollback()
         raise

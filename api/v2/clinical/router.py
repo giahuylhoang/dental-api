@@ -13,9 +13,153 @@ from database.clinical.models import (
     PatientMedicalHistory, PatientInsurance, PatientConsent, Document,
     ClinicalNote, DentureCase, DentureCaseEvent,
 )
+from database.v1_1.lifecycle import (
+    get_status, set_status, promote_if_complete, PATIENT_STATUSES,
+)
 from api.main import get_clinic
 
 router = APIRouter(prefix="/api/v2/clinical", tags=["clinical"])
+
+
+# ---------------------------------------------------------------------------
+# Quick-book / lifecycle (v1.1)
+# ---------------------------------------------------------------------------
+
+class QuickBookIn(BaseModel):
+    """Minimum data set for a phone-booking patient: name + phone."""
+    name: str                        # full or "first last"; we split on first space
+    phone: str
+    source: Optional[str] = None     # how they found the clinic
+    notes: Optional[str] = None
+
+
+class QuickBookOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    patient_id: str
+    status: str
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    phone: Optional[str] = None
+    is_new: bool
+
+
+class PatientStatusOut(BaseModel):
+    patient_id: str
+    status: str
+
+
+class PatientStatusIn(BaseModel):
+    status: str
+    notes: Optional[str] = None
+
+
+def _split_name(full: str) -> tuple[str, Optional[str]]:
+    parts = full.strip().split(maxsplit=1)
+    if len(parts) == 1:
+        return parts[0], None
+    return parts[0], parts[1]
+
+
+@router.post("/patients/quick-book", response_model=QuickBookOut, status_code=200)
+def quick_book_patient(
+    body: QuickBookIn,
+    db: Session = Depends(get_db),
+    clinic: Clinic = Depends(get_clinic),
+):
+    """Create (or reuse) a phone-booking patient with status='pending'.
+
+    Idempotent on (clinic_id, phone): if a patient with that phone already
+    exists in this clinic, return them as-is — no duplicate row, no status
+    change. The caller can later POST consent/insurance/dob and the lifecycle
+    auto-promotes to 'active' via `promote_if_complete`.
+    """
+    phone_clean = "".join(c for c in body.phone if c.isdigit() or c == "+")
+    if not phone_clean:
+        raise HTTPException(status_code=422, detail="phone is required")
+
+    existing = (
+        db.query(Patient)
+        .filter(Patient.clinic_id == clinic.id, Patient.phone == phone_clean)
+        .first()
+    )
+    if existing is not None:
+        return QuickBookOut(
+            patient_id=existing.id,
+            status=get_status(db, existing.id),
+            first_name=existing.first_name,
+            last_name=existing.last_name,
+            phone=existing.phone,
+            is_new=False,
+        )
+
+    first, last = _split_name(body.name)
+    patient = Patient(
+        clinic_id=clinic.id,
+        first_name=first,
+        last_name=last,
+        phone=phone_clean,
+    )
+    db.add(patient)
+    db.flush()
+
+    set_status(
+        db, patient.id, clinic.id, "pending",
+        notes=body.notes or (f"quick-book; source={body.source}" if body.source else "quick-book"),
+    )
+    db.commit()
+    db.refresh(patient)
+    return QuickBookOut(
+        patient_id=patient.id,
+        status="pending",
+        first_name=patient.first_name,
+        last_name=patient.last_name,
+        phone=patient.phone,
+        is_new=True,
+    )
+
+
+@router.get("/patients/{patient_id}/status", response_model=PatientStatusOut)
+def get_patient_status(
+    patient_id: str,
+    db: Session = Depends(get_db),
+    clinic: Clinic = Depends(get_clinic),
+):
+    p = db.query(Patient).filter(Patient.id == patient_id, Patient.clinic_id == clinic.id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    return PatientStatusOut(patient_id=p.id, status=get_status(db, p.id))
+
+
+@router.post("/patients/{patient_id}/status", response_model=PatientStatusOut)
+def set_patient_status(
+    patient_id: str,
+    body: PatientStatusIn,
+    db: Session = Depends(get_db),
+    clinic: Clinic = Depends(get_clinic),
+):
+    if body.status not in PATIENT_STATUSES:
+        raise HTTPException(status_code=400, detail=f"invalid status; expected one of {list(PATIENT_STATUSES)}")
+    p = db.query(Patient).filter(Patient.id == patient_id, Patient.clinic_id == clinic.id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    set_status(db, p.id, clinic.id, body.status, notes=body.notes)
+    db.commit()
+    return PatientStatusOut(patient_id=p.id, status=body.status)
+
+
+@router.post("/patients/{patient_id}/promote", response_model=PatientStatusOut)
+def promote_patient(
+    patient_id: str,
+    db: Session = Depends(get_db),
+    clinic: Clinic = Depends(get_clinic),
+):
+    """Auto-promote pending → active if all required fields are now present."""
+    p = db.query(Patient).filter(Patient.id == patient_id, Patient.clinic_id == clinic.id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    final = promote_if_complete(db, p)
+    db.commit()
+    return PatientStatusOut(patient_id=p.id, status=final)
 
 # ---------------------------------------------------------------------------
 # Stage machine
