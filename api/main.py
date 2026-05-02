@@ -1502,3 +1502,10 @@ try:
     app.include_router(_settings_router)
 except ImportError:
     pass
+
+# v2 routers (Reporting — Dashboard KPIs)
+try:
+    from api.v2.reporting.router import router as _reporting_router
+    app.include_router(_reporting_router)
+except ImportError:
+    pass
