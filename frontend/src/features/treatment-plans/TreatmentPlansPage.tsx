@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetcher } from '../../api/client';
 import TreatmentPlanEditor from './TreatmentPlanEditor';
+import { PatientSearchInput } from '../patients/PatientSearchInput';
+import type { Patient } from '../patients/usePatient';
 
 interface TreatmentPlan {
   id: string;
@@ -10,12 +12,6 @@ interface TreatmentPlan {
   status: string;
   total_estimate: number;
   created_at?: string;
-}
-
-interface Patient {
-  id: string;
-  first_name: string;
-  last_name: string;
 }
 
 const STATUSES = ['draft', 'presented', 'accepted', 'in_progress', 'completed', 'declined'] as const;
@@ -36,26 +32,11 @@ export default function TreatmentPlansPage() {
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const [showNewPlan, setShowNewPlan] = useState(false);
-  const [patientSearch, setPatientSearch] = useState('');
   const [chosenPatient, setChosenPatient] = useState<Patient | null>(null);
 
   const { data: plans = [] } = useQuery<TreatmentPlan[]>({
     queryKey: ['treatment-plans-all'],
     queryFn: () => fetcher<TreatmentPlan[]>('/api/v2/treatment-plans'),
-  });
-
-  const { data: patientResults = [] } = useQuery<Patient[]>({
-    queryKey: ['patients-search', patientSearch],
-    queryFn: async () => {
-      const all = await fetcher<Patient[]>('/api/patients');
-      const q = patientSearch.toLowerCase();
-      return all
-        .filter((p) =>
-          `${p.first_name ?? ''} ${p.last_name ?? ''}`.toLowerCase().includes(q),
-        )
-        .slice(0, 10);
-    },
-    enabled: patientSearch.length > 0,
   });
 
   const createPlanMutation = useMutation({
@@ -68,7 +49,6 @@ export default function TreatmentPlansPage() {
       qc.invalidateQueries({ queryKey: ['treatment-plans-all'] });
       setShowNewPlan(false);
       setChosenPatient(null);
-      setPatientSearch('');
       setSelectedPlanId(plan.id);
       setSelectedPatientId(plan.patient_id);
     },
@@ -118,26 +98,10 @@ export default function TreatmentPlansPage() {
         <div className="rounded-lg border border-zinc-200 bg-white p-4 shadow-md space-y-3 max-w-sm">
           <h3 className="font-medium">New Treatment Plan</h3>
           <div className="relative">
-            <input
-              value={patientSearch}
-              onChange={(e) => { setPatientSearch(e.target.value); setChosenPatient(null); }}
+            <PatientSearchInput
+              onSelect={(p) => setChosenPatient(p)}
               placeholder="Search patient…"
-              className="w-full rounded border border-zinc-300 px-3 py-2 text-sm focus:outline-none"
             />
-            {patientResults.length > 0 && !chosenPatient && (
-              <ul className="absolute z-10 mt-1 w-full rounded border border-zinc-200 bg-white shadow-md">
-                {patientResults.map((p) => (
-                  <li key={p.id}>
-                    <button
-                      onClick={() => { setChosenPatient(p); setPatientSearch(`${p.first_name} ${p.last_name}`); }}
-                      className="w-full px-3 py-2 text-left text-sm hover:bg-zinc-50"
-                    >
-                      {p.first_name} {p.last_name}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
           </div>
           <div className="flex gap-2">
             <button
@@ -148,7 +112,7 @@ export default function TreatmentPlansPage() {
               Create
             </button>
             <button
-              onClick={() => { setShowNewPlan(false); setChosenPatient(null); setPatientSearch(''); }}
+              onClick={() => { setShowNewPlan(false); setChosenPatient(null); }}
               className="rounded border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50"
             >
               Cancel

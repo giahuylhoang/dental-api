@@ -17,7 +17,12 @@ describe('Tiptap body serializes to plain text', () => {
     server.use(
       http.get('/api/v2/communications', () => HttpResponse.json([])),
       http.get('/api/patients', () =>
-        HttpResponse.json({ items: [], total: 0, page: 1, limit: 20 }),
+        HttpResponse.json({
+          items: [{ id: 'p-1', first_name: 'Alice', last_name: 'Smith', phone: '+15551112222' }],
+          total: 1,
+          page: 1,
+          limit: 20,
+        }),
       ),
       http.post('/api/v2/communications/send', async ({ request }) => {
         captured = await request.json();
@@ -31,9 +36,12 @@ describe('Tiptap body serializes to plain text', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: /compose/i })).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: /compose/i }));
 
-    // Fill patient id (raw query as fallback)
+    // Search for and select the patient (D2 PatientSearchInput)
     await waitFor(() => expect(screen.getByPlaceholderText(/search patient/i)).toBeInTheDocument());
-    fireEvent.change(screen.getByPlaceholderText(/search patient/i), { target: { value: 'p-1' } });
+    fireEvent.change(screen.getByPlaceholderText(/search patient/i), { target: { value: 'Alice' } });
+    await waitFor(() => expect(screen.getByText('Alice Smith')).toBeInTheDocument());
+    // PatientSearchInput uses onMouseDown to preserve focus, not onClick
+    fireEvent.mouseDown(screen.getByText('Alice Smith'));
 
     // Type in the message body textarea (aria-label="message body")
     const bodyTextarea = screen.getByRole('textbox', { name: /message body/i });

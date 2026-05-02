@@ -131,6 +131,18 @@ def list_invoices(
     return [_invoice_out(inv) for inv in q.all()]
 
 
+@router.get("/invoices/{inv_id}")
+def get_invoice(
+    inv_id: str,
+    clinic: Clinic = Depends(get_clinic),
+    db: Session = Depends(get_db),
+):
+    inv = db.query(Invoice).filter(Invoice.id == inv_id, Invoice.clinic_id == clinic.id).first()
+    if not inv:
+        raise HTTPException(404, "Invoice not found")
+    return _invoice_out(inv)
+
+
 @router.post("/invoices/{inv_id}/issue", status_code=200)
 def issue_invoice(inv_id: str, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
     inv = db.query(Invoice).filter(Invoice.id == inv_id, Invoice.clinic_id == clinic.id).first()

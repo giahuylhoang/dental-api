@@ -16,6 +16,14 @@ describe('ComposeDialog channel toggle', () => {
 
     server.use(
       http.get('/api/v2/communications', () => HttpResponse.json([])),
+      http.get('/api/patients', () =>
+        HttpResponse.json({
+          items: [{ id: 'p-1', first_name: 'Alice', last_name: 'Smith', phone: '+15551112222' }],
+          total: 1,
+          page: 1,
+          limit: 20,
+        }),
+      ),
       http.post('/api/v2/communications/send', async ({ request }) => {
         captured = await request.json();
         return HttpResponse.json({ id: 'msg-1', status: 'sent' }, { status: 201 });
@@ -28,17 +36,23 @@ describe('ComposeDialog channel toggle', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: /compose/i })).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: /compose/i }));
 
+    // Search for and select the patient (D2 PatientSearchInput)
+    await waitFor(() => expect(screen.getByPlaceholderText(/search patient/i)).toBeInTheDocument());
+    fireEvent.change(screen.getByPlaceholderText(/search patient/i), { target: { value: 'Alice' } });
+    await waitFor(() => expect(screen.getByText('Alice Smith')).toBeInTheDocument());
+    // PatientSearchInput uses onMouseDown to preserve focus, not onClick
+    fireEvent.mouseDown(screen.getByText('Alice Smith'));
+
     // Click WhatsApp toggle
     await waitFor(() => expect(screen.getByRole('button', { name: /whatsapp/i })).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: /whatsapp/i }));
 
-    // Fill patient ID and body (inputs are identified by position in the form)
-    const inputs = screen.getAllByRole('textbox');
-    // inputs[0] = patient id, inputs[1] = to, inputs[2] = message (textarea)
-    fireEvent.change(inputs[0], { target: { value: 'p-1' } });
-    fireEvent.change(inputs[2], { target: { value: 'Hello via WhatsApp' } });
+    // Type in the message body textarea
+    const bodyTextarea = screen.getByRole('textbox', { name: /message body/i });
+    fireEvent.change(bodyTextarea, { target: { value: 'Hello via WhatsApp' } });
 
     // Submit
+    await waitFor(() => expect(screen.getByRole('button', { name: /^send$/i })).not.toBeDisabled());
     fireEvent.click(screen.getByRole('button', { name: /^send$/i }));
 
     await waitFor(() =>

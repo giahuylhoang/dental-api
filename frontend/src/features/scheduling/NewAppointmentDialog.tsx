@@ -3,12 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetcher } from '../../api/client';
 import { useAuthStore } from '../auth/store';
 import QuickBookPopover from '../patients/QuickBookPopover';
-
-interface Patient {
-  id: string;
-  first_name: string;
-  last_name: string;
-}
+import { PatientSearchInput } from '../patients/PatientSearchInput';
+import type { Patient } from '../patients/usePatient';
 
 interface Doctor {
   id: number;
@@ -38,7 +34,6 @@ export default function NewAppointmentDialog({ open, start, end, onClose, onCrea
   const clinicId = useAuthStore((s) => s.clinicId);
   const qc = useQueryClient();
 
-  const [patientQuery, setPatientQuery] = useState('');
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [showQuickBook, setShowQuickBook] = useState(false);
   const [doctorId, setDoctorId] = useState('');
@@ -47,13 +42,6 @@ export default function NewAppointmentDialog({ open, start, end, onClose, onCrea
   const [endVal, setEndVal] = useState(toDatetimeLocal(end));
   const [chiefComplaint, setChiefComplaint] = useState('');
   const [notes, setNotes] = useState('');
-
-  const { data: patientResults = [] } = useQuery<{ items: Patient[] }>({
-    queryKey: ['patients-search', patientQuery, clinicId],
-    queryFn: () => fetcher<{ items: Patient[] }>(`/api/patients?q=${encodeURIComponent(patientQuery)}&limit=10`),
-    enabled: open && patientQuery.length > 0 && !selectedPatient,
-    select: (d) => d,
-  });
 
   const { data: doctors = [] } = useQuery<Doctor[]>({
     queryKey: ['doctors', clinicId],
@@ -95,8 +83,6 @@ export default function NewAppointmentDialog({ open, start, end, onClose, onCrea
 
   if (!open) return null;
 
-  const patientItems = (patientResults as unknown as { items?: Patient[] })?.items ?? [];
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="w-[28rem] rounded-lg bg-white p-6 shadow-xl">
@@ -119,41 +105,18 @@ export default function NewAppointmentDialog({ open, start, end, onClose, onCrea
                 </button>
               </div>
             ) : (
-              <div className="relative mt-1">
-                <input
-                  className="w-full rounded border px-2 py-1"
+              <div className="mt-1">
+                <PatientSearchInput
+                  onSelect={(p) => setSelectedPatient(p)}
                   placeholder="Search patient…"
-                  value={patientQuery}
-                  onChange={(e) => setPatientQuery(e.target.value)}
-                  aria-label="Search patient"
                 />
-                {patientItems.length > 0 && (
-                  <ul className="absolute z-10 mt-1 w-full rounded border bg-white shadow-md">
-                    {patientItems.map((p) => (
-                      <li
-                        key={p.id}
-                        className="cursor-pointer px-3 py-1.5 hover:bg-zinc-100"
-                        onClick={() => {
-                          setSelectedPatient(p);
-                          setPatientQuery('');
-                        }}
-                      >
-                        {p.first_name} {p.last_name}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {patientQuery.length > 0 && patientItems.length === 0 && (
-                  <div className="mt-1">
-                    <button
-                      type="button"
-                      className="text-xs text-blue-600 hover:underline"
-                      onClick={() => setShowQuickBook(true)}
-                    >
-                      + Create new patient
-                    </button>
-                  </div>
-                )}
+                <button
+                  type="button"
+                  className="mt-1 text-xs text-blue-600 hover:underline"
+                  onClick={() => setShowQuickBook(true)}
+                >
+                  + Create new patient
+                </button>
               </div>
             )}
           </div>

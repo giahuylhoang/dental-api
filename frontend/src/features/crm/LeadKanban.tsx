@@ -5,6 +5,9 @@ import { useAuthStore } from '../auth/store';
 import { useNavigate } from 'react-router-dom';
 import LeadCreateDialog from './LeadCreateDialog';
 import LeadDrawer from './LeadDrawer';
+import { Skeleton } from '../../components/ui/skeleton';
+import { Badge } from '../../components/ui/badge';
+import { Button } from '../../components/ui/button';
 
 type LeadStatus = 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'CONVERTED' | 'LOST';
 
@@ -40,9 +43,9 @@ function sourcePill(source: string | null) {
   if (!source) return null;
   const icon = SOURCE_ICONS[source] ?? '❓';
   return (
-    <span className="mt-1 inline-block rounded-full bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-600">
+    <Badge variant="secondary" className="mt-1">
       {icon} {source}
-    </span>
+    </Badge>
   );
 }
 
@@ -50,14 +53,14 @@ function SkeletonColumn() {
   return (
     <div className="flex w-56 shrink-0 flex-col rounded-lg border border-zinc-200 bg-zinc-50">
       <div className="border-b border-zinc-200 px-3 py-2">
-        <div className="h-3 w-20 animate-pulse rounded bg-zinc-200" />
+        <Skeleton className="h-3 w-20" />
       </div>
       <div className="flex flex-1 flex-col gap-2 p-2">
         {[0, 1].map((i) => (
-          <div
+          <Skeleton
             key={i}
             data-testid="lead-skeleton"
-            className="h-16 animate-pulse rounded bg-zinc-200"
+            className="h-16"
           />
         ))}
       </div>
@@ -114,9 +117,7 @@ export default function LeadKanban() {
     return (
       <>
         <div className="mb-3 flex justify-end">
-          <button className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700">
-            + New Lead
-          </button>
+          <Button size="sm">+ New Lead</Button>
         </div>
         <div className="flex gap-3 overflow-x-auto pb-4">
           {COLUMNS.map((col) => <SkeletonColumn key={col} />)}
@@ -128,12 +129,9 @@ export default function LeadKanban() {
   return (
     <>
       <div className="mb-3 flex justify-end">
-        <button
-          onClick={() => setCreateOpen(true)}
-          className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700"
-        >
+        <Button size="sm" onClick={() => setCreateOpen(true)}>
           + New Lead
-        </button>
+        </Button>
       </div>
       <div className="flex gap-3 overflow-x-auto pb-4">
       {COLUMNS.map((col) => {
@@ -170,13 +168,15 @@ export default function LeadKanban() {
                   )}
                   {sourcePill(lead.source)}
                   {col !== 'CONVERTED' && col !== 'LOST' && (
-                    <button
-                      className="mt-2 w-full rounded bg-green-600 px-2 py-0.5 text-xs text-white hover:bg-green-700"
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="mt-2 w-full text-xs"
                       onClick={(e) => { e.stopPropagation(); convert.mutate(lead.id); }}
                       disabled={convert.isPending}
                     >
                       Convert →
-                    </button>
+                    </Button>
                   )}
                 </div>
               ))}

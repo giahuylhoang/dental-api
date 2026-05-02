@@ -13,6 +13,9 @@ import Fuse from 'fuse.js';
 import { fetcher } from '../../api/client';
 import { useAuthStore } from '../auth/store';
 import InvoiceDrawer from './InvoiceDrawer';
+import { Input } from '../../components/ui/input';
+import { Button } from '../../components/ui/button';
+import { Badge } from '../../components/ui/badge';
 
 const fmt = new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' });
 
@@ -36,12 +39,12 @@ interface DentureCase {
   case_type: string;
 }
 
-const STATUS_COLORS: Record<Invoice['status'], string> = {
-  draft: 'bg-zinc-100 text-zinc-600',
-  issued: 'bg-blue-100 text-blue-700',
-  partial: 'bg-yellow-100 text-yellow-700',
-  paid: 'bg-green-100 text-green-700',
-  void: 'bg-red-100 text-red-600',
+const STATUS_BADGE_VARIANT: Record<Invoice['status'], 'default' | 'secondary' | 'destructive' | 'outline'> = {
+  draft: 'outline',
+  issued: 'default',
+  partial: 'secondary',
+  paid: 'default',
+  void: 'destructive',
 };
 
 const col = createColumnHelper<Invoice>();
@@ -61,9 +64,9 @@ const columns = [
   col.accessor('status', {
     header: 'Status',
     cell: (info) => (
-      <span className={`rounded px-1.5 py-0.5 text-xs ${STATUS_COLORS[info.getValue()]}`}>
+      <Badge variant={STATUS_BADGE_VARIANT[info.getValue()]}>
         {info.getValue()}
-      </span>
+      </Badge>
     ),
   }),
   col.accessor((row) => (row.total_cents != null ? row.total_cents / 100 : row.total), {
@@ -162,11 +165,12 @@ export default function InvoiceList({ patientId }: { patientId?: string }) {
   return (
     <>
       <div className="mb-3 flex items-center gap-3">
-        <input
+        <Input
           type="search"
           placeholder="Search invoices…"
           aria-label="Search invoices"
-          className="rounded border border-zinc-300 px-2 py-1 text-sm"
+          data-testid="invoice-search"
+          className="w-48"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
@@ -180,12 +184,13 @@ export default function InvoiceList({ patientId }: { patientId?: string }) {
             <option key={s} value={s}>{s}</option>
           ))}
         </select>
-        <button
-          className="ml-auto rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700"
+        <Button
+          className="ml-auto"
+          size="sm"
           onClick={() => setShowNewForm((v) => !v)}
         >
           + New Invoice
-        </button>
+        </Button>
       </div>
 
       {showNewForm && (
@@ -218,19 +223,20 @@ export default function InvoiceList({ patientId }: { patientId?: string }) {
             </div>
           )}
           <div className="flex gap-2">
-            <button
+            <Button
+              size="sm"
               disabled={createInvoice.isPending || !newPatientId}
               onClick={() => createInvoice.mutate()}
-              className="rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
             >
               {createInvoice.isPending ? 'Creating…' : 'Create'}
-            </button>
-            <button
-              className="rounded border border-zinc-300 px-3 py-1 text-sm hover:bg-zinc-50"
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => setShowNewForm(false)}
             >
               Cancel
-            </button>
+            </Button>
           </div>
         </div>
       )}

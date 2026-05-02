@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
 import Drawer from '../../components/Drawer';
 import DateTimePicker from './DateTimePicker';
 import { fetcher } from '../../api/client';
@@ -11,6 +10,7 @@ import {
   statusColor,
   statusLabel,
 } from './appt-status';
+import { PatientChip } from '../patients/PatientChip';
 
 interface Appointment {
   id: string;
@@ -109,12 +109,7 @@ export default function AppointmentDrawer({ appointmentId, open, onClose, onChan
           <div className="space-y-1">
             <div>
               <span className="text-zinc-500">Patient: </span>
-              <Link
-                to={`/patients/${appt.patient_id}`}
-                className="text-blue-600 hover:underline"
-              >
-                {appt.patient_name ?? appt.patient_id}
-              </Link>
+              <PatientChip patientId={appt.patient_id} variant="card" linkTo="/patients/:id" />
             </div>
             <div>
               <span className="text-zinc-500">Provider: </span>

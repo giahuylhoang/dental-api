@@ -271,6 +271,56 @@ async def get_calendar_slots(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/calendar/events")
+async def list_calendar_events(
+    start: Optional[str] = Query(None, description="ISO start of range (inclusive)"),
+    end: Optional[str] = Query(None, description="ISO end of range (exclusive)"),
+    db: Session = Depends(get_db),
+    clinic: Clinic = Depends(get_clinic),
+):
+    """List appointments in [start, end) as FullCalendar-style event objects."""
+    q = db.query(Appointment).filter(Appointment.clinic_id == clinic.id)
+    if start:
+        try:
+            q = q.filter(Appointment.start_time >= datetime.fromisoformat(start.replace("Z", "+00:00")))
+        except ValueError:
+            raise HTTPException(400, f"Invalid start datetime: {start}")
+    if end:
+        try:
+            q = q.filter(Appointment.start_time < datetime.fromisoformat(end.replace("Z", "+00:00")))
+        except ValueError:
+            raise HTTPException(400, f"Invalid end datetime: {end}")
+    out = []
+    for appt in q.order_by(Appointment.start_time.asc()).all():
+        out.append({
+            "id": appt.id,
+            "title": (appt.notes or "Appointment")[:60],
+            "start": appt.start_time.isoformat() if appt.start_time else None,
+            "end": appt.end_time.isoformat() if appt.end_time else None,
+            "status": appt.status.value if hasattr(appt.status, "value") else str(appt.status),
+            "patient_id": appt.patient_id,
+            "provider_id": appt.provider_id,
+        })
+    return out
+
+
+@app.get("/api/doctors")
+async def list_doctors_alias(
+    db: Session = Depends(get_db), clinic: Clinic = Depends(get_clinic)
+):
+    """Legacy alias — frontend code that hasn't migrated to /api/providers."""
+    providers = db.query(Provider).filter(Provider.clinic_id == clinic.id).all()
+    return [
+        {
+            "id": p.id,
+            "name": p.name,
+            "title": p.title,
+            "specialty": getattr(p, "specialty", None),
+        }
+        for p in providers
+    ]
+
+
 @app.post("/api/calendar/events")
 async def create_calendar_event(
     request: AppointmentCreateRequest,

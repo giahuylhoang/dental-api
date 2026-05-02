@@ -1,9 +1,12 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetcher } from '../../api/client';
 import { useAuthStore } from '../auth/store';
+import { PatientSearchInput } from '../patients/PatientSearchInput';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
+import { Button } from '../../components/ui/button';
 
 type Channel = 'sms' | 'email' | 'whatsapp';
 
@@ -38,13 +41,11 @@ export function ComposeDialog({ initial, onClose }: Props) {
   const clinicId = useAuthStore((s) => s.clinicId);
 
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
-  const [patientQuery, setPatientQuery] = useState('');
-  const [suggestions, setSuggestions] = useState<Patient[]>([]);
   const [channel, setChannel] = useState<Channel>(initial?.channel ?? 'sms');
   const [to, setTo] = useState(initial?.to ?? '');
   const [initialPatientId] = useState(initial?.patient_id ?? '');
+
   const [body, setBody] = useState('');
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const editor = useEditor({
     extensions: [StarterKit],
@@ -54,37 +55,11 @@ export function ComposeDialog({ initial, onClose }: Props) {
     },
   });
 
-  // Resolved patient_id: prefer selected patient, then initial, then raw query
-  const patientId = selectedPatient?.id || initialPatientId || patientQuery;
-
-  const fetchSuggestions = useCallback(async (q: string) => {
-    if (!q) {
-      setSuggestions([]);
-      return;
-    }
-    try {
-      const res = await fetcher<{ items: Patient[] }>(`/api/patients?q=${encodeURIComponent(q)}`);
-      setSuggestions(res.items ?? []);
-    } catch {
-      setSuggestions([]);
-    }
-  }, []);
-
-  // Debounced patient search
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      fetchSuggestions(patientQuery);
-    }, 150);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [patientQuery, fetchSuggestions]);
+  // Resolved patient_id: prefer selected patient, then initial
+  const patientId = selectedPatient?.id || initialPatientId;
 
   const selectPatient = useCallback((p: Patient, ch: Channel) => {
     setSelectedPatient(p);
-    setPatientQuery(`${p.first_name} ${p.last_name}`);
-    setSuggestions([]);
     setTo(resolveRecipient(p, ch));
   }, []);
 
@@ -110,35 +85,19 @@ export function ComposeDialog({ initial, onClose }: Props) {
   const channels: Channel[] = ['sms', 'email', 'whatsapp'];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-96 rounded-lg bg-white p-6 shadow-xl">
-        <h3 className="mb-4 font-semibold">New Message</h3>
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="w-96">
+        <DialogHeader>
+          <DialogTitle>New Message</DialogTitle>
+        </DialogHeader>
         <div className="space-y-3 text-sm">
-          {/* Patient autocomplete */}
-          <div className="relative">
+          {/* Patient search */}
+          <div>
             <label className="block text-zinc-600">To: Patient</label>
-            <input
-              className="mt-1 w-full rounded border px-2 py-1"
+            <PatientSearchInput
+              onSelect={(p) => selectPatient(p, channel)}
               placeholder="Search patient…"
-              value={patientQuery}
-              onChange={(e) => {
-                setPatientQuery(e.target.value);
-                setSelectedPatient(null);
-              }}
             />
-            {suggestions.length > 0 && (
-              <ul className="absolute z-10 mt-1 w-full rounded border bg-white shadow">
-                {suggestions.map((p) => (
-                  <li
-                    key={p.id}
-                    className="cursor-pointer px-2 py-1 hover:bg-zinc-100"
-                    onMouseDown={() => selectPatient(p, channel)}
-                  >
-                    {p.first_name} {p.last_name}
-                  </li>
-                ))}
-              </ul>
-            )}
           </div>
 
           {/* Channel segmented control */}
@@ -146,18 +105,18 @@ export function ComposeDialog({ initial, onClose }: Props) {
             <label className="block text-zinc-600">Channel</label>
             <div className="mt-1 flex overflow-hidden rounded border border-zinc-300">
               {channels.map((ch) => (
-                <button
+                <Button
                   key={ch}
                   type="button"
+                  variant={channel === ch ? 'default' : 'outline'}
+                  size="sm"
                   aria-label={ch}
                   aria-pressed={channel === ch}
                   onClick={() => handleChannelChange(ch)}
-                  className={`flex-1 px-2 py-1 capitalize text-xs ${
-                    channel === ch ? 'bg-blue-600 text-white' : 'hover:bg-zinc-50'
-                  }`}
+                  className="flex-1 rounded-none capitalize text-xs"
                 >
                   {CHANNEL_ICONS[ch]} {ch}
-                </button>
+                </Button>
               ))}
             </div>
           </div>
@@ -194,19 +153,19 @@ export function ComposeDialog({ initial, onClose }: Props) {
             <p className="text-xs text-red-600">{(send.error as Error).message}</p>
           )}
           <div className="flex justify-end gap-2 pt-2">
-            <button className="rounded px-3 py-1 hover:bg-zinc-100" onClick={onClose}>
+            <Button variant="outline" size="sm" onClick={onClose}>
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
+              size="sm"
               disabled={send.isPending || !patientId}
               onClick={() => send.mutate()}
-              className="rounded bg-blue-600 px-3 py-1 text-white hover:bg-blue-700 disabled:opacity-50"
             >
               {send.isPending ? 'Sending…' : 'Send'}
-            </button>
+            </Button>
           </div>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

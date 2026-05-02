@@ -543,6 +543,19 @@ def list_notes(patient_id: Optional[str] = None, clinic: Clinic = Depends(get_cl
 # Denture cases
 # ---------------------------------------------------------------------------
 
+@router.get("/patients/{patient_id}/denture-cases", response_model=List[DentureCaseOut])
+def list_denture_cases_for_patient(
+    patient_id: str, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)
+):
+    _get_patient(patient_id, clinic, db)
+    return (
+        db.query(DentureCase)
+        .filter(DentureCase.clinic_id == clinic.id, DentureCase.patient_id == patient_id)
+        .order_by(DentureCase.opened_at.desc())
+        .all()
+    )
+
+
 @router.post("/denture-cases", response_model=DentureCaseOut, status_code=201)
 def create_denture_case(body: DentureCaseIn, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
     _get_patient(body.patient_id, clinic, db)

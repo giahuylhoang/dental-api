@@ -56,7 +56,7 @@ describe('chief_complaint is sent on submit', () => {
     fireEvent.change(searchInput, { target: { value: 'Alice' } });
 
     await waitFor(() => expect(screen.getByText('Alice Smith')).toBeInTheDocument());
-    fireEvent.click(screen.getByText('Alice Smith'));
+    fireEvent.mouseDown(screen.getByText('Alice Smith'));
 
     // Select provider and service using getAllByRole
     await waitFor(() => screen.getByText('Dr. Johnson'));
@@ -69,8 +69,8 @@ describe('chief_complaint is sent on submit', () => {
     const ccTextarea = screen.getByLabelText('Pain points / Chief complaint');
     fireEvent.change(ccTextarea, { target: { value: 'tooth pain throbbing' } });
 
-    // Submit
-    fireEvent.click(screen.getByRole('button', { name: /Create/ }));
+    // Submit (the form's Create button — exact match to avoid the inline "+ Create new patient")
+    fireEvent.click(screen.getByRole('button', { name: /^Create$/ }));
 
     await waitFor(() =>
       expect((capturedBody as Record<string, unknown>)?.chief_complaint).toBe('tooth pain throbbing'),

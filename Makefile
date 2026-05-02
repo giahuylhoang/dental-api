@@ -475,6 +475,102 @@ test-pms-f6:
 	$(V1_GATE)
 
 # ---------------------------------------------------------------------------
+# PMS Phase 4 — Design System mirror + Patient context UX (D0..D5)
+# ---------------------------------------------------------------------------
+
+.PHONY: pms-design-d0 pms-design-d1 pms-design-d2 pms-design-d3 pms-design-d4 pms-design-d5 pms-design-all
+pms-design-d0: ; $(call run_pms_loop,d0)
+pms-design-d1: ; $(call run_pms_loop,d1)
+pms-design-d2: ; $(call run_pms_loop,d2)
+pms-design-d3: ; $(call run_pms_loop,d3)
+pms-design-d4: ; $(call run_pms_loop,d4)
+pms-design-d5: ; $(call run_pms_loop,d5)
+pms-design-all: pms-design-d0 pms-design-d1 pms-design-d2 pms-design-d3 pms-design-d4 pms-design-d5
+
+.PHONY: test-pms-d0
+test-pms-d0:
+	@for f in \
+	  frontend/design_system/dental-pms.v1/tokens.css \
+	  frontend/design_system/dental-pms.v1/README.md \
+	  frontend/design_system/dental-pms.v1/SKILL.md \
+	  frontend/tests/track_pms_d0/design-system-files-exist.test.ts ; do \
+	  [ -e $$f ] || { echo "D0 deliverable missing: $$f"; exit 1; }; \
+	done
+	@n=$$(find frontend/design_system/dental-pms.v1/preview -name '*.html' 2>/dev/null | wc -l); \
+	  if [ $$n -lt 15 ]; then echo "D0 needs >=15 preview html files (found $$n)"; exit 1; fi
+	@n=$$(find frontend/design_system/dental-pms.v1/ui_kits/web -name '*.tsx' 2>/dev/null | wc -l); \
+	  if [ $$n -lt 6 ]; then echo "D0 needs >=6 ui_kits tsx files (found $$n)"; exit 1; fi
+	cd frontend && npm run -s test:pms-d0
+	$(V1_GATE)
+
+.PHONY: test-pms-d1
+test-pms-d1:
+	@for f in \
+	  frontend/src/lib/utils.ts \
+	  frontend/src/components/ui/button.tsx \
+	  frontend/src/components/ui/input.tsx \
+	  frontend/src/components/ui/dialog.tsx \
+	  frontend/src/components/ui/command.tsx \
+	  frontend/src/components/ui/badge.tsx \
+	  frontend/src/components/ui/skeleton.tsx \
+	  frontend/tests/track_pms_d1/cn-utility.test.ts \
+	  frontend/tests/track_pms_d1/button-variants.test.tsx ; do \
+	  [ -e $$f ] || { echo "D1 deliverable missing: $$f"; exit 1; }; \
+	done
+	cd frontend && npm run -s lint && npm run -s build && \
+	  npm run -s test:pms-d1
+	$(V1_GATE)
+
+.PHONY: test-pms-d2
+test-pms-d2:
+	@for f in \
+	  frontend/src/features/patients/usePatient.ts \
+	  frontend/src/features/patients/PatientChip.tsx \
+	  frontend/src/features/patients/PatientSearchInput.tsx \
+	  frontend/tests/track_pms_d2/use-patient-hook.test.tsx \
+	  frontend/tests/track_pms_d2/patient-chip-renders-name.test.tsx \
+	  frontend/tests/track_pms_d2/patient-search-debounces.test.tsx ; do \
+	  [ -e $$f ] || { echo "D2 deliverable missing: $$f"; exit 1; }; \
+	done
+	cd frontend && npm run -s lint && npm run -s build && \
+	  npm run -s test:pms-d2
+	$(V1_GATE)
+
+.PHONY: test-pms-d3
+test-pms-d3:
+	@for f in \
+	  frontend/tests/track_pms_d3/palette-shows-patient-results.test.tsx \
+	  frontend/tests/track_pms_d3/palette-enter-navigates.test.tsx ; do \
+	  [ -e $$f ] || { echo "D3 deliverable missing: $$f"; exit 1; }; \
+	done
+	cd frontend && npm run -s lint && npm run -s build && \
+	  npm run -s test:pms-d3
+	$(V1_GATE)
+
+.PHONY: test-pms-d4
+test-pms-d4:
+	@for f in \
+	  frontend/tests/track_pms_d4/dashboard-uses-ui-button.test.tsx \
+	  frontend/tests/track_pms_d4/lab-kanban-cards-include-patient-chip.test.tsx ; do \
+	  [ -e $$f ] || { echo "D4 deliverable missing: $$f"; exit 1; }; \
+	done
+	cd frontend && npm run -s lint && npm run -s build && \
+	  npm run -s test:pms-d4
+	$(V1_GATE)
+
+.PHONY: test-pms-d5
+test-pms-d5:
+	@for f in \
+	  frontend/src/components/ui/page-header.tsx \
+	  frontend/tests/track_pms_d5/sidebar-collapses-at-narrow-viewport.test.tsx \
+	  frontend/tests/track_pms_d5/top-bar-shows-clinic-display-name.test.tsx ; do \
+	  [ -e $$f ] || { echo "D5 deliverable missing: $$f"; exit 1; }; \
+	done
+	cd frontend && npm run -s lint && npm run -s build && \
+	  npm run -s test:pms-d5
+	$(V1_GATE)
+
+# ---------------------------------------------------------------------------
 # Convenience
 # ---------------------------------------------------------------------------
 

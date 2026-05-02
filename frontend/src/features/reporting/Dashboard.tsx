@@ -2,6 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { fetcher } from '../../api/client';
 import { useAuthStore } from '../auth/store';
+import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
+import { Button } from '../../components/ui/button';
 
 const fmt = new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' });
 const pct = (n: number) => `${(n * 100).toFixed(1)}%`;
@@ -26,10 +28,12 @@ interface LabRow {
 
 function KpiTile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-zinc-200 bg-white p-4">
-      <div className="text-xs text-zinc-500">{label}</div>
-      <div className="mt-1 text-2xl font-semibold">{value}</div>
-    </div>
+    <Card>
+      <CardContent className="p-4">
+        <div className="text-xs text-zinc-500">{label}</div>
+        <div className="mt-1 text-2xl font-semibold">{value}</div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -110,47 +114,64 @@ export default function Dashboard() {
       </div>
 
       {/* A/R aging */}
-      <Link to="/billing?status=overdue" className="block rounded-lg border border-zinc-200 bg-white p-4 hover:border-blue-300">
-        <h3 className="mb-3 text-sm font-semibold">A/R Aging</h3>
-        <div className="grid grid-cols-4 gap-3">
-          {AR_BUCKETS.map((b) => (
-            <div key={b.bucket} className="rounded bg-zinc-50 p-3 text-center">
-              <div className="text-xs text-zinc-500">{b.bucket} days</div>
-              <div className="mt-1 font-semibold">{fmt.format(b.amount)}</div>
+      <Card className="hover:border-blue-300">
+        <CardContent className="p-4">
+          <Link to="/billing?status=overdue" className="block">
+            <h3 className="mb-3 text-sm font-semibold">A/R Aging</h3>
+            <div className="grid grid-cols-4 gap-3">
+              {AR_BUCKETS.map((b) => (
+                <div key={b.bucket} className="rounded bg-zinc-50 p-3 text-center">
+                  <div className="text-xs text-zinc-500">{b.bucket} days</div>
+                  <div className="mt-1 font-semibold">{fmt.format(b.amount)}</div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      </Link>
+          </Link>
+          <div className="mt-3 flex justify-end">
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/billing?status=overdue">View</Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Production by provider */}
-      <div className="rounded-lg border border-zinc-200 bg-white p-4">
-        <h3 className="mb-3 text-sm font-semibold">Production by Provider</h3>
-        {byProvider.length > 0 ? (
-          <SimpleBar
-            rows={byProvider as unknown as Record<string, unknown>[]}
-            labelKey="provider_name"
-            valueKey="production"
-            formatValue={fmt.format.bind(fmt)}
-          />
-        ) : (
-          <p className="text-sm text-zinc-400">No data</p>
-        )}
-      </div>
+      <Card>
+        <CardHeader className="p-4 pb-0">
+          <CardTitle className="text-sm font-semibold">Production by Provider</CardTitle>
+        </CardHeader>
+        <CardContent className="p-4">
+          {byProvider.length > 0 ? (
+            <SimpleBar
+              rows={byProvider as unknown as Record<string, unknown>[]}
+              labelKey="provider_name"
+              valueKey="production"
+              formatValue={fmt.format.bind(fmt)}
+            />
+          ) : (
+            <p className="text-sm text-zinc-400">No data</p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Remake rate by lab */}
-      <div className="rounded-lg border border-zinc-200 bg-white p-4">
-        <h3 className="mb-3 text-sm font-semibold">Remake Rate by Lab</h3>
-        {labRates.length > 0 ? (
-          <SimpleBar
-            rows={labRates as unknown as Record<string, unknown>[]}
-            labelKey="lab_name"
-            valueKey="remake_rate"
-            formatValue={pct}
-          />
-        ) : (
-          <p className="text-sm text-zinc-400">No data</p>
-        )}
-      </div>
+      <Card>
+        <CardHeader className="p-4 pb-0">
+          <CardTitle className="text-sm font-semibold">Remake Rate by Lab</CardTitle>
+        </CardHeader>
+        <CardContent className="p-4">
+          {labRates.length > 0 ? (
+            <SimpleBar
+              rows={labRates as unknown as Record<string, unknown>[]}
+              labelKey="lab_name"
+              valueKey="remake_rate"
+              formatValue={pct}
+            />
+          ) : (
+            <p className="text-sm text-zinc-400">No data</p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

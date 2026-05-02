@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Semantic Colors — dental-pms.v1</title>
+<link rel="stylesheet" href="../tokens.css">
+<style>
+  body { font-family: var(--font-display); background: var(--color-bg-canvas); color: var(--color-text-primary); padding: var(--space-8); }
+  h1 { font-size: var(--text-2xl); margin-bottom: var(--space-6); }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--color-border-subtle); font-size: var(--text-sm); }
+  th { color: var(--color-text-secondary); font-weight: 500; }
+  .swatch-box { width: 32px; height: 32px; border-radius: var(--radius-sm); border: 1px solid var(--color-border-subtle); display: inline-block; vertical-align: middle; }
+</style>
+</head>
+<body>
+<h1>Semantic Color Tokens</h1>
+<table>
+  <thead><tr><th>Token</th><th>Swatch</th><th>Usage</th></tr></thead>
+  <tbody>
+    <tr><td><code>--color-text-primary</code></td><td><span class="swatch-box" style="background:var(--color-text-primary)"></span></td><td>Primary body text</td></tr>
+    <tr><td><code>--color-text-secondary</code></td><td><span class="swatch-box" style="background:var(--color-text-secondary)"></span></td><td>Muted / label text</td></tr>
+    <tr><td><code>--color-bg-canvas</code></td><td><span class="swatch-box" style="background:var(--color-bg-canvas)"></span></td><td>Page background</td></tr>
+    <tr><td><code>--color-bg-clinical</code></td><td><span class="swatch-box" style="background:var(--color-bg-clinical)"></span></td><td>Panel / card background</td></tr>
+    <tr><td><code>--color-action</code></td><td><span class="swatch-box" style="background:var(--color-action)"></span></td><td>Primary CTA</td></tr>
+    <tr><td><code>--color-action-hover</code></td><td><span class="swatch-box" style="background:var(--color-action-hover)"></span></td><td>CTA hover state</td></tr>
+    <tr><td><code>--color-success</code></td><td><span class="swatch-box" style="background:var(--color-success)"></span></td><td>Success / completed</td></tr>
+    <tr><td><code>--color-warning</code></td><td><span class="swatch-box" style="background:var(--color-warning)"></span></td><td>Caution / pending</td></tr>
+    <tr><td><code>--color-danger</code></td><td><span class="swatch-box" style="background:var(--color-danger)"></span></td><td>Error / destructive</td></tr>
+    <tr><td><code>--color-border-default</code></td><td><span class="swatch-box" style="background:var(--color-border-default)"></span></td><td>Default borders</td></tr>
+    <tr><td><code>--color-border-subtle</code></td><td><span class="swatch-box" style="background:var(--color-border-subtle)"></span></td><td>Subtle dividers</td></tr>
+  </tbody>
+</table>
+</body>
+</html>

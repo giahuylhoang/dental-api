@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { fetcher } from '../../api/client';
+import { PatientSearchInput } from './PatientSearchInput';
+import type { Patient as SearchPatient } from './usePatient';
 
 interface Patient {
   id: string;
@@ -21,25 +23,16 @@ interface PatientsPage {
 }
 
 export default function PatientList() {
-  const [search, setSearch] = useState('');
+  const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const limit = 20;
 
-  // v1 GET /api/patients accepts only `phone` / `email` query params and returns
-  // a flat array. Filter client-side for free-text search.
-  const params = new URLSearchParams();
-  if (/^[0-9+\-\s()]{4,}$/.test(search)) params.set('phone', search.replace(/[^\d+]/g, ''));
-  else if (/@/.test(search)) params.set('email', search);
-
   const { data, isLoading } = useQuery<PatientsPage>({
-    queryKey: ['patients', search, page],
+    queryKey: ['patients', page],
     queryFn: async () => {
-      const arr = await fetcher<Patient[]>(`/api/patients?${params}`);
-      const filtered = search && !params.toString()
-        ? arr.filter((p) => `${p.first_name ?? ''} ${p.last_name ?? ''}`.toLowerCase().includes(search.toLowerCase()))
-        : arr;
+      const arr = await fetcher<Patient[]>(`/api/patients`);
       const start = (page - 1) * limit;
-      return { items: filtered.slice(start, start + limit), total: filtered.length, page, limit };
+      return { items: arr.slice(start, start + limit), total: arr.length, page, limit };
     },
   });
 
@@ -48,13 +41,12 @@ export default function PatientList() {
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-xl font-semibold">Patients</h2>
       </div>
-      <input
-        type="search"
-        placeholder="Search by name, phone, or email…"
-        value={search}
-        onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-        className="mb-4 w-full max-w-sm rounded border border-zinc-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400"
-      />
+      <div className="mb-4 max-w-sm">
+        <PatientSearchInput
+          onSelect={(p: SearchPatient) => navigate(`/patients/${p.id}`)}
+          placeholder="Search by name, phone, or email…"
+        />
+      </div>
       {isLoading ? (
         <p className="text-sm text-zinc-500">Loading…</p>
       ) : (

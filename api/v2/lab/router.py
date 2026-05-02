@@ -152,6 +152,38 @@ def create_lab_case(body: LabCaseIn, clinic: Clinic = Depends(get_clinic), db: S
     return obj
 
 
+class StatusPatchIn(BaseModel):
+    status: str
+    remake_reason: Optional[str] = None
+
+
+@router.patch("/cases/{case_id}/status", response_model=LabCaseOut)
+def patch_lab_case_status(
+    case_id: str,
+    body: StatusPatchIn,
+    clinic: Clinic = Depends(get_clinic),
+    db: Session = Depends(get_db),
+):
+    """Generic status setter — used by the kanban drag-and-drop."""
+    c = _get_lab_case(case_id, clinic, db)
+    new_status = body.status
+    allowed = {"draft", "sent", "in_progress", "returned", "remake", "cancelled"}
+    if new_status not in allowed:
+        raise HTTPException(400, f"Invalid status '{new_status}'")
+    now = datetime.utcnow()
+    c.status = new_status
+    c.updated_at = now
+    if new_status == "sent" and not c.sent_at:
+        c.sent_at = now
+    if new_status == "returned" and not c.returned_at:
+        c.returned_at = now
+    payload = {"reason": body.remake_reason} if body.remake_reason else None
+    _add_event(db, c.id, f"status_set_{new_status}", payload)
+    db.commit()
+    db.refresh(c)
+    return c
+
+
 @router.post("/cases/{case_id}/send", response_model=LabCaseOut)
 def send_lab_case(case_id: str, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
     c = _get_lab_case(case_id, clinic, db)

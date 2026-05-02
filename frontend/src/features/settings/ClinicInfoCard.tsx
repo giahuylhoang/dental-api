@@ -1,9 +1,26 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetcher } from '../../api/client';
 import { zodV4Resolver } from '../../lib/zodResolver';
+
+type Density = 'compact' | 'comfortable' | 'spacious';
+
+function useDensity() {
+  const [density, setDensityState] = useState<Density>(
+    () => (localStorage.getItem('pms.density') as Density) ?? 'comfortable'
+  );
+  useEffect(() => {
+    document.documentElement.setAttribute('data-density', density);
+  }, [density]);
+  function setDensity(d: Density) {
+    localStorage.setItem('pms.density', d);
+    document.documentElement.setAttribute('data-density', d);
+    setDensityState(d);
+  }
+  return { density, setDensity };
+}
 
 const TIMEZONES = [
   'America/Edmonton',
@@ -31,6 +48,7 @@ export default function ClinicInfoCard({ defaultValues }: Props) {
   const [open, setOpen] = useState(true);
   const [saved, setSaved] = useState(false);
   const qc = useQueryClient();
+  const { density, setDensity } = useDensity();
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodV4Resolver(schema),
@@ -89,6 +107,19 @@ export default function ClinicInfoCard({ defaultValues }: Props) {
           >
             {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
           </select>
+          <div>
+            <label className="block text-xs text-zinc-500 mb-1">Density</label>
+            <select
+              aria-label="density"
+              value={density}
+              onChange={(e) => setDensity(e.target.value as Density)}
+              className="rounded border border-zinc-300 px-3 py-1.5 text-sm"
+            >
+              <option value="compact">Compact</option>
+              <option value="comfortable">Comfortable</option>
+              <option value="spacious">Spacious</option>
+            </select>
+          </div>
           <div className="flex items-center gap-3">
             <button
               type="submit"

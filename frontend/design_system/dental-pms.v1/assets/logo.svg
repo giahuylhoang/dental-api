@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 32" fill="none">
+  <rect width="32" height="32" rx="8" fill="#0066CC"/>
+  <path d="M16 6c-3.3 0-6 2.7-6 6 0 2.1 1.1 4 2.7 5.1C10.1 18.3 8 21 8 24h2c0-3.3 2.7-6 6-6s6 2.7 6 6h2c0-3-2.1-5.7-4.7-6.9C20.9 16 22 14.1 22 12c0-3.3-2.7-6-6-6zm0 2c2.2 0 4 1.8 4 4s-1.8 4-4 4-4-1.8-4-4 1.8-4 4-4z" fill="white"/>
+  <text x="40" y="22" font-family="Inter, sans-serif" font-size="16" font-weight="600" fill="#0F1722">Dental PMS</text>
+</svg>

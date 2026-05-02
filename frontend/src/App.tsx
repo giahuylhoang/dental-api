@@ -1,4 +1,6 @@
 import { BrowserRouter, Route, Routes, Navigate } from 'react-router-dom';
+import React from 'react';
+const UIShowcase = import.meta.env.DEV ? React.lazy(() => import('./components/ui/_showcase')) : null;
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import AppShell from './features/shell/AppShell';
 import LoginPage from './features/auth/LoginPage';
@@ -22,6 +24,9 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          {import.meta.env.DEV && UIShowcase && (
+            <Route path="/dev/ui" element={<React.Suspense fallback={null}><UIShowcase /></React.Suspense>} />
+          )}
           <Route
             path="/*"
             element={

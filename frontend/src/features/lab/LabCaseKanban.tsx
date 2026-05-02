@@ -10,6 +10,7 @@ import {
 import { useDroppable, useDraggable } from '@dnd-kit/core';
 import { fetcher } from '../../api/client';
 import LabCaseDrawer from './LabCaseDrawer';
+import { PatientChip } from '../patients/PatientChip';
 
 const COLUMNS = ['draft', 'sent', 'in_progress', 'returned', 'remake'] as const;
 type LabStatus = (typeof COLUMNS)[number];
@@ -26,6 +27,7 @@ interface LabCase {
   remake_of_id: string | null;
   remake_reason: string | null;
   treatment_plan_id?: string | null;
+  patient_id?: string | null;
 }
 
 function KanbanCard({ labCase, onClick }: { labCase: LabCase; onClick: () => void }) {
@@ -44,6 +46,11 @@ function KanbanCard({ labCase, onClick }: { labCase: LabCase; onClick: () => voi
       onClick={onClick}
       className={`cursor-grab rounded border border-zinc-200 bg-white p-3 text-sm shadow-sm ${isDragging ? 'opacity-50' : ''}`}
     >
+      {labCase.patient_id && (
+        <div className="mb-1">
+          <PatientChip patientId={labCase.patient_id} />
+        </div>
+      )}
       {labCase.case_number && (
         <span className="mb-1 inline-block rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-xs text-zinc-600">
           {labCase.case_number}

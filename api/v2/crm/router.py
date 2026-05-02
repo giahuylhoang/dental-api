@@ -59,6 +59,21 @@ def _lead_out(lead: Lead) -> dict:
     }
 
 
+@router.get("/leads")
+def list_leads(
+    status: Optional[str] = Query(None),
+    owner_id: Optional[str] = Query(None),
+    clinic: Clinic = Depends(get_clinic),
+    db: Session = Depends(get_db),
+):
+    q = db.query(Lead).filter(Lead.clinic_id == clinic.id)
+    if status:
+        q = q.filter(Lead.status == status)
+    if owner_id:
+        q = q.filter(Lead.owner_id == owner_id)
+    return [_lead_out(lead) for lead in q.order_by(Lead.created_at.desc()).all()]
+
+
 @router.post("/leads", status_code=201)
 def create_lead(body: LeadCreateIn, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
     name = f"{body.first_name} {body.last_name}".strip()
@@ -73,6 +88,18 @@ def create_lead(body: LeadCreateIn, clinic: Clinic = Depends(get_clinic), db: Se
     db.add(lead)
     db.commit()
     db.refresh(lead)
+    return _lead_out(lead)
+
+
+@router.get("/leads/{lead_id}")
+def get_lead(
+    lead_id: str,
+    clinic: Clinic = Depends(get_clinic),
+    db: Session = Depends(get_db),
+):
+    lead = db.query(Lead).filter(Lead.id == lead_id, Lead.clinic_id == clinic.id).first()
+    if not lead:
+        raise HTTPException(404, "Lead not found")
     return _lead_out(lead)
 
 
@@ -169,7 +196,14 @@ class ConvertIn(BaseModel):
 
 
 @router.post("/leads/{lead_id}/convert", status_code=200)
-def convert_lead(lead_id: str, body: ConvertIn, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def convert_lead(
+    lead_id: str,
+    body: Optional[ConvertIn] = None,
+    clinic: Clinic = Depends(get_clinic),
+    db: Session = Depends(get_db),
+):
+    if body is None:
+        body = ConvertIn()
     lead = db.query(Lead).filter(Lead.id == lead_id, Lead.clinic_id == clinic.id).first()
     if not lead:
         raise HTTPException(404, "Lead not found")

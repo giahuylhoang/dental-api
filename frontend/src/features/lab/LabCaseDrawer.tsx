@@ -5,6 +5,7 @@ import { fetcher } from '../../api/client';
 import ImplantForm from './ImplantForm';
 import MaterialConsumptionForm from './MaterialConsumptionForm';
 import DentureCaseDrawer from './DentureCaseDrawer';
+import { PatientChip } from '../patients/PatientChip';
 
 interface LabCase {
   id: string;
@@ -20,6 +21,7 @@ interface LabCase {
   lab_fee: number | null;
   courier_tracking: string | null;
   treatment_plan_id?: string | null;
+  patient_id?: string | null;
 }
 
 interface Vendor {
@@ -121,6 +123,11 @@ export default function LabCaseDrawer({ caseId, open, onClose, onChanged }: Prop
           <p className="text-sm text-zinc-500">Loading…</p>
         ) : (
           <div className="flex h-full flex-col">
+            {labCase.patient_id && (
+              <div className="mb-3">
+                <PatientChip patientId={labCase.patient_id} variant="breadcrumb" linkTo="/patients/:id" />
+              </div>
+            )}
             {/* Tabs */}
             <div className="mb-4 flex gap-1 border-b border-zinc-200">
               {(['detail', 'implants', 'materials'] as Tab[]).map((t) => (
