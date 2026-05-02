@@ -1,11 +1,12 @@
 import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
-  testDir: './tests/track_clinical/flows',
+  testDir: './e2e',
   fullyParallel: false,
   retries: 0,
+  timeout: 30000,
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL: process.env['E2E_BASE_URL'] ?? 'http://localhost:4173',
     trace: 'on-first-retry',
   },
   projects: [
@@ -14,10 +15,12 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:5173',
-    reuseExistingServer: !process.env['CI'],
-    timeout: 30000,
-  },
+  webServer: process.env['E2E_BASE_URL']
+    ? undefined
+    : {
+        command: 'npm run preview -- --port 4173',
+        url: 'http://localhost:4173',
+        reuseExistingServer: !process.env['CI'],
+        timeout: 60000,
+      },
 });

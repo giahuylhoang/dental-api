@@ -161,6 +161,126 @@ loop-track-4: ; $(call run_loop,4)
 loop-track-5: ; $(call run_loop,5)
 
 # ---------------------------------------------------------------------------
+# PMS Frontend Overhaul tracks (Phase 0 backend gap-fill + P1..P5 frontend)
+# ---------------------------------------------------------------------------
+#
+# Mirror of the run_loop macro for pms-track-pN slugged briefs/gates.
+#   $(1) = sub-track id (p0, p1, ..., p5)
+
+define run_pms_loop
+	@mkdir -p logs
+	@brief="$$(cat docs/tracks/pms-track-$(1).md)"; \
+	i=0; \
+	while [ $$i -lt $(KIRO_MAX_ITERATIONS_PMS) ]; do \
+	  i=$$((i+1)); \
+	  echo "[pms-track-$(1)] iteration $$i — running gate..." | tee -a logs/pms-track-$(1).log; \
+	  if gate=$$($(MAKE) test-pms-$(1) 2>&1); then \
+	    echo "[pms-track-$(1)] GREEN after $$i iteration(s)."; \
+	    exit 0; \
+	  fi; \
+	  echo "$$gate" >> logs/pms-track-$(1).log; \
+	  echo "[pms-track-$(1)] gate red; invoking $(KIRO_BIN)..." | tee -a logs/pms-track-$(1).log; \
+	  prompt=$$(printf '%s\n\n---\n\nGate command: `$(MAKE) test-pms-$(1)`\nLatest gate failure (last 200 lines):\n```\n%s\n```\n\nImplement / fix according to the brief above so the gate exits 0. You MUST keep `$(MAKE) test-v1` green at every step.' "$$brief" "$$(echo "$$gate" | tail -n 200)"); \
+	  $(KIRO_BIN) chat --no-interactive --trust-all-tools "$$prompt" 2>&1 | tee -a logs/pms-track-$(1).log; \
+	done; \
+	echo "[pms-track-$(1)] iteration budget ($(KIRO_MAX_ITERATIONS_PMS)) exhausted; gate still red." | tee -a logs/pms-track-$(1).log; \
+	exit 1
+endef
+
+KIRO_MAX_ITERATIONS_PMS ?= 30
+
+.PHONY: pms-loop-p0 pms-loop-p1 pms-loop-p2 pms-loop-p3 pms-loop-p4 pms-loop-p5 pms-loop-all
+pms-loop-p0: ; $(call run_pms_loop,p0)
+pms-loop-p1: ; $(call run_pms_loop,p1)
+pms-loop-p2: ; $(call run_pms_loop,p2)
+pms-loop-p3: ; $(call run_pms_loop,p3)
+pms-loop-p4: ; $(call run_pms_loop,p4)
+pms-loop-p5: ; $(call run_pms_loop,p5)
+
+# Sequential chain — Make stops at the first failing dependency.
+pms-loop-all: pms-loop-p0 pms-loop-p1 pms-loop-p2 pms-loop-p3 pms-loop-p4 pms-loop-p5
+
+# --- Test gates ------------------------------------------------------------
+
+.PHONY: test-pms-p0
+test-pms-p0:
+	uv run pytest tests/track_pms_p0 -q
+	$(V1_GATE)
+	cd frontend && npm run -s gen:api && npm run -s build
+
+.PHONY: test-pms-p1
+test-pms-p1:
+	@for f in \
+	  frontend/src/components/Drawer.tsx \
+	  frontend/src/components/forms/FormField.tsx \
+	  frontend/src/features/patients/LifecyclePanel.tsx \
+	  frontend/src/features/patients/MedicalForm.tsx \
+	  frontend/src/features/patients/InsuranceList.tsx \
+	  frontend/src/features/patients/InsuranceDrawer.tsx \
+	  frontend/src/features/patients/DocumentUploader.tsx \
+	  frontend/src/features/patients/DocumentList.tsx \
+	  frontend/src/features/patients/NotesPanel.tsx \
+	  frontend/src/features/patients/ToothChart.tsx \
+	  frontend/tests/track_pms_p1; do \
+	    [ -e $$f ] || { echo "P1 deliverable missing: $$f"; exit 1; }; \
+	done
+	cd frontend && npm run -s lint && npm run -s build && \
+	  npm run -s test:pms-p1 && npm run -s e2e:pms-p1
+	$(V1_GATE)
+
+.PHONY: test-pms-p2
+test-pms-p2:
+	@for f in \
+	  frontend/src/features/scheduling/AppointmentDrawer.tsx \
+	  frontend/src/features/scheduling/DateTimePicker.tsx \
+	  frontend/src/features/scheduling/appt-status.ts \
+	  frontend/tests/track_pms_p2; do \
+	    [ -e $$f ] || { echo "P2 deliverable missing: $$f"; exit 1; }; \
+	done
+	cd frontend && npm run -s lint && npm run -s build && \
+	  npm run -s test:pms-p2 && npm run -s e2e:pms-p2
+	$(V1_GATE)
+
+.PHONY: test-pms-p3
+test-pms-p3:
+	@for f in \
+	  frontend/src/features/lab/LabCaseDrawer.tsx \
+	  frontend/src/features/lab/DentureCaseDrawer.tsx \
+	  frontend/src/features/lab/ImplantForm.tsx \
+	  frontend/src/features/lab/MaterialConsumptionForm.tsx \
+	  frontend/tests/track_pms_p3; do \
+	    [ -e $$f ] || { echo "P3 deliverable missing: $$f"; exit 1; }; \
+	done
+	cd frontend && npm run -s lint && npm run -s build && \
+	  npm run -s test:pms-p3 && npm run -s e2e:pms-p3
+	$(V1_GATE)
+
+.PHONY: test-pms-p4
+test-pms-p4:
+	@for f in \
+	  frontend/src/features/treatment-plans/TreatmentPlansPage.tsx \
+	  frontend/tests/track_pms_p4; do \
+	    [ -e $$f ] || { echo "P4 deliverable missing: $$f"; exit 1; }; \
+	done
+	cd frontend && npm run -s lint && npm run -s build && \
+	  npm run -s test:pms-p4 && npm run -s e2e:pms-p4
+	$(V1_GATE)
+
+.PHONY: test-pms-p5
+test-pms-p5:
+	@for f in \
+	  frontend/src/features/billing/InvoiceDrawer.tsx \
+	  frontend/src/features/billing/ClaimDrawer.tsx \
+	  frontend/src/features/billing/SubmitClaimForm.tsx \
+	  frontend/src/features/billing/AdjudicateForm.tsx \
+	  frontend/tests/track_pms_p5; do \
+	    [ -e $$f ] || { echo "P5 deliverable missing: $$f"; exit 1; }; \
+	done
+	cd frontend && npm run -s lint && npm run -s build && \
+	  npm run -s test:pms-p5 && npm run -s e2e:pms-p5
+	$(V1_GATE)
+
+# ---------------------------------------------------------------------------
 # Convenience
 # ---------------------------------------------------------------------------
 
