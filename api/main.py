@@ -196,9 +196,22 @@ async def lifespan(app: FastAPI):
         logger.info("Database tables ready")
     except Exception as e:
         logger.warning("Database init failed: %s", e)
+    # Start Track 3 reminder scheduler
+    _reminder_task = None
+    try:
+        from api.v2.scheduling.reminder_scheduler import start_reminder_scheduler
+        from database.connection import get_db as _get_db
+        _reminder_task = start_reminder_scheduler(_get_db)
+    except Exception as _e:
+        logger.warning("Reminder scheduler not started: %s", _e)
     yield
-    # Shutdown: cleanup if needed
-    pass
+    # Shutdown: cancel reminder scheduler
+    if _reminder_task is not None:
+        try:
+            from api.v2.scheduling.reminder_scheduler import stop_reminder_scheduler
+            stop_reminder_scheduler()
+        except Exception:
+            pass
 
 
 app = FastAPI(
@@ -1435,3 +1448,50 @@ async def debug_db_info(db: Session = Depends(get_db)):
     }
 
 
+
+# ============================================================================
+# v2 routers (Track 1 — Auth / RBAC / Audit)
+# ============================================================================
+try:
+    from api.v2.auth.router import router as _auth_router
+    from api.v2.admin.router import router as _admin_router
+    from database.auth.audit import register_audit_listeners
+    app.include_router(_auth_router)
+    app.include_router(_admin_router)
+    register_audit_listeners()
+except ImportError:
+    pass  # v2 modules not yet present — v1 keeps working
+
+
+# ============================================================================
+# v2 routers (Track 2 — Clinical / Lab / Treatment Plans)
+# ============================================================================
+try:
+    import database.clinical.models  # noqa: F401 — register models with Base
+    from api.v2.clinical.router import router as _clinical_router
+    from api.v2.lab.router import router as _lab_router
+    from api.v2.treatment_plans.router import router as _tp_router
+    app.include_router(_clinical_router)
+    app.include_router(_lab_router)
+    app.include_router(_tp_router)
+except ImportError:
+    pass  # v2 clinical modules not yet present
+
+
+# ============================================================================
+# v2 routers (Track 3 — Scheduling / Billing / Insurance / Comms / CRM)
+# ============================================================================
+try:
+    import database.ops.models  # noqa: F401 — register models with Base
+    from api.v2.scheduling.router import router as _scheduling_router
+    from api.v2.billing.router import router as _billing_router
+    from api.v2.insurance.router import router as _insurance_router
+    from api.v2.communications.router import router as _comms_router
+    from api.v2.crm.router import router as _crm_router
+    app.include_router(_scheduling_router)
+    app.include_router(_billing_router)
+    app.include_router(_insurance_router)
+    app.include_router(_comms_router)
+    app.include_router(_crm_router)
+except ImportError:
+    pass  # v2 ops modules not yet present

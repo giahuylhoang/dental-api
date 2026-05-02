@@ -1,0 +1,35 @@
+[
+  {
+    "id": "inv-1",
+    "lines": [
+      { "procedure_code": "31310", "description": "Complete Upper Denture", "qty": 1, "unit_price": 1500.00 },
+      { "procedure_code": "31320", "description": "Complete Lower Denture", "qty": 1, "unit_price": 1400.00 }
+    ],
+    "gst": true,
+    "expected_subtotal": 2900.00,
+    "expected_gst": 145.00,
+    "expected_total": 3045.00
+  },
+  {
+    "id": "inv-2",
+    "lines": [
+      { "procedure_code": "31510", "description": "Reline - Upper", "qty": 1, "unit_price": 350.00 },
+      { "procedure_code": "31510", "description": "Reline - Lower", "qty": 1, "unit_price": 350.00 }
+    ],
+    "gst": false,
+    "expected_subtotal": 700.00,
+    "expected_gst": 0.00,
+    "expected_total": 700.00
+  },
+  {
+    "id": "inv-3",
+    "lines": [
+      { "procedure_code": "31410", "description": "Partial Denture", "qty": 1, "unit_price": 1200.00 },
+      { "procedure_code": "00120", "description": "Adjustment", "qty": 3, "unit_price": 75.00 }
+    ],
+    "gst": true,
+    "expected_subtotal": 1425.00,
+    "expected_gst": 71.25,
+    "expected_total": 1496.25
+  }
+]

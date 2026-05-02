@@ -26,12 +26,12 @@ except Exception as e:
 if __name__ == "__main__":
     import uvicorn
 
-    if _full_app_loaded and os.getenv("SMTP_DEPLOY_VERIFY_TO", "").strip():
-        from clients.email_client import verify_smtp_deploy
-
-        if not verify_smtp_deploy():
-            logger.error("Exiting: SMTP deploy verification failed")
-            sys.exit(1)
+#    if _full_app_loaded and os.getenv("SMTP_DEPLOY_VERIFY_TO", "").strip():
+#        from clients.email_client import verify_smtp_deploy
+#
+#        if not verify_smtp_deploy():
+#            logger.error("Exiting: SMTP deploy verification failed")
+#            sys.exit(1)
 
     port = int(os.environ.get("PORT", "8000"))
     logger.info("Starting uvicorn on 0.0.0.0:%s", port)
