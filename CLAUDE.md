@@ -70,20 +70,27 @@ Notifications must never raise back to the request handler — they're best-effo
 
 ## Design System (mandatory for all frontend/UI work)
 
-**Before writing, modifying, or reviewing any frontend code** (`frontend/src/`, HTML prototypes, marketing pages), you MUST read and follow the Rockyridge Dental AI design system:
+**BEFORE ANY FRONTEND DESIGN OR BUILD WORK**, invoke the `rockyridge-dental-design` skill:
+```
+/rockyridge-dental-design
+```
 
-1. Read `frontend/design_system/rockyridgeai-dental.com/SKILL.md` — it defines when and how to apply the brand.
-2. Read `frontend/design_system/rockyridgeai-dental.com/README.md` — brand voice, component library, file layout.
-3. Read `frontend/design_system/rockyridgeai-dental.com/colors_and_type.css` — all design tokens live here. Never invent new colours, radii, or font sizes.
-4. Browse `frontend/design_system/rockyridgeai-dental.com/preview/` for component markup references.
-5. Check `frontend/design_system/rockyridgeai-dental.com/ui_kits/website/` for full-page compositions.
+This skill provides expert guidance on:
+- Brand tokens, colors, typography, spacing, and component patterns
+- When to use light vs. dark theme
+- Voice, tone, and naming conventions for clinical surfaces
+- Reference HTML previews and production React code examples
 
-Key rules:
+The skill mandates reading `SKILL.md` → `README.md` → `colors_and_type.css` → `preview/` → `ui_kits/website/` in order. **Do not skip this sequence.**
+
+### Quick reference rules
+
 - Use `--primary` / `--foreground` / `--border` CSS custom properties — never raw hex values in components.
 - Light theme for all clinical surfaces. Dark theme is only for the login portal.
 - No emoji, no filled icons, no playful/spring easing.
 - Production React code imports from `frontend/src/components/ui/` (which already consumes these tokens). Never import from the `design_system/` folder at runtime.
 - Brand voice: authoritative, clinical, calm. Definite article on system parts (The Schedule, The Roster, The Lab).
+- Never invent new colours, radii, or font sizes — all tokens are in `colors_and_type.css`.
 
 ## Things to know
 
