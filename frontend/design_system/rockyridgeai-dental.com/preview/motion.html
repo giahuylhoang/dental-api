@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Motion · Rockyridge Dental AI</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { padding: 32px; background: hsl(var(--background)); font-family: var(--font-ui); display: flex; flex-direction: column; gap: 28px; }
+  h2 { font-size: .8rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--rr-slate-dark); margin: 0 0 12px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .demo { background: #fff; border: 1px solid var(--rr-parchment); border-radius: 6px; padding: 22px; min-height: 110px; display: flex; flex-direction: column; gap: 8px; cursor: pointer; }
+  .swatch { height: 28px; background: var(--rr-steel-200); border-radius: 4px; transition-property: transform, background-color; transition-duration: var(--duration-base); transition-timing-function: var(--ease-out); }
+  .demo:hover .swatch { background: var(--rr-steel-500); transform: translateX(40%); }
+  .demo[data-d="fast"] .swatch  { transition-duration: var(--duration-fast); }
+  .demo[data-d="slow"] .swatch  { transition-duration: var(--duration-slow); }
+  .demo[data-d="slower"] .swatch{ transition-duration: var(--duration-slower); }
+  .lbl { font-family: var(--font-mono); font-size: .72rem; color: var(--rr-slate-dark); }
+</style></head><body>
+<div>
+  <h2>Easing — `ease-out` is canonical</h2>
+  <div class="grid">
+    <div class="demo" data-d="fast"><span class="lbl">duration-fast · 150ms</span><span class="swatch"></span><span class="lbl">hover the card</span></div>
+    <div class="demo"><span class="lbl">duration-base · 250ms · default</span><span class="swatch"></span><span class="lbl">hover the card</span></div>
+    <div class="demo" data-d="slow"><span class="lbl">duration-slow · 400ms · page reveal</span><span class="swatch"></span><span class="lbl">hover the card</span></div>
+  </div>
+</div>
+<div>
+  <h2>Sweep button — 320ms ease-out</h2>
+  <div style="display:flex;gap:14px;flex-wrap:wrap">
+    <button class="btn btn-primary btn-md">Primary sweep</button>
+    <button class="btn btn-navy btn-md">Navy sweep</button>
+    <button class="btn btn-ghost btn-md">Ghost sweep</button>
+    <button class="btn btn-solid btn-md">Solid (no sweep)</button>
+  </div>
+</div>
+</body></html>

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Progress · Rockyridge Dental AI</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { padding: 32px; background: hsl(var(--background)); font-family: var(--font-ui); display: flex; flex-direction: column; gap: 22px; max-width: 560px; }
+  h2 { font-size: .72rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--rr-slate-dark); margin: 0; }
+  .group { display: flex; flex-direction: column; gap: 8px; }
+  .meta { display: flex; justify-content: space-between; font-size: .82rem; color: var(--rr-ink); }
+  .meta .v { font-family: var(--font-mono); color: hsl(var(--primary)); font-weight: 600; }
+  .bar { background: var(--rr-off-white); border-radius: 999px; overflow: hidden; height: 6px; }
+  .bar.tall { height: 10px; }
+  .fill { height: 100%; background: hsl(var(--primary)); border-radius: 999px; }
+  .fill.success { background: var(--rr-success); }
+  .fill.warning { background: var(--rr-warning); }
+  @keyframes indeterm { 0% { transform: translateX(-100%); } 50% { transform: translateX(0); } 100% { transform: translateX(100%); } }
+  .fill.indeterm { width: 30%; animation: indeterm 1.4s ease-in-out infinite; }
+  .ring-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; padding: 14px 0; }
+  .ring-item { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: .72rem; color: var(--rr-slate-dark); }
+  .ring-item .num { font-family: var(--font-mono); font-size: 1rem; color: var(--rr-ink); margin-top: -38px; font-weight: 600; }
+</style></head><body>
+<div class="group">
+  <h2>Determinate · treatment plan progress</h2>
+  <div class="meta"><span>Plan #TP-201 · Crown #36</span><span class="v">62%</span></div>
+  <div class="bar"><div class="fill" style="width:62%"></div></div>
+</div>
+<div class="group">
+  <h2>Success — claim reconciled</h2>
+  <div class="meta"><span>INV-2026-0871</span><span class="v">$240 / $240</span></div>
+  <div class="bar"><div class="fill success" style="width:100%"></div></div>
+</div>
+<div class="group">
+  <h2>Warning — outstanding balance</h2>
+  <div class="meta"><span>INV-2026-0870</span><span class="v">$620 / $1,240</span></div>
+  <div class="bar"><div class="fill warning" style="width:50%"></div></div>
+</div>
+<div class="group">
+  <h2>Indeterminate · syncing</h2>
+  <div class="bar tall"><div class="fill indeterm"></div></div>
+</div>
+<div class="group">
+  <h2>Circular · KPIs</h2>
+  <div class="ring-row">
+    <div class="ring-item">
+      <svg width="56" height="56" viewBox="0 0 36 36"><path d="M18 2.5a15.5 15.5 0 1 1 0 31a15.5 15.5 0 0 1 0-31" fill="none" stroke="var(--rr-parchment)" stroke-width="3"/><path d="M18 2.5a15.5 15.5 0 1 1 0 31" fill="none" stroke="hsl(var(--primary))" stroke-width="3" stroke-linecap="round" stroke-dasharray="78 100"/></svg>
+      <div class="num">78%</div>
+      Schedule fill
+    </div>
+    <div class="ring-item">
+      <svg width="56" height="56" viewBox="0 0 36 36"><path d="M18 2.5a15.5 15.5 0 1 1 0 31a15.5 15.5 0 0 1 0-31" fill="none" stroke="var(--rr-parchment)" stroke-width="3"/><path d="M18 2.5a15.5 15.5 0 1 1 0 31" fill="none" stroke="hsl(var(--chart-3))" stroke-width="3" stroke-linecap="round" stroke-dasharray="92 100"/></svg>
+      <div class="num">92%</div>
+      Recall reach
+    </div>
+    <div class="ring-item">
+      <svg width="56" height="56" viewBox="0 0 36 36"><path d="M18 2.5a15.5 15.5 0 1 1 0 31a15.5 15.5 0 0 1 0-31" fill="none" stroke="var(--rr-parchment)" stroke-width="3"/><path d="M18 2.5a15.5 15.5 0 1 1 0 31" fill="none" stroke="var(--rr-warning)" stroke-width="3" stroke-linecap="round" stroke-dasharray="34 100"/></svg>
+      <div class="num">34%</div>
+      No-show
+    </div>
+  </div>
+</div>
+</body></html>

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Popover · Rockyridge Dental AI</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { padding: 64px; background: hsl(var(--background)); font-family: var(--font-ui); }
+  .trigger { background: #fff; border: 1px solid var(--rr-parchment); border-radius: 6px; padding: 8px 14px; cursor: pointer; font-size: .88rem; display: inline-flex; align-items: center; gap: 6px; }
+  .pop {
+    position: absolute; top: 144px; left: 64px;
+    background: #fff; border: 1px solid var(--rr-parchment); border-radius: 6px;
+    padding: 16px; box-shadow: var(--shadow-md); width: 280px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .ttl { font-weight: 600; font-size: .9rem; color: var(--rr-ink); }
+  .help { font-size: .78rem; color: var(--rr-slate-dark); line-height: 1.55; }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .lbl { font-size: .72rem; font-weight: 600; color: var(--rr-ink); }
+  .input { font-family: var(--font-ui); font-size: .85rem; padding: 7px 10px; border: 1.5px solid var(--rr-mist); border-radius: 4px; }
+  .input:focus { border-color: hsl(var(--ring)); box-shadow: var(--shadow-ring); outline: none; }
+  .arrow { position: absolute; top: -6px; left: 24px; width: 12px; height: 12px; background: #fff; border-left: 1px solid var(--rr-parchment); border-top: 1px solid var(--rr-parchment); transform: rotate(45deg); }
+</style></head><body>
+<button class="trigger">
+  Block time
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m6 9 6 6 6-6"/></svg>
+</button>
+<div class="pop" role="dialog">
+  <div class="arrow"></div>
+  <div class="ttl">Block scheduling slot</div>
+  <div class="help">Mark this time as unavailable. Patients won't see it on the booking page.</div>
+  <div class="field"><label class="lbl">Reason</label><input class="input" value="Lunch / staff meeting"></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+    <div class="field"><label class="lbl">From</label><input class="input" value="12:00"></div>
+    <div class="field"><label class="lbl">To</label><input class="input" value="13:00"></div>
+  </div>
+  <div style="display:flex;justify-content:flex-end;gap:8px">
+    <button class="btn btn-ghost btn-sm">Cancel</button>
+    <button class="btn btn-primary btn-sm">Block</button>
+  </div>
+</div>
+</body></html>

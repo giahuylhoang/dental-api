@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Sheet · Rockyridge Dental AI</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html, body { margin: 0; height: 100%; }
+  body { background: hsl(var(--background)); font-family: var(--font-ui); }
+  .overlay { position: fixed; inset: 0; background: rgba(10, 25, 47, 0.4); }
+  .sheet { position: fixed; top: 0; bottom: 0; left: 0; width: min(380px, 100%); background: #fff; box-shadow: var(--shadow-xl); display: flex; flex-direction: column; padding: 24px; }
+  .header h3 { font-family: var(--font-display); font-weight: 700; font-size: 1.2rem; color: var(--rr-navy-800); }
+  .header p  { font-size: .82rem; color: var(--rr-slate-dark); margin-top: 4px; }
+  .nav { display: flex; flex-direction: column; gap: 4px; margin-top: 22px; }
+  .item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 6px; cursor: pointer; color: var(--rr-ink); }
+  .item:hover { background: var(--rr-off-white); }
+  .item.active { background: var(--rr-steel-100); color: var(--rr-steel-600); font-weight: 600; }
+  .x { position: absolute; top: 16px; right: 16px; background: none; border: none; cursor: pointer; padding: 6px; color: var(--rr-slate-dark); }
+</style></head><body>
+<div class="overlay"></div>
+<aside class="sheet" role="dialog">
+  <button class="x">×</button>
+  <div class="header"><h3>Filters</h3><p>Refine the patient roster.</p></div>
+  <div class="nav">
+    <div class="item active">All · 412</div>
+    <div class="item">Active · 387</div>
+    <div class="item">Recall due · 24</div>
+    <div class="item">No-show last 30d · 6</div>
+    <div class="item">Has outstanding balance · 18</div>
+    <div class="item">Inactive · 25</div>
+  </div>
+</aside>
+</body></html>

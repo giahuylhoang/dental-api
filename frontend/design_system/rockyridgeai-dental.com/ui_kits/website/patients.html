@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Patients · Rockyridge Dental AI</title>
+<link rel="stylesheet" href="../../colors_and_type.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin></script>
+<style>
+  html, body { margin: 0; }
+  body { background: var(--rr-warm-white); min-height: 100vh; }
+  .shell { display: flex; min-height: 100vh; }
+  .stage { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .stage > .body { padding: 28px 32px; display: flex; flex-direction: column; gap: 24px; }
+  .page-header { display: flex; justify-content: space-between; align-items: center; }
+  .page-title { font-family: var(--font-display); font-weight: 800; font-size: 1.8rem; color: var(--rr-navy-800); letter-spacing: -.025em; margin: 0 0 4px; }
+  .page-sub   { font-family: var(--font-ui); font-size: .88rem; color: var(--rr-slate-dark); }
+  .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .panel { background: #fff; border: 1px solid var(--rr-parchment); border-radius: 6px; padding: 22px 24px; box-shadow: var(--shadow-xs); }
+  .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .panel-h-title { font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; color: var(--rr-navy-800); }
+  .panel-h-sub { font-family: var(--font-ui); font-size: .72rem; color: var(--rr-slate-dark); margin-top: 2px; }
+  .panel-h-action { font-family: var(--font-ui); font-size: .82rem; color: hsl(var(--primary)); text-decoration: none; cursor: pointer; }
+  .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .toolbar input[type="text"] {
+    flex: 1; min-width: 240px; height: 38px; padding: 0 12px 0 36px; border-radius: 4px;
+    border: 1px solid var(--rr-parchment); background: var(--rr-warm-white) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238A9BB0' stroke-width='1.6'><circle cx='11' cy='11' r='8'/><line x1='21' y1='21' x2='16.65' y2='16.65'/></svg>") no-repeat 12px 50%;
+    font-family: var(--font-ui); font-size: .88rem; color: var(--rr-ink);
+  }
+  .filter-pill {
+    display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: 999px;
+    border: 1px solid var(--rr-parchment); background: #fff; font-family: var(--font-ui); font-size: .78rem; color: var(--rr-slate-dark); cursor: pointer;
+  }
+  .filter-pill.active { background: var(--rr-mist); color: var(--rr-navy-800); border-color: var(--rr-steel-200); font-weight: 600; }
+  table.list { width: 100%; border-collapse: collapse; font-family: var(--font-ui); font-size: .88rem; }
+  table.list th { text-align: left; padding: 12px 14px; color: var(--rr-slate-dark); font-size: .68rem; letter-spacing: .08em; text-transform: uppercase; border-bottom: 1px solid var(--rr-parchment); font-weight: 600; }
+  table.list td { padding: 14px; border-bottom: 1px solid var(--rr-parchment); vertical-align: middle; }
+  table.list tr:last-child td { border-bottom: none; }
+  table.list tr:hover td { background: rgba(58,127,189,0.03); }
+  .id-cell { font-family: var(--font-mono); font-size: .76rem; color: var(--rr-slate-dark); }
+  .pill {
+    font-size: .66rem; font-weight: 600; padding: 3px 10px; border-radius: 999px;
+    letter-spacing: .06em; text-transform: uppercase;
+  }
+  .avatar-sm {
+    width: 32px; height: 32px; border-radius: 999px; color: #fff;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-family: var(--font-ui); font-weight: 600; font-size: .72rem;
+  }
+
+  /* Drawer */
+  .drawer-overlay { position: fixed; inset: 0; background: rgba(10,25,47,0.4); z-index: 40; }
+  .drawer { position: fixed; top: 0; bottom: 0; right: 0; width: min(560px,100%); background: #fff; box-shadow: var(--shadow-xl); display: flex; flex-direction: column; z-index: 50; animation: slideIn 350ms cubic-bezier(0.16,1,0.3,1); }
+  @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+  .drawer-header { padding: 22px 28px; border-bottom: 1px solid var(--rr-parchment); display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+  .drawer-meta { font-size: .68rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: hsl(var(--primary)); }
+  .drawer-title { font-family: var(--font-display); font-weight: 700; font-size: 1.4rem; color: var(--rr-navy-800); letter-spacing: -.02em; margin: 4px 0 6px; }
+  .drawer-sub { font-size: .82rem; color: var(--rr-slate-dark); }
+  .drawer-body { flex: 1; padding: 22px 28px; overflow-y: auto; display: flex; flex-direction: column; gap: 18px; }
+  .drawer-footer { padding: 16px 28px; border-top: 1px solid var(--rr-parchment); display: flex; gap: 10px; justify-content: flex-end; background: var(--rr-off-white); }
+  .drawer-x { background: none; border: none; cursor: pointer; padding: 6px; color: var(--rr-slate-dark); border-radius: 4px; }
+  .drawer-x:hover { background: var(--rr-off-white); color: var(--rr-ink); }
+  .drawer-back { background: none; border: none; cursor: pointer; padding: 6px; color: var(--rr-slate-dark); border-radius: 4px; margin-right: 10px; display: inline-flex; align-items: center; }
+  .drawer-back:hover { background: var(--rr-off-white); color: var(--rr-ink); }
+
+  /* Form fields */
+  .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+  .field:last-child { margin-bottom: 0; }
+  .lbl { font-family: var(--font-ui); font-size: .78rem; font-weight: 600; color: var(--rr-ink); }
+  .d-input { font-family: var(--font-ui); font-size: .9rem; padding: 10px 12px; border: 1.5px solid var(--rr-mist); border-radius: 6px; width: 100%; box-sizing: border-box; background: #fff; color: var(--rr-ink); }
+  .d-input:focus { border-color: hsl(var(--ring)); box-shadow: var(--shadow-ring); outline: none; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+  /* Center modal */
+  @keyframes wsEnter { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+  .center-modal-backdrop { position: fixed; inset: 0; z-index: 40; background: rgba(10,25,47,0.4); display: flex; align-items: center; justify-content: center; }
+  .center-modal { background: #fff; border-radius: 6px; box-shadow: var(--shadow-xl); width: min(820px, 92vw); max-height: 88vh; display: flex; flex-direction: column; animation: wsEnter 400ms cubic-bezier(0.16, 1, 0.3, 1); }
+  .center-modal-topbar { padding: 14px 28px; border-bottom: 1px solid var(--rr-parchment); display: flex; align-items: center; background: #fff; border-radius: 6px 6px 0 0; }
+  .center-modal-topbar .back-label { font-family: var(--font-ui); font-size: .85rem; color: var(--rr-slate-dark); }
+  .center-modal-body { flex: 1; overflow-y: auto; padding: 28px 32px; display: flex; flex-direction: column; gap: 24px; }
+
+  /* Hero card */
+  .appt-ws-hero { background: #fff; border: 1px solid var(--rr-parchment); border-radius: 6px; padding: 22px 24px; display: grid; grid-template-columns: 48px 1fr auto; gap: 18px; align-items: center; box-shadow: var(--shadow-xs); }
+  .appt-ws-ava { width: 48px; height: 48px; border-radius: 999px; background: hsl(var(--primary)); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1rem; flex-shrink: 0; }
+  .appt-ws-info { display: flex; flex-direction: column; gap: 3px; }
+  .appt-ws-name { font-family: var(--font-display); font-weight: 700; font-size: 1.2rem; color: var(--rr-navy-800); }
+  .appt-ws-detail { font-family: var(--font-ui); font-size: .82rem; color: var(--rr-slate-dark); }
+  .appt-ws-id { font-family: var(--font-mono); font-size: .72rem; color: var(--rr-slate-dark); }
+
+  /* Detail rows */
+  .detail-row { display: grid; grid-template-columns: 120px 1fr; gap: 14px; padding: 10px 0; border-bottom: 1px solid var(--rr-parchment); }
+  .detail-row:last-child { border-bottom: none; }
+  .detail-k { font-family: var(--font-ui); font-size: .72rem; font-weight: 600; color: var(--rr-slate-dark); letter-spacing: .04em; text-transform: uppercase; padding-top: 2px; }
+  .detail-v { font-family: var(--font-ui); font-size: .9rem; color: var(--rr-ink); }
+
+  /* Tabs */
+  .tab-bar { display: flex; gap: 0; border-bottom: 1px solid var(--rr-parchment); margin-bottom: 18px; }
+  .tab-btn { background: none; border: none; border-bottom: 2px solid transparent; padding: 10px 18px; font-family: var(--font-ui); font-size: .82rem; font-weight: 500; color: var(--rr-slate-dark); cursor: pointer; transition: color 200ms ease, border-color 200ms ease; }
+  .tab-btn:hover { color: var(--rr-ink); }
+  .tab-btn.active { color: hsl(var(--primary)); border-bottom-color: hsl(var(--primary)); font-weight: 600; }
+
+  /* Toast */
+  .toast-stack { position: fixed; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 10px; width: 360px; z-index: 60; }
+  .toast { background: #fff; border: 1px solid var(--rr-parchment); border-radius: 6px; padding: 12px 14px; box-shadow: var(--shadow-md); display: grid; grid-template-columns: 22px 1fr auto; gap: 12px; align-items: center; }
+  .toast.success { border-color: #BBE0CC; }
+  .toast .toast-ico { color: var(--rr-slate-dark); }
+  .toast.success .toast-ico { color: var(--rr-success); }
+  .toast .toast-body { font-family: var(--font-ui); font-size: .85rem; color: var(--rr-ink); line-height: 1.4; }
+  .toast .toast-detail { display: block; font-family: var(--font-mono); font-size: .68rem; color: var(--rr-slate-dark); margin-top: 2px; }
+  .toast .toast-x { background: none; border: none; cursor: pointer; padding: 4px; color: var(--rr-slate-dark); }
+
+  /* Clickable table rows */
+  table.list tbody tr { cursor: pointer; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="Sidebar.jsx"></script>
+<script type="text/babel" src="TopBar.jsx"></script>
+<script type="text/babel" src="KpiTile.jsx"></script>
+<script type="text/babel" src="EmptyState.jsx"></script>
+<script type="text/babel" src="StatusPill.jsx"></script>
+<script type="text/babel" src="DataTable.jsx"></script>
+<script type="text/babel" src="Drawer.jsx"></script>
+<script type="text/babel" src="Tabs.jsx"></script>
+<script type="text/babel" src="FormField.jsx"></script>
+<script type="text/babel" src="Breadcrumb.jsx"></script>
+<script type="text/babel" src="MoneyCell.jsx"></script>
+<script type="text/babel" src="MonoText.jsx"></script>
+<script type="text/babel" src="IconButton.jsx"></script>
+<script type="text/babel" src="SearchInput.jsx"></script>
+<script type="text/babel" src="FilterChips.jsx"></script>
+<script type="text/babel" src="KanbanBoard.jsx"></script>
+<script type="text/babel" src="CalendarGrid.jsx"></script>
+<script type="text/babel" src="Avatar.jsx"></script>
+<script type="text/babel" src="ChartCard.jsx"></script>
+
+<script src="../../data/patients.js"></script>
+<script src="../../data/appointments.js"></script>
+
+<script type="text/babel" src="ToothChartTile.jsx"></script>
+
+<script type="text/babel">
+window.RRD.requireSession?.();
+const STATUS_TONE = {
+  active:   { bg: '#E8F5EE', fg: '#2A7D4F', avatar: '#3A7FBD' },
+  recall:   { bg: '#FDF3E5', fg: '#B45309', avatar: '#B45309' },
+  plan:     { bg: '#D9EAF5', fg: '#2E6494', avatar: '#6BAED6' },
+  inactive: { bg: '#F5F2EC', fg: '#4A5568', avatar: '#8A9BB0' },
+};
+
+const FILTERS = ['All', 'Active', 'Recall due', 'Plan in progress', 'Inactive'];
+
+const CenterModal = ({ onClose, width, children }) => {
+  React.useEffect(() => {
+    const h = e => e.key === 'Escape' && onClose();
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [onClose]);
+  return (
+    <div className="center-modal-backdrop" onClick={onClose}>
+      <div className="center-modal" style={width ? { width } : undefined} onClick={e => e.stopPropagation()}>
+        {children}
+      </div>
+    </div>
+  );
+};
+
+const DETAIL_TABS = ['Overview', 'Appointments', 'Insurance', 'Notes'];
+
+const PatientDetail = ({ patient, onClose }) => {
+  const [tab, setTab] = React.useState('Overview');
+  const p = patient;
+  const initials = (p.first[0] + p.last[0]).toUpperCase();
+  const tone = STATUS_TONE[p.status] || STATUS_TONE.active;
+  const appts = (window.APPOINTMENTS || []).filter(a => a.patient_id === p.id);
+
+  return (
+    <CenterModal onClose={onClose}>
+      <div className="center-modal-topbar">
+        <button className="drawer-back" onClick={onClose}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg></button>
+        <span className="back-label">Back to The Roster</span>
+      </div>
+      <div className="center-modal-body">
+        <div className="appt-ws-hero">
+          <div className="appt-ws-ava" style={{ background: tone.avatar }}>{initials}</div>
+          <div className="appt-ws-info">
+            <div className="appt-ws-name">{p.first} {p.last}</div>
+            <div className="appt-ws-detail">Provider · Dr Hau Le</div>
+            <div className="appt-ws-id">{p.id} · {p.dob} · {p.insurance}</div>
+          </div>
+          <span style={{ fontSize: '.68rem', fontWeight: 600, padding: '4px 12px', borderRadius: 999, letterSpacing: '.06em', textTransform: 'uppercase', background: tone.bg, color: tone.fg }}>{p.status}</span>
+        </div>
+
+        <div className="tab-bar">
+          {DETAIL_TABS.map(t => <button key={t} className={'tab-btn' + (tab === t ? ' active' : '')} onClick={() => setTab(t)}>{t}</button>)}
+        </div>
+
+        {tab === 'Overview' && (
+          <>
+            <div>
+              <div className="detail-row"><span className="detail-k">Date of birth</span><span className="detail-v">{p.dob}</span></div>
+              <div className="detail-row"><span className="detail-k">Insurance</span><span className="detail-v">{p.insurance}</span></div>
+              <div className="detail-row"><span className="detail-k">Last visit</span><span className="detail-v">{p.last_visit}</span></div>
+              <div className="detail-row"><span className="detail-k">Status</span><span className="detail-v">{p.status}</span></div>
+              <div className="detail-row"><span className="detail-k">Appointments</span><span className="detail-v">{appts.length} on file</span></div>
+            </div>
+            <ToothChartTile />
+          </>
+        )}
+
+        {tab === 'Appointments' && (
+          <div>
+            {appts.length === 0 ? (
+              <div style={{ padding: '24px 0', textAlign: 'center', fontFamily: 'var(--font-ui)', fontSize: '.88rem', color: 'var(--rr-slate-dark)' }}>No appointments on file.</div>
+            ) : appts.map(a => (
+              <div key={a.id} className="detail-row">
+                <span className="detail-k">{a.time}</span>
+                <span className="detail-v">{a.kind} · {a.provider} · Op {a.chair} · <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.72rem' }}>{a.status}</span></span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {tab === 'Insurance' && (
+          <div>
+            <div className="detail-row"><span className="detail-k">Provider</span><span className="detail-v">{p.insurance}</span></div>
+            <div className="detail-row"><span className="detail-k">Policy</span><span className="detail-v" style={{ fontFamily: 'var(--font-mono)' }}>GRP-{p.id.slice(2)}-01</span></div>
+            <div className="detail-row"><span className="detail-k">Coverage</span><span className="detail-v">80% preventive · 50% major</span></div>
+            <div className="detail-row"><span className="detail-k">Annual max</span><span className="detail-v" style={{ fontFamily: 'var(--font-mono)' }}>$2,500.00</span></div>
+          </div>
+        )}
+
+        {tab === 'Notes' && (
+          <div style={{ fontFamily: 'var(--font-ui)', fontSize: '.88rem', color: 'var(--rr-slate-dark)', padding: '12px 0' }}>
+            <div style={{ marginBottom: 12, padding: '14px 16px', border: '1px solid var(--rr-parchment)', borderRadius: 6 }}>
+              <div style={{ fontWeight: 600, color: 'var(--rr-ink)', marginBottom: 4 }}>Clinical note — 2026-04-21</div>
+              <div>Patient reports no discomfort. Recall completed. Next visit in 6 months.</div>
+            </div>
+            <div style={{ padding: '14px 16px', border: '1px solid var(--rr-parchment)', borderRadius: 6 }}>
+              <div style={{ fontWeight: 600, color: 'var(--rr-ink)', marginBottom: 4 }}>Admin note — 2026-03-10</div>
+              <div>Insurance verification completed. Pre-auth submitted for crown #36.</div>
+            </div>
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+          <button className="btn btn-primary btn-md" onClick={onClose}>Open full chart</button>
+          <button className="btn btn-ghost btn-md" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </CenterModal>
+  );
+};
+
+const NewPatientDrawer = ({ onClose, onSave }) => {
+  const [first, setFirst] = React.useState('');
+  const [last, setLast] = React.useState('');
+  const [dob, setDob] = React.useState('');
+  const [phone, setPhone] = React.useState('');
+  const [email, setEmail] = React.useState('');
+  const [insurance, setInsurance] = React.useState('');
+  const [isMinor, setIsMinor] = React.useState(false);
+  const [guardian, setGuardian] = React.useState('');
+  const [consent, setConsent] = React.useState(false);
+
+  React.useEffect(() => {
+    const h = e => e.key === 'Escape' && onClose();
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [onClose]);
+
+  const handleSave = () => {
+    const id = 'P-' + String(Math.floor(10000 + Math.random() * 90000));
+    const p = { id, first, last, dob, phone, email, insurance, last_visit: 'New', status: 'active' };
+    window.PATIENTS.push(p);
+    onSave(p);
+  };
+
+  return (
+    <>
+      <div className="drawer-overlay" onClick={onClose} />
+      <aside className="drawer" role="dialog">
+        <div className="drawer-header">
+          <div style={{ display: 'flex', alignItems: 'flex-start' }}>
+            <button className="drawer-back" onClick={onClose}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg></button>
+            <div>
+              <div className="drawer-meta">New patient</div>
+              <div className="drawer-title">Add a new patient</div>
+              <div className="drawer-sub">Fill in patient details below.</div>
+            </div>
+          </div>
+          <button className="drawer-x" onClick={onClose}>&times;</button>
+        </div>
+        <div className="drawer-body">
+          <div className="field-row">
+            <div className="field"><label className="lbl">First name *</label><input className="d-input" value={first} onChange={e => setFirst(e.target.value)} /></div>
+            <div className="field"><label className="lbl">Last name *</label><input className="d-input" value={last} onChange={e => setLast(e.target.value)} /></div>
+          </div>
+          <div className="field"><label className="lbl">Date of birth</label><input type="date" className="d-input" value={dob} onChange={e => setDob(e.target.value)} /></div>
+          <div className="field-row">
+            <div className="field"><label className="lbl">Phone</label><input className="d-input" value={phone} onChange={e => setPhone(e.target.value)} /></div>
+            <div className="field"><label className="lbl">Email</label><input className="d-input" value={email} onChange={e => setEmail(e.target.value)} /></div>
+          </div>
+          <div className="field"><label className="lbl">Insurance provider</label><input className="d-input" value={insurance} onChange={e => setInsurance(e.target.value)} /></div>
+          <div className="field" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <input type="checkbox" id="isMinor" checked={isMinor} onChange={e => setIsMinor(e.target.checked)} />
+            <label htmlFor="isMinor" className="lbl" style={{ marginBottom: 0 }}>Patient is a minor</label>
+          </div>
+          {isMinor && <div className="field"><label className="lbl">Guardian name</label><input className="d-input" value={guardian} onChange={e => setGuardian(e.target.value)} /></div>}
+          <div className="field" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <input type="checkbox" id="consent" checked={consent} onChange={e => setConsent(e.target.checked)} />
+            <label htmlFor="consent" className="lbl" style={{ marginBottom: 0 }}>Consent approved</label>
+          </div>
+        </div>
+        <div className="drawer-footer">
+          <button className="btn btn-ghost btn-md" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary btn-md" disabled={!first || !last} onClick={handleSave}>Save patient</button>
+        </div>
+      </aside>
+    </>
+  );
+};
+
+const PatientsPage = () => {
+  const [filter, setFilter] = React.useState('All');
+  const [query, setQuery] = React.useState('');
+  const [activePatient, setActivePatient] = React.useState(null);
+  const [newPatientOpen, setNewPatientOpen] = React.useState(false);
+  const [toasts, setToasts] = React.useState([]);
+
+  const addToast = (msg, detail) => {
+    const id = Date.now();
+    setToasts(t => [...t, { id, msg, detail }]);
+    setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 4000);
+  };
+  const dismissToast = (id) => setToasts(t => t.filter(x => x.id !== id));
+  const rows = window.PATIENTS.filter(p => {
+    if (filter === 'Active' && p.status !== 'active') return false;
+    if (filter === 'Recall due' && p.status !== 'recall') return false;
+    if (filter === 'Plan in progress' && p.status !== 'plan') return false;
+    if (filter === 'Inactive' && p.status !== 'inactive') return false;
+    if (query) {
+      const q = query.toLowerCase();
+      return `${p.first} ${p.last} ${p.id} ${p.insurance}`.toLowerCase().includes(q);
+    }
+    return true;
+  });
+
+  return (
+    <>
+    <div className="shell">
+      <Sidebar active="patients" />
+      <div className="stage">
+        <TopBar clinicName="Oak Dental · Calgary" breadcrumb={['Patients', 'All']} />
+        <div className="body">
+          <div className="page-header">
+            <div>
+              <h1 className="page-title">Patients</h1>
+              <div className="page-sub">{window.PATIENTS.length} on file · 2 due for recall this week · last sync 2 min ago</div>
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button className="btn btn-ghost btn-md" onClick={() => addToast('CSV import started.', 'Processing file...')}>Import CSV</button>
+              <button className="btn btn-primary btn-md" onClick={() => setNewPatientOpen(true)}>+ New patient</button>
+            </div>
+          </div>
+
+          <div className="kpi-row">
+            <KpiTile label="Total active"   value="1,284" delta="+ 18"    trend="up"   accent="steel" />
+            <KpiTile label="New this month" value="42"    delta="+ 6"     trend="up"   accent="steel" />
+            <KpiTile label="Recall due"     value="38"    delta="– 4"     trend="up"   accent="navy"  />
+            <KpiTile label="Plans pending"  value="11"    delta="+ 2"     trend="down" accent="steel" />
+          </div>
+
+          <div className="panel">
+            <div className="toolbar" style={{ marginBottom: 18 }}>
+              <input type="text" placeholder="Search by name, ID, or insurance…" value={query} onChange={e => setQuery(e.target.value)} />
+              {FILTERS.map(f => (
+                <button key={f} className={`filter-pill${filter === f ? ' active' : ''}`} onClick={() => setFilter(f)}>{f}</button>
+              ))}
+              <button className="filter-pill" style={{ marginLeft: 'auto' }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                Sort: Last visit
+              </button>
+            </div>
+
+            {rows.length === 0 ? (
+              <EmptyState
+                title="No patients match"
+                body={`Nothing in the chart matches "${query || filter}". Try clearing filters or searching by chart ID.`}
+                ctaLabel="Clear filters"
+                onCta={() => { setFilter('All'); setQuery(''); }}
+              />
+            ) : (
+              <table className="list">
+                <thead>
+                  <tr>
+                    <th>Patient</th>
+                    <th>Chart ID</th>
+                    <th>Date of birth</th>
+                    <th>Insurance</th>
+                    <th>Last visit</th>
+                    <th>Status</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map(p => {
+                    const tone = STATUS_TONE[p.status];
+                    const initials = (p.first[0] + p.last[0]).toUpperCase();
+                    return (
+                      <tr key={p.id} onClick={() => { window.location = `patient-detail.html?id=${p.id}`; }}>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <span className="avatar-sm" style={{ background: tone.avatar }}>{initials}</span>
+                            <div>
+                              <div style={{ fontWeight: 600, color: '#1C2333' }}>{p.first} {p.last}</div>
+                              <div style={{ fontSize: '.72rem', color: '#8A9BB0' }}>Provider · Dr Hau Le</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="id-cell">{p.id}</td>
+                        <td className="id-cell">{p.dob}</td>
+                        <td>{p.insurance}</td>
+                        <td className="id-cell">{p.last_visit}</td>
+                        <td><StatusPill kind="patient_lifecycle" value={p.status} /></td>
+                        <td style={{ textAlign: 'right' }}>
+                          <a className="panel-h-action" href={`patient-detail.html?id=${p.id}`}>Open chart →</a>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          <div className="panel">
+            <div className="panel-header">
+              <div>
+                <div className="panel-h-title">Recall queue</div>
+                <div className="panel-h-sub">Patients overdue for hygiene · top 4</div>
+              </div>
+              <a className="panel-h-action" href="patients.html?filter=recall">Open recall workflow →</a>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+              {window.PATIENTS.filter(p => p.status === 'recall' || p.status === 'inactive').slice(0, 4).map(p => (
+                <a key={p.id} href={`patient-detail.html?id=${p.id}`} className="row-link" style={{ textDecoration: 'none', color: 'inherit', display: 'block', border: '1px solid #EDE9E0', borderRadius: 6, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 6, cursor: 'pointer' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span className="avatar-sm" style={{ background: STATUS_TONE[p.status].avatar }}>{(p.first[0]+p.last[0]).toUpperCase()}</span>
+                    <div style={{ fontWeight: 600, color: '#1C2333', fontSize: '.88rem' }}>{p.first} {p.last}</div>
+                  </div>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '.7rem', color: '#8A9BB0' }}>{p.id} · last seen {p.last_visit}</div>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                    <button className="btn btn-ghost btn-sm" onClick={(e) => { e.preventDefault(); e.stopPropagation(); addToast('SMS sent.', p.first + ' ' + p.last); }}>SMS</button>
+                    <button className="btn btn-primary btn-sm" onClick={(e) => { e.preventDefault(); e.stopPropagation(); addToast('Recall booked.', p.first + ' ' + p.last); }}>Book recall</button>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ textAlign: 'center', padding: '20px 0', fontFamily: "'Inter', sans-serif", fontSize: '.72rem', color: 'var(--rr-slate)', letterSpacing: '.06em' }}>
+            ROCKYRIDGE · DENTAL AI · v1
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {activePatient && <PatientDetail patient={activePatient} onClose={() => setActivePatient(null)} />}
+    {newPatientOpen && <NewPatientDrawer onClose={() => setNewPatientOpen(false)} onSave={(p) => { setNewPatientOpen(false); addToast('Patient created.', p.first + ' ' + p.last + ' · ' + p.id); }} />}
+
+    {toasts.length > 0 && (
+      <div className="toast-stack">
+        {toasts.map(t => (
+          <div key={t.id} className="toast success">
+            <svg className="toast-ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            <div className="toast-body">{t.msg}{t.detail && <span className="toast-detail">{t.detail}</span>}</div>
+            <button className="toast-x" onClick={() => dismissToast(t.id)}>&times;</button>
+          </div>
+        ))}
+      </div>
+    )}
+    </>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<PatientsPage />);
+</script>
+</body>
+</html>

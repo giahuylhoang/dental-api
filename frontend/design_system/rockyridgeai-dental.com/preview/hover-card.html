@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Hover Card · Rockyridge Dental AI</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { padding: 64px; background: hsl(var(--background)); font-family: var(--font-ui); }
+  .row { display: flex; align-items: center; gap: 14px; }
+  .name-link { color: hsl(var(--primary)); text-decoration: none; font-weight: 600; cursor: pointer; }
+  .card {
+    position: absolute; top: 110px; left: 64px;
+    background: #fff; border: 1px solid var(--rr-parchment); border-radius: 6px;
+    padding: 16px 18px; box-shadow: var(--shadow-md); width: 320px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .card-head { display: flex; gap: 12px; align-items: center; }
+  .ava { width: 44px; height: 44px; border-radius: 999px; background: hsl(var(--primary)); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 600; }
+  .name { font-weight: 600; color: var(--rr-ink); }
+  .id   { font-family: var(--font-mono); font-size: .72rem; color: var(--rr-slate-dark); }
+  .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: .78rem; }
+  .meta .k { color: var(--rr-slate-dark); }
+  .meta .v { color: var(--rr-ink); }
+  .arrow { position: absolute; top: -6px; left: 30px; width: 12px; height: 12px; background: #fff; border-left: 1px solid var(--rr-parchment); border-top: 1px solid var(--rr-parchment); transform: rotate(45deg); }
+</style></head><body>
+<div class="row">
+  Today's first patient is <a class="name-link">Alice Stevens</a> in operatory 1.
+</div>
+<div class="card">
+  <div class="arrow"></div>
+  <div class="card-head"><div class="ava">AS</div><div><div class="name">Alice Stevens</div><div class="id">P-018342 · 42</div></div></div>
+  <div class="meta">
+    <div><span class="k">Insurance</span><br><span class="v">Alberta Blue Cross</span></div>
+    <div><span class="k">Last visit</span><br><span class="v">2026-04-21</span></div>
+    <div><span class="k">Recall</span><br><span class="v">in 5 mo</span></div>
+    <div><span class="k">Balance</span><br><span class="v">$ 0.00</span></div>
+  </div>
+</div>
+</body></html>

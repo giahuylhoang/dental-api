@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Aspect Ratio · Rockyridge Dental AI</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { padding: 32px; background: hsl(var(--background)); font-family: var(--font-ui); }
+  .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; }
+  .ratio { background: linear-gradient(135deg, var(--rr-navy-800), var(--rr-navy-500)); border-radius: 6px; position: relative; overflow: hidden; box-shadow: var(--shadow-sm); }
+  .ratio[data-r="1/1"]   { aspect-ratio: 1 / 1; }
+  .ratio[data-r="16/9"]  { aspect-ratio: 16 / 9; }
+  .ratio[data-r="3/4"]   { aspect-ratio: 3 / 4; }
+  .label { position: absolute; bottom: 12px; left: 14px; color: var(--rr-warm-white); font-family: var(--font-mono); font-size: .82rem; }
+  .pill { position: absolute; top: 12px; left: 14px; background: rgba(255,255,255,0.12); color: var(--rr-warm-white); padding: 3px 10px; border-radius: 999px; font-size: .68rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+</style></head><body>
+<div class="grid">
+  <div class="ratio" data-r="1/1"><span class="pill">Avatar</span><span class="label">1:1</span></div>
+  <div class="ratio" data-r="16/9"><span class="pill">Hero · video</span><span class="label">16:9</span></div>
+  <div class="ratio" data-r="3/4"><span class="pill">Patient ID photo</span><span class="label">3:4</span></div>
+</div>
+</body></html>

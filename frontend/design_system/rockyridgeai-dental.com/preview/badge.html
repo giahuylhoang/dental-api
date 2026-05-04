@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Badge · Rockyridge Dental AI</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { padding: 32px; background: hsl(var(--background)); font-family: var(--font-ui); display: flex; flex-direction: column; gap: 18px; }
+  h2 { font-size: .72rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--rr-slate-dark); margin: 0 0 8px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .badge {
+    font-family: var(--font-ui); font-size: .68rem; font-weight: 600;
+    letter-spacing: .06em; text-transform: uppercase;
+    padding: 3px 10px; border-radius: 4px;
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+  .badge-default  { background: var(--rr-navy-800); color: var(--rr-warm-white); }
+  .badge-secondary{ background: var(--rr-off-white); color: var(--rr-slate-dark); border: 1px solid var(--rr-parchment); }
+  .badge-outline  { background: transparent; color: var(--rr-navy-800); border: 1px solid var(--rr-mist); }
+  .badge-action   { background: var(--rr-steel-100); color: var(--rr-steel-600); border: 1px solid var(--rr-steel-200); }
+  .badge-success  { background: var(--rr-success-bg); color: var(--rr-success); }
+  .badge-warning  { background: var(--rr-warning-bg); color: var(--rr-warning); }
+  .badge-error    { background: var(--rr-error-bg); color: var(--rr-error); }
+  .badge.pill     { border-radius: 999px; padding: 3px 12px; }
+  .dot { width: 6px; height: 6px; border-radius: 999px; background: currentColor; }
+</style></head><body>
+<div><h2>Variants</h2>
+  <div class="row">
+    <span class="badge badge-default">Active</span>
+    <span class="badge badge-secondary">Recall</span>
+    <span class="badge badge-outline">Insured</span>
+    <span class="badge badge-action">Plan #TP-201</span>
+    <span class="badge badge-success"><span class="dot"></span>Confirmed</span>
+    <span class="badge badge-warning"><span class="dot"></span>Pending insurance</span>
+    <span class="badge badge-error"><span class="dot"></span>No-show</span>
+  </div>
+</div>
+<div><h2>Pill variant</h2>
+  <div class="row">
+    <span class="badge badge-default pill">The Schedule</span>
+    <span class="badge badge-action pill">Hygiene</span>
+    <span class="badge badge-secondary pill">Operatory 2</span>
+  </div>
+</div>
+</body></html>

@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en" class="">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Invoice Detail · Rockyridge Dental AI</title>
+<link rel="stylesheet" href="../../colors_and_type.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin></script>
+<style>
+  html, body { margin: 0; }
+  body { background: var(--rr-warm-white); min-height: 100vh; }
+  .shell { display: flex; min-height: 100vh; }
+  .stage { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .stage > .body { padding: 28px 32px; display: flex; flex-direction: column; gap: 24px; }
+  .panel { background: #fff; border: 1px solid var(--rr-parchment); border-radius: 6px; padding: 22px 24px; box-shadow: var(--shadow-xs); }
+  .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .panel-h-title { font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; color: var(--rr-navy-800); }
+  .panel-h-sub { font-family: var(--font-ui); font-size: .72rem; color: var(--rr-slate-dark); margin-top: 2px; }
+  table.list { width: 100%; border-collapse: collapse; font-family: var(--font-ui); font-size: .85rem; }
+  table.list th { text-align: left; padding: 10px 12px; color: var(--rr-slate-dark); font-size: .68rem; letter-spacing: .08em; text-transform: uppercase; border-bottom: 1px solid var(--rr-parchment); font-weight: 600; }
+  table.list td { padding: 12px; border-bottom: 1px solid var(--rr-parchment); vertical-align: middle; }
+  table.list tr:last-child td { border-bottom: none; }
+  .num { font-family: var(--font-mono); font-size: .82rem; }
+  .id-cell { font-family: var(--font-mono); font-size: .76rem; color: var(--rr-slate-dark); }
+  .pill { font-size: .66rem; font-weight: 600; padding: 3px 10px; border-radius: 999px; letter-spacing: .06em; text-transform: uppercase; display: inline-block; }
+  .pill-paid        { background: #E8F5EE; color: #2A7D4F; }
+  .pill-issued      { background: #D9EAF5; color: #2E6494; }
+  .pill-partial     { background: #FDF3E5; color: #B45309; }
+  .pill-draft       { background: #F5F2EC; color: #4A5568; }
+  .pill-overdue     { background: #F8E5E8; color: #9B2335; }
+  .pill-submitted   { background: #D9EAF5; color: #2E6494; }
+  .pill-accepted    { background: #E8F5EE; color: #2A7D4F; }
+  .pill-adjudicated { background: #FDF3E5; color: #B45309; }
+  .pill-rejected    { background: #F8E5E8; color: #9B2335; }
+  .claim-pipeline { display: flex; gap: 0; margin-bottom: 18px; }
+  .cp-step { flex: 1; text-align: center; padding: 8px 4px; font-family: var(--font-ui); font-size: .68rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; border-bottom: 3px solid var(--rr-parchment); color: var(--rr-slate-dark); }
+  .cp-step.done { border-bottom-color: #2A7D4F; color: #2A7D4F; }
+  .cp-step.active { border-bottom-color: hsl(var(--primary)); color: hsl(var(--primary)); }
+  .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+  .lbl { font-family: var(--font-ui); font-size: .78rem; font-weight: 600; color: var(--rr-ink); }
+  .d-input { font-family: var(--font-ui); font-size: .9rem; padding: 10px 12px; border: 1.5px solid var(--rr-mist); border-radius: 6px; width: 100%; box-sizing: border-box; background: #fff; color: var(--rr-ink); }
+  .d-input:focus { border-color: hsl(var(--ring)); outline: none; }
+  .d-textarea { font-family: var(--font-ui); font-size: .9rem; padding: 10px 12px; border: 1.5px solid var(--rr-mist); border-radius: 6px; width: 100%; box-sizing: border-box; min-height: 72px; resize: vertical; background: #fff; color: var(--rr-ink); }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="../../data/invoices.js"></script>
+<script src="../../lib/query.js"></script>
+<script type="text/babel" src="Sidebar.jsx"></script>
+<script type="text/babel" src="TopBar.jsx"></script>
+<script type="text/babel" src="EmptyState.jsx"></script>
+<script type="text/babel">
+window.RRD.requireSession?.();
+
+const fmt = new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' });
+
+const FALLBACK_INVOICES = [
+  { id: 'INV-2026-0418', patient: 'Alice Stevens', patient_id: 'P-1001', status: 'paid', total: 609.00, balance: 0.00, issued_at: '2026-04-30', due_at: '2026-05-30',
+    lines: [
+      { seq: 1, code: '11101', desc: 'Periodic oral exam', qty: 1, unit_price: 65.00, total: 65.00 },
+      { seq: 2, code: '43101', desc: 'Scaling per unit × 8', qty: 8, unit_price: 22.00, total: 176.00 },
+      { seq: 3, code: '21211', desc: 'Amalgam restoration 1S #14', qty: 1, unit_price: 148.00, total: 148.00 },
+      { seq: 4, code: 'GST',   desc: 'GST 5%', qty: 1, unit_price: 29.00, total: 29.00 },
+    ],
+    payments: [
+      { method: 'insurance', amount: 480.00, received_at: '2026-05-02', reference: 'CLM-9830' },
+      { method: 'card',      amount: 129.00, received_at: '2026-05-02', reference: 'TXN-44821' },
+    ],
+    claim: { id: 'CLM-9830', status: 'adjudicated', carrier: 'Alberta Blue Cross', kind: 'claim', aob: true,
+      responses: [{ code: 'I02', desc: 'Benefit applied' }] }
+  },
+];
+
+const CLAIM_STEPS = ['draft','submitted','accepted','adjudicated','paid'];
+const PILL_CLASS = { paid: 'pill-paid', issued: 'pill-issued', partial: 'pill-partial', draft: 'pill-draft', overdue: 'pill-overdue', submitted: 'pill-submitted', accepted: 'pill-accepted', adjudicated: 'pill-adjudicated', rejected: 'pill-rejected' };
+
+const InvoiceDetailPage = () => {
+  const id = window.RRD.query('id');
+  const collection = (typeof window.INVOICES !== 'undefined' && window.INVOICES) || FALLBACK_INVOICES;
+  const inv = id ? window.RRD.findById(collection, id) : collection[0];
+
+  if (!inv) return (
+    <div className="shell">
+      <Sidebar active="billing" />
+      <div className="stage">
+        <TopBar breadcrumb={['Billing','Not found']} />
+        <div className="body"><EmptyState icon="file-text" title="Invoice not found" sub="No invoice matches this ID." /></div>
+      </div>
+    </div>
+  );
+
+  const claim = inv.claim;
+  const claimStepIdx = claim ? CLAIM_STEPS.indexOf(claim.status) : -1;
+
+  return (
+    <div className="shell">
+      <Sidebar active="billing" />
+      <div className="stage">
+        <TopBar breadcrumb={['Billing', inv.id]} />
+        <div className="body">
+          {/* Header */}
+          <div className="panel" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: '.76rem', color: 'var(--rr-slate-dark)', marginBottom: 4 }}>{inv.id}</div>
+              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.6rem', color: 'var(--rr-navy-800)', letterSpacing: '-.025em' }}>{fmt.format(inv.total)}</div>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 6, flexWrap: 'wrap' }}>
+                <span className={`pill ${PILL_CLASS[inv.status]}`}>{inv.status}</span>
+                <span style={{ fontFamily: 'var(--font-ui)', fontSize: '.82rem', color: 'var(--rr-slate-dark)' }}>Balance: <span style={{ fontFamily: 'var(--font-mono)' }}>{fmt.format(inv.balance)}</span></span>
+                <span style={{ fontFamily: 'var(--font-ui)', fontSize: '.82rem', color: 'var(--rr-slate-dark)' }}>Issued {inv.issued_at} · Due {inv.due_at}</span>
+              </div>
+              <div style={{ marginTop: 6 }}>
+                <a href={`patient-detail.html?id=${inv.patient_id || ''}`} style={{ fontFamily: 'var(--font-ui)', fontSize: '.85rem', color: 'hsl(var(--primary))' }}>{inv.patient}</a>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-ghost btn-sm">Send invoice</button>
+              <button className="btn btn-ghost btn-sm">Record payment</button>
+              <a href="#claim" className="btn btn-primary btn-sm">Open claim</a>
+            </div>
+          </div>
+
+          {/* Lines */}
+          <div className="panel">
+            <div className="panel-header"><div className="panel-h-title">Line items</div></div>
+            <table className="list">
+              <thead><tr><th>#</th><th>Code</th><th>Description</th><th>Qty</th><th style={{ textAlign: 'right' }}>Unit price</th><th style={{ textAlign: 'right' }}>Total</th></tr></thead>
+              <tbody>
+                {(inv.lines || []).map(l => (
+                  <tr key={l.seq}>
+                    <td className="id-cell">{l.seq}</td>
+                    <td className="id-cell">{l.code}</td>
+                    <td>{l.desc}</td>
+                    <td className="num">{l.qty}</td>
+                    <td className="num" style={{ textAlign: 'right' }}>{fmt.format(l.unit_price)}</td>
+                    <td className="num" style={{ textAlign: 'right' }}>{fmt.format(l.total)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Payments */}
+          <div className="panel">
+            <div className="panel-header"><div className="panel-h-title">Payments</div></div>
+            <table className="list">
+              <thead><tr><th>Method</th><th>Amount</th><th>Received</th><th>Reference</th></tr></thead>
+              <tbody>
+                {(inv.payments || []).map((p, i) => (
+                  <tr key={i}>
+                    <td><span className="pill" style={{ background: 'var(--rr-mist)', color: 'var(--rr-steel-700)' }}>{p.method}</span></td>
+                    <td className="num">{fmt.format(p.amount)}</td>
+                    <td className="id-cell">{p.received_at}</td>
+                    <td className="id-cell">{p.reference}</td>
+                  </tr>
+                ))}
+                {!(inv.payments?.length) && <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--rr-slate-dark)', padding: 20 }}>No payments recorded.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Claim */}
+          {claim && (
+            <div className="panel" id="claim">
+              <div className="panel-header">
+                <div>
+                  <div className="panel-h-title">Claim — {claim.id}</div>
+                  <div className="panel-h-sub">{claim.carrier} · {claim.kind} · AOB: {claim.aob ? 'Yes' : 'No'}</div>
+                </div>
+                <span className={`pill ${PILL_CLASS[claim.status]}`}>{claim.status}</span>
+              </div>
+              <div className="claim-pipeline">
+                {CLAIM_STEPS.map((s, i) => (
+                  <div key={s} className={`cp-step${i < claimStepIdx ? ' done' : i === claimStepIdx ? ' active' : ''}`}>{s}</div>
+                ))}
+              </div>
+              {claim.responses?.length > 0 && (
+                <div style={{ marginBottom: 18 }}>
+                  <div style={{ fontFamily: 'var(--font-ui)', fontSize: '.72rem', fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--rr-slate-dark)', marginBottom: 8 }}>Response codes</div>
+                  <table className="list">
+                    <thead><tr><th>Code</th><th>Description</th></tr></thead>
+                    <tbody>
+                      {claim.responses.map(r => (
+                        <tr key={r.code}><td className="id-cell">{r.code}</td><td>{r.desc}</td></tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <div style={{ borderTop: '1px solid var(--rr-parchment)', paddingTop: 18 }}>
+                <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '.95rem', color: 'var(--rr-navy-800)', marginBottom: 14 }}>Adjudicate</div>
+                <div className="field-row">
+                  <div className="field">
+                    <label className="lbl">Outcome</label>
+                    <select className="d-input">
+                      <option>Accepted in full</option>
+                      <option>Accepted partial</option>
+                      <option>Rejected — patient liability</option>
+                      <option>Rejected — needs predetermination</option>
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label className="lbl">Accepted amount</label>
+                    <input className="d-input" style={{ fontFamily: 'var(--font-mono)' }} defaultValue="$480.00" />
+                  </div>
+                </div>
+                <div className="field">
+                  <label className="lbl">Response codes</label>
+                  <input className="d-input" placeholder="E04, I02…" />
+                </div>
+                <div className="field">
+                  <label className="lbl">Notes</label>
+                  <textarea className="d-textarea" placeholder="Carrier remarks…" />
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn btn-ghost btn-sm">Save draft</button>
+                  <button className="btn btn-primary btn-sm">Save adjudication</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div style={{ textAlign: 'center', padding: '20px 0', fontFamily: "'Inter', sans-serif", fontSize: '.72rem', color: 'var(--rr-slate)', letterSpacing: '.06em' }}>
+            ROCKYRIDGE · DENTAL AI · v1
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<InvoiceDetailPage />);
+</script>
+</body>
+</html>

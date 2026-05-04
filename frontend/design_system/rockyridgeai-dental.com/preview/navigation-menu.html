@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Navigation Menu · Rockyridge Dental AI</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { padding: 32px; background: hsl(var(--background)); font-family: var(--font-ui); }
+  .nav { display: inline-flex; gap: 4px; background: #fff; border: 1px solid var(--rr-parchment); border-radius: 6px; padding: 4px; }
+  .nav-item { padding: 8px 14px; border-radius: 4px; cursor: pointer; font-size: .88rem; color: var(--rr-ink); display: inline-flex; align-items: center; gap: 6px; }
+  .nav-item:hover { background: var(--rr-off-white); }
+  .nav-item.active { background: var(--rr-steel-100); color: var(--rr-steel-600); font-weight: 600; }
+  .panel { position: absolute; top: 80px; left: 32px; background: #fff; border: 1px solid var(--rr-parchment); border-radius: 6px; box-shadow: var(--shadow-md); padding: 18px; width: 540px; }
+  .grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 16px; }
+  .feature { background: linear-gradient(135deg, var(--rr-navy-800), var(--rr-navy-600)); color: var(--rr-warm-white); border-radius: 6px; padding: 18px; display: flex; flex-direction: column; gap: 8px; }
+  .feature .meta { font-size: .68rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--rr-steel-300); }
+  .feature .ttl  { font-family: var(--font-display); font-weight: 700; font-size: 1.1rem; letter-spacing: -.01em; }
+  .feature .body { font-size: .82rem; line-height: 1.6; color: rgba(250,249,246,0.65); }
+  .links { display: flex; flex-direction: column; gap: 4px; }
+  .link  { padding: 8px 10px; border-radius: 4px; cursor: pointer; }
+  .link:hover { background: var(--rr-off-white); }
+  .link .ttl { font-weight: 600; font-size: .88rem; color: var(--rr-ink); }
+  .link .sub { font-size: .72rem; color: var(--rr-slate-dark); margin-top: 2px; }
+</style></head><body>
+<div class="nav">
+  <div class="nav-item active">Care
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+  </div>
+  <div class="nav-item">Operations</div>
+  <div class="nav-item">Insights</div>
+  <div class="nav-item">Settings</div>
+</div>
+<div class="panel">
+  <div class="grid">
+    <div class="feature">
+      <div class="meta">Pillar One · The Schedule</div>
+      <div class="ttl">Operatory at a glance</div>
+      <div class="body">Today's chairs, conflicts, and recall windows in one view. Drag to reschedule.</div>
+    </div>
+    <div class="links">
+      <div class="link"><div class="ttl">Patients</div><div class="sub">Roster · search · merge</div></div>
+      <div class="link"><div class="ttl">Schedule</div><div class="sub">Day · week · operatory</div></div>
+      <div class="link"><div class="ttl">Treatment plans</div><div class="sub">Drafts · presented · accepted</div></div>
+      <div class="link"><div class="ttl">Lab cases</div><div class="sub">Active · returned · seated</div></div>
+    </div>
+  </div>
+</div>
+</body></html>

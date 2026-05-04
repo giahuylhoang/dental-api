@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Date Picker · Rockyridge Dental AI</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { padding: 32px; background: hsl(var(--background)); font-family: var(--font-ui); }
+  .wrap { display: grid; grid-template-columns: 280px 320px; gap: 32px; align-items: start; }
+  .lbl { font-size: .82rem; font-weight: 600; color: var(--rr-ink); margin-bottom: 6px; display: block; }
+  .trigger { width: 100%; background: #fff; border: 1.5px solid var(--rr-mist); border-radius: 6px; padding: 10px 14px; font-size: .9rem; display: flex; align-items: center; gap: 8px; cursor: pointer; }
+  .trigger.open { border-color: hsl(var(--ring)); box-shadow: var(--shadow-ring); }
+  .cal { background: #fff; border: 1px solid var(--rr-parchment); border-radius: 6px; padding: 14px; box-shadow: var(--shadow-md); }
+  .cal-h { display: flex; justify-content: space-between; align-items: center; padding: 0 4px 8px; }
+  .cal-h-title { font-weight: 600; font-size: .9rem; color: var(--rr-ink); }
+  .cal-h button { width: 28px; height: 28px; background: none; border: none; cursor: pointer; border-radius: 4px; color: var(--rr-slate-dark); }
+  .cal-h button:hover { background: var(--rr-off-white); color: var(--rr-ink); }
+  .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+  .dow { font-size: .68rem; font-weight: 600; letter-spacing: .04em; color: var(--rr-slate-dark); padding: 6px 0; text-align: center; text-transform: uppercase; }
+  .day { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; border-radius: 4px; font-size: .82rem; color: var(--rr-ink); cursor: pointer; }
+  .day:hover { background: var(--rr-steel-050); }
+  .day.muted { color: var(--rr-mist); }
+  .day.today { font-weight: 700; box-shadow: inset 0 0 0 1.5px var(--rr-steel-300); }
+  .day.selected { background: hsl(var(--primary)); color: #fff; font-weight: 600; }
+  .day.in-range { background: var(--rr-steel-100); color: var(--rr-steel-600); border-radius: 0; }
+</style></head><body>
+<div class="wrap">
+  <div>
+    <span class="lbl">Appointment date</span>
+    <div class="trigger open">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <span>2026-05-04</span>
+    </div>
+  </div>
+  <div class="cal">
+    <div class="cal-h"><button>‹</button><div class="cal-h-title">May 2026</div><button>›</button></div>
+    <div class="grid">
+      <div class="dow">M</div><div class="dow">T</div><div class="dow">W</div><div class="dow">T</div><div class="dow">F</div><div class="dow">S</div><div class="dow">S</div>
+      <div class="day muted">28</div><div class="day muted">29</div><div class="day muted">30</div><div class="day">1</div><div class="day">2</div><div class="day">3</div>
+      <div class="day selected">4</div><div class="day in-range">5</div><div class="day in-range">6</div><div class="day in-range">7</div><div class="day">8</div><div class="day">9</div><div class="day">10</div>
+      <div class="day">11</div><div class="day today">12</div><div class="day">13</div><div class="day">14</div><div class="day">15</div><div class="day">16</div><div class="day">17</div>
+      <div class="day">18</div><div class="day">19</div><div class="day">20</div><div class="day">21</div><div class="day">22</div><div class="day">23</div><div class="day">24</div>
+      <div class="day">25</div><div class="day">26</div><div class="day">27</div><div class="day">28</div><div class="day">29</div><div class="day">30</div><div class="day">31</div>
+    </div>
+  </div>
+</div>
+</body></html>

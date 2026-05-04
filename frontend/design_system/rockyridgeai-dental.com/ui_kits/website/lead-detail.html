@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en" class="">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lead Detail · Rockyridge Dental AI</title>
+<link rel="stylesheet" href="../../colors_and_type.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin></script>
+<style>
+  html, body { margin: 0; }
+  body { background: var(--rr-warm-white); min-height: 100vh; }
+  .shell { display: flex; min-height: 100vh; }
+  .stage { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .stage > .body { padding: 28px 32px; display: flex; flex-direction: column; gap: 24px; }
+  .panel { background: #fff; border: 1px solid var(--rr-parchment); border-radius: 6px; padding: 22px 24px; box-shadow: var(--shadow-xs); }
+  .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .panel-h-title { font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; color: var(--rr-navy-800); }
+  .tab-bar { display: flex; gap: 0; border-bottom: 1px solid var(--rr-parchment); margin-bottom: 18px; }
+  .tab-btn { background: none; border: none; border-bottom: 2px solid transparent; padding: 10px 16px; font-family: var(--font-ui); font-size: .82rem; font-weight: 500; color: var(--rr-slate-dark); cursor: pointer; }
+  .tab-btn.active { color: hsl(var(--primary)); border-bottom-color: hsl(var(--primary)); font-weight: 600; }
+  .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+  .lbl { font-family: var(--font-ui); font-size: .78rem; font-weight: 600; color: var(--rr-ink); }
+  .d-input { font-family: var(--font-ui); font-size: .9rem; padding: 10px 12px; border: 1.5px solid var(--rr-mist); border-radius: 6px; width: 100%; box-sizing: border-box; background: #fff; color: var(--rr-ink); }
+  .d-input:focus { border-color: hsl(var(--ring)); outline: none; }
+  .d-textarea { font-family: var(--font-ui); font-size: .9rem; padding: 10px 12px; border: 1.5px solid var(--rr-mist); border-radius: 6px; width: 100%; box-sizing: border-box; min-height: 72px; resize: vertical; background: #fff; color: var(--rr-ink); }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .pill { font-size: .66rem; font-weight: 600; padding: 3px 10px; border-radius: 999px; letter-spacing: .06em; text-transform: uppercase; display: inline-block; }
+  .pill-NEW       { background: #D9EAF5; color: #2E6494; }
+  .pill-CONTACTED { background: #FDF3E5; color: #B45309; }
+  .pill-QUALIFIED { background: #E8F5EE; color: #2A7D4F; }
+  .pill-CONVERTED { background: #E8F5EE; color: #2A7D4F; }
+  .pill-LOST      { background: #F8E5E8; color: #9B2335; }
+  .id-cell { font-family: var(--font-mono); font-size: .76rem; color: var(--rr-slate-dark); }
+  .activity-row { display: flex; gap: 12; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid var(--rr-parchment); }
+  .activity-row:last-child { border-bottom: none; }
+  .act-icon { width: 28px; height: 28px; border-radius: 999px; display: flex; align-items: center; justify-content: center; font-size: .72rem; font-weight: 700; flex-shrink: 0; }
+  .kind-note    { background: #F5F2EC; color: '#4A5568'; }
+  .kind-call    { background: #E8F5EE; color: '#2A7D4F'; }
+  .kind-email   { background: #D9EAF5; color: '#2E6494'; }
+  .kind-sms     { background: #FDF3E5; color: '#B45309'; }
+  .kind-meeting { background: #D9EAF5; color: '#2E6494'; }
+  .kind-status_change { background: '#F5F2EC'; color: '#4A5568'; }
+  .compose-strip { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+  .kind-chip { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--rr-parchment); background: #fff; font-family: var(--font-ui); font-size: .76rem; font-weight: 500; cursor: pointer; color: var(--rr-slate-dark); }
+  .kind-chip.active { background: hsl(var(--primary)); color: #fff; border-color: hsl(var(--primary)); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="../../lib/query.js"></script>
+<script type="text/babel" src="Sidebar.jsx"></script>
+<script type="text/babel" src="TopBar.jsx"></script>
+<script type="text/babel" src="EmptyState.jsx"></script>
+<script type="text/babel">
+window.RRD.requireSession?.();
+
+const FALLBACK_LEADS = [
+  { id: 'L-001', first_name: 'Rae', last_name: 'Tomlinson', status: 'QUALIFIED', phone: '+1 403 555 0191', email: 'rae@example.com', source: 'referral', owner: 'Hau Le', notes: 'Interested in full upper denture. Has Alberta Blue Cross.' },
+  { id: 'L-002', first_name: 'Tom', last_name: 'Brennan',   status: 'CONTACTED', phone: '+1 403 555 0182', email: 'tom@example.com', source: 'website',  owner: 'Mia Tran',  notes: 'Called twice, left voicemail.' },
+];
+
+const DEMO_ACTIVITIES = [
+  { kind: 'note',    body: 'Interested in full upper denture. Sent brochure.',  when: '2026-04-28 14:10', user: 'Hau Le' },
+  { kind: 'call',    body: 'Spoke for 8 min. Confirmed insurance coverage.',    when: '2026-04-25 10:30', user: 'Hau Le' },
+  { kind: 'email',   body: 'Sent Invisalign quote PDF.',                        when: '2026-04-22 09:00', user: 'Mia Tran' },
+  { kind: 'sms',     body: 'Reminder: appointment tomorrow at 9am.',            when: '2026-04-20 16:00', user: 'System' },
+  { kind: 'status_change', body: 'Status changed: NEW → QUALIFIED',            when: '2026-04-18 11:00', user: 'Hau Le' },
+];
+
+const KIND_LABEL = { note: 'N', call: 'C', email: 'E', sms: 'S', meeting: 'M', status_change: '→' };
+const KIND_BG    = { note: '#F5F2EC', call: '#E8F5EE', email: '#D9EAF5', sms: '#FDF3E5', meeting: '#D9EAF5', status_change: '#F5F2EC' };
+const KIND_FG    = { note: '#4A5568', call: '#2A7D4F', email: '#2E6494', sms: '#B45309', meeting: '#2E6494', status_change: '#4A5568' };
+
+const LeadDetailPage = () => {
+  const id = window.RRD.query('id');
+  const collection = (typeof window.LEADS !== 'undefined' && window.LEADS) || FALLBACK_LEADS;
+  const lead = id ? window.RRD.findById(collection, id) : collection[0];
+  const [tab, setTab] = React.useState(0);
+  const [composeKind, setComposeKind] = React.useState('note');
+
+  if (!lead) return (
+    <div className="shell">
+      <Sidebar active="crm" />
+      <div className="stage">
+        <TopBar breadcrumb={['CRM','Not found']} />
+        <div className="body"><EmptyState icon="users" title="Lead not found" sub="No lead matches this ID." /></div>
+      </div>
+    </div>
+  );
+
+  const initials = `${lead.first_name[0]}${lead.last_name[0]}`;
+  const fullName = `${lead.first_name} ${lead.last_name}`;
+  const activities = (typeof window.LEAD_ACTIVITIES !== 'undefined' && window.LEAD_ACTIVITIES) || DEMO_ACTIVITIES;
+
+  return (
+    <div className="shell">
+      <Sidebar active="crm" />
+      <div className="stage">
+        <TopBar breadcrumb={['CRM', fullName]} />
+        <div className="body">
+          {/* Header */}
+          <div className="panel" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div style={{ width: 48, height: 48, borderRadius: 999, background: 'hsl(var(--primary))', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1rem', flexShrink: 0 }}>{initials}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.4rem', color: 'var(--rr-navy-800)', letterSpacing: '-.02em' }}>{fullName}</div>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 4, flexWrap: 'wrap' }}>
+                <span className={`pill pill-${lead.status}`}>{lead.status}</span>
+                <span className="id-cell">{lead.phone}</span>
+                <span style={{ fontFamily: 'var(--font-ui)', fontSize: '.82rem', color: 'var(--rr-slate-dark)' }}>{lead.email}</span>
+                <span className="pill" style={{ background: 'var(--rr-mist)', color: 'var(--rr-steel-700)' }}>{lead.source}</span>
+                <span style={{ fontFamily: 'var(--font-ui)', fontSize: '.82rem', color: 'var(--rr-slate-dark)' }}>Owner: {lead.owner}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div className="panel" style={{ padding: 0 }}>
+            <div className="tab-bar" style={{ padding: '0 24px' }}>
+              {['Detail','Activities','Convert'].map((t, i) => (
+                <button key={t} className={`tab-btn${tab === i ? ' active' : ''}`} onClick={() => setTab(i)}>{t}</button>
+              ))}
+            </div>
+            <div style={{ padding: '24px' }}>
+              {tab === 0 && (
+                <div style={{ maxWidth: 560 }}>
+                  <div className="field-row">
+                    <div className="field"><label className="lbl">First name</label><input className="d-input" defaultValue={lead.first_name} /></div>
+                    <div className="field"><label className="lbl">Last name</label><input className="d-input" defaultValue={lead.last_name} /></div>
+                  </div>
+                  <div className="field-row">
+                    <div className="field"><label className="lbl">Phone</label><input className="d-input" style={{ fontFamily: 'var(--font-mono)' }} defaultValue={lead.phone} /></div>
+                    <div className="field"><label className="lbl">Email</label><input className="d-input" defaultValue={lead.email} /></div>
+                  </div>
+                  <div className="field-row">
+                    <div className="field">
+                      <label className="lbl">Status</label>
+                      <select className="d-input" defaultValue={lead.status}>
+                        {['NEW','CONTACTED','QUALIFIED','CONVERTED','LOST'].map(s => <option key={s}>{s}</option>)}
+                      </select>
+                    </div>
+                    <div className="field">
+                      <label className="lbl">Owner</label>
+                      <input className="d-input" defaultValue={lead.owner} />
+                    </div>
+                  </div>
+                  <div className="field"><label className="lbl">Notes</label><textarea className="d-textarea" defaultValue={lead.notes} /></div>
+                  <button className="btn btn-primary btn-sm">Save</button>
+                </div>
+              )}
+
+              {tab === 1 && (
+                <div>
+                  <div className="compose-strip">
+                    {['note','call','email','sms','meeting'].map(k => (
+                      <button key={k} className={`kind-chip${composeKind === k ? ' active' : ''}`} onClick={() => setComposeKind(k)}>{k}</button>
+                    ))}
+                  </div>
+                  <div style={{ marginBottom: 18 }}>
+                    <textarea className="d-textarea" placeholder={`Add a ${composeKind}…`} style={{ marginBottom: 8 }} />
+                    <button className="btn btn-primary btn-sm">Log {composeKind}</button>
+                  </div>
+                  <div>
+                    {activities.map((a, i) => (
+                      <div key={i} className="activity-row" style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '12px 0', borderBottom: i < activities.length - 1 ? '1px solid var(--rr-parchment)' : 'none' }}>
+                        <div style={{ width: 28, height: 28, borderRadius: 999, background: KIND_BG[a.kind], color: KIND_FG[a.kind], display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-mono)', fontSize: '.72rem', fontWeight: 700, flexShrink: 0 }}>{KIND_LABEL[a.kind]}</div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontFamily: 'var(--font-ui)', fontSize: '.88rem', color: 'var(--rr-ink)' }}>{a.body}</div>
+                          <div style={{ fontFamily: 'var(--font-ui)', fontSize: '.72rem', color: 'var(--rr-slate-dark)', marginTop: 2 }}>{a.user} · <span className="id-cell">{a.when}</span></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {tab === 2 && (
+                <div style={{ maxWidth: 560 }}>
+                  <div style={{ fontFamily: 'var(--font-ui)', fontSize: '.82rem', color: 'var(--rr-slate-dark)', marginBottom: 18 }}>Convert this lead to a patient and book their first appointment.</div>
+                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '.95rem', color: 'var(--rr-navy-800)', marginBottom: 12 }}>Insurance</div>
+                  <div className="field-row">
+                    <div className="field"><label className="lbl">Carrier</label><input className="d-input" placeholder="Alberta Blue Cross" /></div>
+                    <div className="field"><label className="lbl">Policy #</label><input className="d-input" style={{ fontFamily: 'var(--font-mono)' }} placeholder="POL-XXXXX" /></div>
+                  </div>
+                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '.95rem', color: 'var(--rr-navy-800)', margin: '18px 0 12px' }}>First appointment</div>
+                  <div className="field-row">
+                    <div className="field"><label className="lbl">Date</label><input className="d-input" type="date" /></div>
+                    <div className="field"><label className="lbl">Provider</label><input className="d-input" defaultValue="Dr. Hau Le" /></div>
+                  </div>
+                  <div className="field"><label className="lbl">Service</label><input className="d-input" placeholder="Initial consultation" /></div>
+                  <button className="btn btn-primary" style={{ marginTop: 8 }}>Create patient + appointment</button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div style={{ textAlign: 'center', padding: '20px 0', fontFamily: "'Inter', sans-serif", fontSize: '.72rem', color: 'var(--rr-slate)', letterSpacing: '.06em' }}>
+            ROCKYRIDGE · DENTAL AI · v1
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<LeadDetailPage />);
+</script>
+</body>
+</html>

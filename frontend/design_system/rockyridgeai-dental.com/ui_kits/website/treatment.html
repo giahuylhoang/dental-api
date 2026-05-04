@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Treatment · Rockyridge Dental AI</title>
+<link rel="stylesheet" href="../../colors_and_type.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin></script>
+<style>
+  html, body { margin: 0; }
+  body { background: var(--rr-warm-white); min-height: 100vh; }
+  .shell { display: flex; min-height: 100vh; }
+  .stage { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .stage > .body { padding: 24px 28px; display: flex; flex-direction: column; gap: 18px; }
+  .page-title { font-family: var(--font-display); font-weight: 800; font-size: 1.6rem; color: var(--rr-navy-800); letter-spacing: -.025em; margin: 0; }
+  .page-sub { font-family: var(--font-ui); font-size: .82rem; color: var(--rr-slate-dark); }
+  .panel { background: #fff; border: 1px solid var(--rr-parchment); border-radius: 6px; padding: 22px 24px; box-shadow: var(--shadow-xs); }
+  .panel-pad-sm { padding: 16px 18px; }
+  .panel-h-title { font-family: var(--font-display); font-weight: 700; font-size: 1rem; color: var(--rr-navy-800); }
+  .panel-h-sub { font-family: var(--font-ui); font-size: .72rem; color: var(--rr-slate-dark); margin-top: 2px; }
+  .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .panel-h-action { font-family: var(--font-ui); font-size: .82rem; color: hsl(var(--primary)); cursor: pointer; }
+
+  .ctx-row { display: grid; grid-template-columns: 64px 1fr auto; gap: 18px; align-items: center; }
+  .ctx-avatar { width: 64px; height: 64px; border-radius: 999px; background: #3A7FBD; color: #fff; display: flex; align-items: center; justify-content: center; font-family: 'Inter', sans-serif; font-weight: 700; font-size: 1.4rem; }
+  .ctx-name { font-family: var(--font-display); font-weight: 700; font-size: 1.4rem; color: var(--rr-navy-800); margin: 0; }
+  .ctx-meta { font-family: var(--font-mono); font-size: .78rem; color: var(--rr-slate-dark); margin-top: 4px; display: flex; gap: 14px; }
+  .ctx-tabs { display: flex; gap: 0; border-top: 1px solid var(--rr-parchment); margin-top: 18px; padding-top: 0; }
+  .ctx-tab { padding: 14px 18px; font-family: var(--font-ui); font-size: .85rem; color: var(--rr-slate-dark); cursor: pointer; border-bottom: 2px solid transparent; }
+  .ctx-tab.active { color: var(--rr-navy-800); border-bottom-color: var(--rr-steel-500); font-weight: 600; }
+
+  .phase-card { border: 1px solid var(--rr-parchment); border-radius: 6px; overflow: hidden; }
+  .phase-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; background: var(--rr-warm-white); border-bottom: 1px solid var(--rr-parchment); }
+  .phase-head .label { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-weight: 700; font-size: .92rem; color: var(--rr-navy-800); }
+  .phase-num { width: 24px; height: 24px; border-radius: 999px; background: var(--rr-navy-800); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-ui); font-size: .78rem; font-weight: 600; }
+  .phase-num.done { background: #2A7D4F; }
+  .phase-num.next { background: var(--rr-steel-500); }
+  table.lines { width: 100%; border-collapse: collapse; font-family: var(--font-ui); font-size: .85rem; }
+  table.lines th { text-align: left; padding: 10px 18px; color: var(--rr-slate-dark); font-size: .66rem; letter-spacing: .08em; text-transform: uppercase; border-bottom: 1px solid var(--rr-parchment); font-weight: 600; }
+  table.lines td { padding: 12px 18px; border-bottom: 1px solid var(--rr-parchment); }
+  table.lines tr:last-child td { border-bottom: none; }
+  .code { font-family: var(--font-mono); font-size: .78rem; color: var(--rr-slate-dark); }
+  .pill { font-size: .66rem; font-weight: 600; padding: 3px 10px; border-radius: 999px; letter-spacing: .06em; text-transform: uppercase; display: inline-block; }
+  .pill-done    { background: #E8F5EE; color: #2A7D4F; }
+  .pill-progress{ background: #FDF3E5; color: #B45309; }
+  .pill-planned { background: #F5F2EC; color: #4A5568; }
+  .row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--rr-parchment); font-family: var(--font-ui); font-size: .82rem; color: var(--rr-ink); }
+  .row:last-child { border: none; }
+  .progress-track { height: 6px; background: var(--rr-parchment); border-radius: 999px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--rr-steel-500); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="Sidebar.jsx"></script>
+<script type="text/babel" src="TopBar.jsx"></script>
+<script type="text/babel" src="ToothChartTile.jsx"></script>
+
+<script src="../../data/patients.js"></script>
+
+<script type="text/babel">
+window.RRD.requireSession?.();
+const PATIENT = window.PATIENTS.find(p => p.id === 'P-018501') || window.PATIENTS[0]; // Priya Khanna
+
+const PHASES = [
+  {
+    id: 1, label: 'Phase 1 · Stabilisation', state: 'done', total: 1240.00,
+    sub: 'Completed Apr 14 · Insurance settled',
+    items: [
+      { date: '2026-03-04', code: 'D2391', tooth: '#36 MO', desc: 'Composite · two surface, posterior',         provider: 'Dr Hau Le', fee: 285.00, status: 'done' },
+      { date: '2026-03-04', code: 'D2392', tooth: '#37 OL', desc: 'Composite · two surface, posterior',         provider: 'Dr Hau Le', fee: 285.00, status: 'done' },
+      { date: '2026-03-21', code: 'D1110', tooth: 'Full',   desc: 'Adult prophylaxis · scaling + polish',        provider: 'Hyg. Renu', fee: 145.00, status: 'done' },
+      { date: '2026-04-14', code: 'D2740', tooth: '#36',    desc: 'Crown · porcelain/ceramic — preparation',     provider: 'Dr Hau Le', fee: 525.00, status: 'done' },
+    ]
+  },
+  {
+    id: 2, label: 'Phase 2 · Restorative', state: 'progress', total: 1685.00,
+    sub: 'In progress · 1 of 3 visits booked',
+    items: [
+      { date: '2026-05-04', code: 'D2740', tooth: '#36',    desc: 'Crown · porcelain/ceramic — seat',            provider: 'Dr Hau Le', fee: 925.00, status: 'progress' },
+      { date: 'TBD',        code: 'D2391', tooth: '#14 MO', desc: 'Composite · two surface, posterior',          provider: 'Dr Hau Le', fee: 285.00, status: 'planned' },
+      { date: 'TBD',        code: 'D7140', tooth: '#48',    desc: 'Extraction · erupted tooth',                  provider: 'Dr Sara Lim',fee: 475.00, status: 'planned' },
+    ]
+  },
+  {
+    id: 3, label: 'Phase 3 · Maintenance', state: 'planned', total: 320.00,
+    sub: 'Scheduled in 6 months',
+    items: [
+      { date: 'TBD', code: 'D1110', tooth: 'Full', desc: 'Adult prophylaxis · 6-month recall',                   provider: 'Hyg. Renu', fee: 175.00, status: 'planned' },
+      { date: 'TBD', code: 'D0274', tooth: 'Full', desc: 'Bitewings · four films',                               provider: 'Hyg. Renu', fee: 145.00, status: 'planned' },
+    ]
+  },
+];
+
+const STATUS = {
+  done:     { cls: 'pill pill-done',     label: 'Completed' },
+  progress: { cls: 'pill pill-progress', label: 'In progress' },
+  planned:  { cls: 'pill pill-planned',  label: 'Planned' },
+};
+
+const TreatmentPage = () => (
+  <div className="shell">
+    <Sidebar active="plans" />
+    <div className="stage">
+      <TopBar clinicName="Oak Dental · Calgary" breadcrumb={['Patients', `${PATIENT.first} ${PATIENT.last}`, 'Treatment plan']} />
+      <div className="body">
+
+        <div className="panel" style={{ paddingBottom: 0 }}>
+          <div className="ctx-row">
+            <a href={`patient-detail.html?id=${PATIENT.id}`} style={{ textDecoration: 'none' }}>
+              <div className="ctx-avatar">{(PATIENT.first[0] + PATIENT.last[0]).toUpperCase()}</div>
+            </a>
+            <div>
+              <h1 className="ctx-name">{PATIENT.first} {PATIENT.last}</h1>
+              <div className="ctx-meta">
+                <span>{PATIENT.id}</span>
+                <span>· DOB {PATIENT.dob}</span>
+                <span style={{ fontFamily: "'Inter', sans-serif", color: '#4A5568' }}>· {PATIENT.insurance}</span>
+                <span style={{ fontFamily: "'Inter', sans-serif", color: '#4A5568' }}>· Last visit {PATIENT.last_visit}</span>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button className="btn btn-ghost btn-md">Print plan</button>
+              <button className="btn btn-ghost btn-md">Send to patient</button>
+              <button className="btn btn-primary btn-md">+ Add procedure</button>
+            </div>
+          </div>
+          <div className="ctx-tabs">
+            {['Overview', 'Treatment plan', 'Tooth chart', 'Notes', 'Imaging', 'Insurance', 'Ledger'].map((t, i) => (
+              <span key={t} className={`ctx-tab${i === 1 ? ' active' : ''}`}>{t}</span>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 18, alignItems: 'flex-start' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div className="panel">
+              <div className="panel-header">
+                <div>
+                  <div className="panel-h-title">Treatment plan</div>
+                  <div className="panel-h-sub">3 phases · ${PHASES.reduce((s, p) => s + p.total, 0).toFixed(2)} total · created Feb 18 · last edited Apr 30</div>
+                </div>
+                <a className="panel-h-action" href="plans.html">Edit phases →</a>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {PHASES.map(ph => (
+                  <div key={ph.id} className="phase-card">
+                    <div className="phase-head">
+                      <div className="label">
+                        <span className={`phase-num ${ph.state === 'done' ? 'done' : ph.state === 'progress' ? 'next' : ''}`}>{ph.id}</span>
+                        <span>{ph.label}</span>
+                        <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 400, fontSize: '.74rem', color: '#8A9BB0' }}>· {ph.sub}</span>
+                      </div>
+                      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '.85rem', color: '#0A192F', fontWeight: 600 }}>${ph.total.toFixed(2)}</span>
+                    </div>
+                    <table className="lines">
+                      <thead>
+                        <tr>
+                          <th>Date</th>
+                          <th>Code</th>
+                          <th>Tooth</th>
+                          <th>Procedure</th>
+                          <th>Provider</th>
+                          <th style={{ textAlign: 'right' }}>Fee</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {ph.items.map((it, i) => (
+                          <tr key={i}>
+                            <td className="code">{it.date}</td>
+                            <td className="code" style={{ color: '#3A7FBD', fontWeight: 600 }}>{it.code}</td>
+                            <td className="code">{it.tooth}</td>
+                            <td>{it.desc}</td>
+                            <td style={{ color: '#4A5568' }}>{it.provider}</td>
+                            <td style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace" }}>${it.fee.toFixed(2)}</td>
+                            <td><span className={STATUS[it.status].cls}>{STATUS[it.status].label}</span></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <ToothChartTile />
+
+            <div className="panel">
+              <div className="panel-header">
+                <div>
+                  <div className="panel-h-title">Plan financials</div>
+                  <div className="panel-h-sub">Estimated split · pending insurance pre-auth</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.82rem', marginBottom: 6 }}>
+                    <span style={{ color: '#4A5568' }}>Phase 1 · Stabilisation</span>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", color: '#2A7D4F', fontWeight: 600 }}>$1,240.00 · paid</span>
+                  </div>
+                  <div className="progress-track"><div className="progress-fill" style={{ width: '100%', background: '#2A7D4F' }} /></div>
+                </div>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.82rem', marginBottom: 6 }}>
+                    <span style={{ color: '#4A5568' }}>Phase 2 · Restorative</span>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", color: '#B45309', fontWeight: 600 }}>$1,685.00 · 35%</span>
+                  </div>
+                  <div className="progress-track"><div className="progress-fill" style={{ width: '35%' }} /></div>
+                </div>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.82rem', marginBottom: 6 }}>
+                    <span style={{ color: '#4A5568' }}>Phase 3 · Maintenance</span>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", color: '#8A9BB0', fontWeight: 600 }}>$320.00 · 0%</span>
+                  </div>
+                  <div className="progress-track"><div className="progress-fill" style={{ width: '0%' }} /></div>
+                </div>
+                <div className="row">
+                  <span>Plan total</span>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, color: '#0A192F' }}>${PHASES.reduce((s, p) => s + p.total, 0).toFixed(2)}</span>
+                </div>
+                <div className="row">
+                  <span>Estimated insurance</span>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", color: '#3A7FBD' }}>– $1,830.00</span>
+                </div>
+                <div className="row" style={{ fontWeight: 600 }}>
+                  <span>Patient portion</span>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", color: '#0A192F', fontSize: '1rem' }}>$1,415.00</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="panel">
+              <div className="panel-header">
+                <div>
+                  <div className="panel-h-title">Recent clinical notes</div>
+                  <div className="panel-h-sub">Latest 3 entries</div>
+                </div>
+                <a className="panel-h-action" href="plans.html">All notes →</a>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {[
+                  { date: '2026-04-30', author: 'Dr Hau Le',  text: 'Crown #36 prep — clean margins, packed cord, impression sent to Pinnacle. Temp seated with TempBond.' },
+                  { date: '2026-04-14', author: 'Hyg. Renu',  text: 'Hygiene · scaling 2/4 quads. Mild gingivitis lower anteriors. Discussed flossing technique.' },
+                  { date: '2026-03-21', author: 'Dr Hau Le',  text: 'Composites #36, #37 placed. Bite checked, occlusion verified. No post-op symptoms expected.' },
+                ].map((n, i) => (
+                  <div key={i} style={{ borderLeft: '2px solid var(--rr-steel-200)', paddingLeft: 12 }}>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '.7rem', color: '#8A9BB0' }}>{n.date} · {n.author}</div>
+                    <div style={{ fontFamily: "'Inter', sans-serif", fontSize: '.84rem', color: '#1C2333', marginTop: 3, lineHeight: 1.5 }}>{n.text}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ textAlign: 'center', padding: '20px 0', fontFamily: "'Inter', sans-serif", fontSize: '.72rem', color: 'var(--rr-slate)', letterSpacing: '.06em' }}>
+          ROCKYRIDGE · DENTAL AI · v1
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+ReactDOM.createRoot(document.getElementById('root')).render(<TreatmentPage />);
+</script>
+</body>
+</html>

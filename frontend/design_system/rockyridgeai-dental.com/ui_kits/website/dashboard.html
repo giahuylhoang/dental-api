@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard · Rockyridge Dental AI</title>
+<link rel="stylesheet" href="../../colors_and_type.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin></script>
+<style>
+  html, body { margin: 0; }
+  body { background: var(--rr-warm-white); min-height: 100vh; }
+  .shell { display: flex; min-height: 100vh; }
+  .stage { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .stage > .body { padding: 28px 32px; display: flex; flex-direction: column; gap: 24px; }
+  .page-header { display: flex; justify-content: space-between; align-items: center; }
+  .page-title { font-family: var(--font-display); font-weight: 800; font-size: 1.8rem; color: var(--rr-navy-800); letter-spacing: -.025em; margin: 0 0 4px; }
+  .page-sub   { font-family: var(--font-ui); font-size: .88rem; color: var(--rr-slate-dark); }
+  .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .grid-2 { display: grid; grid-template-columns: 1.4fr 1fr; gap: 18px; }
+  .panel { background: #fff; border: 1px solid var(--rr-parchment); border-radius: 6px; padding: 22px 24px; box-shadow: var(--shadow-xs); }
+  .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .panel-h-title { font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; color: var(--rr-navy-800); }
+  .panel-h-sub { font-family: var(--font-ui); font-size: .72rem; color: var(--rr-slate-dark); margin-top: 2px; }
+  .panel-h-action { font-family: var(--font-ui); font-size: .82rem; color: hsl(var(--primary)); text-decoration: none; cursor: pointer; }
+  .stack { display: flex; flex-direction: column; gap: 10px; }
+  .recent-table { font-family: var(--font-ui); font-size: .85rem; width: 100%; border-collapse: collapse; }
+  .recent-table th { text-align: left; padding: 10px 14px; color: var(--rr-slate-dark); font-size: .68rem; letter-spacing: .08em; text-transform: uppercase; border-bottom: 1px solid var(--rr-parchment); font-weight: 600; }
+  .recent-table td { padding: 12px 14px; border-bottom: 1px solid var(--rr-parchment); }
+  .recent-table tr:last-child td { border-bottom: none; }
+  .recent-table .id { font-family: var(--font-mono); font-size: .76rem; color: var(--rr-slate-dark); }
+
+  /* Drawer */
+  .drawer-overlay { position: fixed; inset: 0; background: rgba(10,25,47,0.4); z-index: 40; }
+  .drawer { position: fixed; top: 0; bottom: 0; right: 0; width: min(560px,100%); background: #fff; box-shadow: var(--shadow-xl); display: flex; flex-direction: column; z-index: 50; animation: slideIn 350ms cubic-bezier(0.16,1,0.3,1); }
+  @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+  .drawer-header { padding: 22px 28px; border-bottom: 1px solid var(--rr-parchment); display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+  .drawer-meta { font-size: .68rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: hsl(var(--primary)); }
+  .drawer-title { font-family: var(--font-display); font-weight: 700; font-size: 1.4rem; color: var(--rr-navy-800); letter-spacing: -.02em; margin: 4px 0 6px; }
+  .drawer-sub { font-size: .82rem; color: var(--rr-slate-dark); }
+  .drawer-body { flex: 1; padding: 22px 28px; overflow-y: auto; display: flex; flex-direction: column; gap: 18px; }
+  .drawer-footer { padding: 16px 28px; border-top: 1px solid var(--rr-parchment); display: flex; gap: 10px; justify-content: flex-end; background: var(--rr-off-white); }
+  .drawer-x { background: none; border: none; cursor: pointer; padding: 6px; color: var(--rr-slate-dark); border-radius: 4px; }
+  .drawer-x:hover { background: var(--rr-off-white); color: var(--rr-ink); }
+
+  /* Form fields */
+  .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+  .field:last-child { margin-bottom: 0; }
+  .lbl { font-family: var(--font-ui); font-size: .78rem; font-weight: 600; color: var(--rr-ink); }
+  .d-input { font-family: var(--font-ui); font-size: .9rem; padding: 10px 12px; border: 1.5px solid var(--rr-mist); border-radius: 6px; width: 100%; box-sizing: border-box; background: #fff; color: var(--rr-ink); }
+  .d-input:focus { border-color: hsl(var(--ring)); box-shadow: var(--shadow-ring); outline: none; }
+  .d-textarea { font-family: var(--font-ui); font-size: .9rem; padding: 10px 12px; border: 1.5px solid var(--rr-mist); border-radius: 6px; width: 100%; box-sizing: border-box; min-height: 80px; resize: vertical; background: #fff; color: var(--rr-ink); }
+  .d-textarea:focus { border-color: hsl(var(--ring)); box-shadow: var(--shadow-ring); outline: none; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+  .search-select { position: relative; }
+  .search-results { position: absolute; top: 100%; left: 0; right: 0; z-index: 10; background: #fff; border: 1px solid var(--rr-parchment); border-radius: 6px; box-shadow: var(--shadow-md); margin-top: 4px; max-height: 200px; overflow-y: auto; }
+  .search-opt { display: flex; align-items: center; gap: 10px; padding: 8px 12px; cursor: pointer; font-family: var(--font-ui); font-size: .88rem; color: var(--rr-ink); }
+  .search-opt:hover { background: var(--rr-steel-050); }
+  .search-opt.selected { background: var(--rr-steel-100); font-weight: 600; }
+  .search-opt .search-sub { font-family: var(--font-mono); font-size: .7rem; color: var(--rr-slate-dark); margin-left: auto; }
+  .search-ava { width: 28px; height: 28px; border-radius: 999px; background: hsl(var(--primary)); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: .66rem; flex-shrink: 0; }
+  .field-label-row { display: flex; justify-content: space-between; align-items: center; }
+  .field-link { font-family: var(--font-ui); font-size: .75rem; color: hsl(var(--primary)); cursor: pointer; text-decoration: none; font-weight: 500; }
+  .field-link:hover { text-decoration: underline; }
+  .drawer-back { background: none; border: none; cursor: pointer; padding: 6px; color: var(--rr-slate-dark); border-radius: 4px; margin-right: 10px; display: inline-flex; align-items: center; }
+  .drawer-back:hover { background: var(--rr-off-white); color: var(--rr-ink); }
+
+  /* Inline expanded appointment card */
+  .appt-expanded { border-color: hsl(var(--primary)); box-shadow: var(--shadow-md); }
+  .appt-quick-actions { display: flex; gap: 8px; padding: 10px 16px 4px; border-top: 1px solid var(--rr-parchment); margin-top: 10px; grid-column: 1 / -1; }
+
+  /* Center modal overlay (reusable) */
+  @keyframes wsEnter { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+  .center-modal-backdrop { position: fixed; inset: 0; z-index: 40; background: rgba(10,25,47,0.4); display: flex; align-items: center; justify-content: center; }
+  .center-modal { background: #fff; border-radius: 6px; box-shadow: var(--shadow-xl); width: min(820px, 92vw); max-height: 88vh; display: flex; flex-direction: column; animation: wsEnter 400ms cubic-bezier(0.16, 1, 0.3, 1); }
+  .center-modal-topbar { padding: 14px 28px; border-bottom: 1px solid var(--rr-parchment); display: flex; align-items: center; background: #fff; border-radius: 6px 6px 0 0; }
+  .center-modal-topbar .back-label { font-family: var(--font-ui); font-size: .85rem; color: var(--rr-slate-dark); }
+  .center-modal-body { flex: 1; overflow-y: auto; padding: 28px 32px; display: flex; flex-direction: column; gap: 24px; }
+  .appt-ws-hero { background: #fff; border: 1px solid var(--rr-parchment); border-radius: 6px; padding: 22px 24px; display: grid; grid-template-columns: 48px 1fr auto; gap: 18px; align-items: center; box-shadow: var(--shadow-xs); }
+  .appt-ws-ava { width: 48px; height: 48px; border-radius: 999px; background: hsl(var(--primary)); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1rem; flex-shrink: 0; }
+  .appt-ws-info { display: flex; flex-direction: column; gap: 3px; }
+  .appt-ws-name { font-family: var(--font-display); font-weight: 700; font-size: 1.2rem; color: var(--rr-navy-800); }
+  .appt-ws-detail { font-family: var(--font-ui); font-size: .82rem; color: var(--rr-slate-dark); }
+  .appt-ws-id { font-family: var(--font-mono); font-size: .72rem; color: var(--rr-slate-dark); }
+  .appt-ws-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  /* Toast */
+  .toast-stack { position: fixed; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 10px; width: 360px; z-index: 60; }
+  .toast { background: #fff; border: 1px solid var(--rr-parchment); border-radius: 6px; padding: 12px 14px; box-shadow: var(--shadow-md); display: grid; grid-template-columns: 22px 1fr auto; gap: 12px; align-items: center; }
+  .toast.success { border-color: #BBE0CC; }
+  .toast .toast-ico { color: var(--rr-slate-dark); }
+  .toast.success .toast-ico { color: var(--rr-success); }
+  .toast .toast-body { font-family: var(--font-ui); font-size: .85rem; color: var(--rr-ink); line-height: 1.4; }
+  .toast .toast-detail { display: block; font-family: var(--font-mono); font-size: .68rem; color: var(--rr-slate-dark); margin-top: 2px; }
+  .toast .toast-x { background: none; border: none; cursor: pointer; padding: 4px; color: var(--rr-slate-dark); }
+
+  /* Command palette */
+  .cmd-overlay { position: fixed; inset: 0; background: rgba(10,25,47,0.4); z-index: 70; display: flex; align-items: flex-start; justify-content: center; padding-top: 80px; }
+  .cmd-palette { width: min(640px,100%); background: #fff; border: 1px solid var(--rr-parchment); border-radius: 8px; box-shadow: var(--shadow-xl); overflow: hidden; }
+  .cmd-input-wrap { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--rr-parchment); }
+  .cmd-input-wrap input { flex: 1; border: none; outline: none; font-family: var(--font-ui); font-size: 1rem; color: var(--rr-ink); background: transparent; }
+  .cmd-input-wrap input::placeholder { color: var(--rr-slate); }
+  .cmd-group { padding: 8px 0; border-bottom: 1px solid var(--rr-parchment); }
+  .cmd-group:last-child { border-bottom: none; }
+  .cmd-heading { padding: 4px 18px; font-family: var(--font-ui); font-size: .65rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--rr-slate); }
+  .cmd-item { display: grid; grid-template-columns: 28px 1fr auto; gap: 12px; align-items: center; padding: 7px 18px; cursor: pointer; font-family: var(--font-ui); }
+  .cmd-item:hover { background: var(--rr-steel-050); }
+  .cmd-item .cmd-ico { color: var(--rr-slate-dark); }
+  .cmd-item:hover .cmd-ico { color: hsl(var(--primary)); }
+  .cmd-item .cmd-name { font-size: .88rem; color: var(--rr-ink); }
+  .cmd-item .cmd-sub { font-family: var(--font-mono); font-size: .7rem; color: var(--rr-slate-dark); }
+  .cmd-footer { padding: 8px 14px; border-top: 1px solid var(--rr-parchment); display: flex; justify-content: flex-end; gap: 12px; font-family: var(--font-ui); font-size: .7rem; color: var(--rr-slate-dark); }
+  .cmd-ava { width: 24px; height: 24px; border-radius: 999px; background: hsl(var(--primary)); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-weight: 600; font-size: .62rem; }
+
+  /* Dropdown */
+  .dd-overlay { position: fixed; inset: 0; z-index: 55; }
+  .dd-menu { position: fixed; z-index: 56; background: #fff; border: 1px solid var(--rr-parchment); border-radius: 6px; padding: 6px; box-shadow: var(--shadow-md); min-width: 240px; }
+  .dd-head { padding: 6px 10px; }
+  .dd-name { font-family: var(--font-ui); font-weight: 600; font-size: .85rem; color: var(--rr-ink); }
+  .dd-sub { font-family: var(--font-mono); font-size: .7rem; color: var(--rr-slate-dark); }
+  .dd-sep { height: 1px; background: var(--rr-parchment); margin: 4px 0; }
+  .dd-item { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 4px; cursor: pointer; font-family: var(--font-ui); font-size: .85rem; color: var(--rr-ink); }
+  .dd-item:hover { background: var(--rr-steel-050); }
+  .dd-item .dd-ico { width: 16px; height: 16px; color: var(--rr-slate-dark); }
+  .dd-item:hover .dd-ico { color: hsl(var(--primary)); }
+
+  /* Notification items */
+  .notif-item { display: flex; gap: 10px; padding: 10px; border-radius: 4px; cursor: pointer; font-family: var(--font-ui); }
+  .notif-item:hover { background: var(--rr-steel-050); }
+  .notif-dot { width: 8px; height: 8px; border-radius: 999px; background: hsl(var(--primary)); flex-shrink: 0; margin-top: 6px; }
+  .notif-dot.read { background: var(--rr-mist); }
+  .notif-text { font-size: .82rem; color: var(--rr-ink); line-height: 1.4; }
+  .notif-time { font-family: var(--font-mono); font-size: .66rem; color: var(--rr-slate-dark); margin-top: 2px; }
+
+  /* Detail drawer rows */
+  .detail-row { display: grid; grid-template-columns: 120px 1fr; gap: 14px; padding: 10px 0; border-bottom: 1px solid var(--rr-parchment); }
+  .detail-row:last-child { border-bottom: none; }
+  .detail-k { font-family: var(--font-ui); font-size: .72rem; font-weight: 600; color: var(--rr-slate-dark); letter-spacing: .04em; text-transform: uppercase; padding-top: 2px; }
+  .detail-v { font-family: var(--font-ui); font-size: .9rem; color: var(--rr-ink); }
+
+  /* Clickable invoice rows */
+  .recent-table tbody tr { cursor: pointer; transition: background 200ms ease; }
+  .recent-table tbody tr:hover { background: var(--rr-steel-050); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="Sidebar.jsx"></script>
+<script type="text/babel" src="TopBar.jsx"></script>
+<script type="text/babel" src="KpiTile.jsx"></script>
+<script type="text/babel" src="PatientCard.jsx"></script>
+<script type="text/babel" src="AppointmentCard.jsx"></script>
+<script type="text/babel" src="LabPipeline.jsx"></script>
+<script type="text/babel" src="ToothChartTile.jsx"></script>
+
+<script src="../../data/patients.js"></script>
+<script src="../../data/appointments.js"></script>
+<script src="../../data/invoices.js"></script>
+
+<script type="text/babel">
+window.RRD.requireSession?.();
+const NAV_MAP = { dashboard:'dashboard.html', patients:'patients.html', schedule:'schedule.html', plans:'treatment.html', lab:'lab.html', billing:'billing.html', comms:'communications.html', reports:'crm.html', settings:'dashboard.html' };
+
+const NOTIFICATIONS = [
+  { id: 1, text: 'Alice Stevens confirmed her 08:30 appointment.', time: '2 min ago', read: false },
+  { id: 2, text: 'Lab case LC-2026-0469 returned from Pinnacle Dental Lab.', time: '18 min ago', read: false },
+  { id: 3, text: 'Recall reminder sent to Marcus Doan.', time: '1 hr ago', read: true },
+  { id: 4, text: 'Invoice INV-2026-0870 partial payment received.', time: '3 hr ago', read: true },
+];
+
+const PROVIDERS = [
+  { id: 'hau', name: 'Dr Hau Le', op: 'Operatory 1' },
+  { id: 'sara', name: 'Dr Sara Lim', op: 'Operatory 2' },
+  { id: 'renu', name: 'Hyg. Renu', op: 'Operatory 3' },
+];
+
+const NewPatientDrawer = ({ onClose, onSave }) => {
+  const [first, setFirst] = React.useState('');
+  const [last, setLast] = React.useState('');
+  const [dob, setDob] = React.useState('');
+  const [phone, setPhone] = React.useState('');
+  const [email, setEmail] = React.useState('');
+  const [insurance, setInsurance] = React.useState('');
+  const [isMinor, setIsMinor] = React.useState(false);
+  const [guardian, setGuardian] = React.useState('');
+  const [consent, setConsent] = React.useState(false);
+
+  const handleSave = () => {
+    const id = 'P-' + String(Math.floor(10000 + Math.random() * 90000));
+    const p = { id, first, last, dob, phone, email, insurance_provider: insurance, is_minor: isMinor, guardian_name: guardian, consent_approved: consent, insurance, last_visit: 'New', status: 'active' };
+    window.PATIENTS.push(p);
+    onSave(p);
+  };
+
+  return (
+    <>
+      <div className="drawer-overlay" onClick={onClose} />
+      <aside className="drawer" role="dialog">
+        <div className="drawer-header">
+          <div style={{ display: 'flex', alignItems: 'flex-start' }}>
+            <button className="drawer-back" onClick={onClose}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+            </button>
+            <div>
+              <div className="drawer-meta">New patient</div>
+              <div className="drawer-title">Add a new patient</div>
+              <div className="drawer-sub">Fill in patient details below.</div>
+            </div>
+          </div>
+          <button className="drawer-x" onClick={onClose}>&times;</button>
+        </div>
+        <div className="drawer-body">
+          <div className="field-row">
+            <div className="field"><label className="lbl">First name *</label><input className="d-input" value={first} onChange={e => setFirst(e.target.value)} /></div>
+            <div className="field"><label className="lbl">Last name *</label><input className="d-input" value={last} onChange={e => setLast(e.target.value)} /></div>
+          </div>
+          <div className="field"><label className="lbl">Date of birth</label><input type="date" className="d-input" value={dob} onChange={e => setDob(e.target.value)} /></div>
+          <div className="field-row">
+            <div className="field"><label className="lbl">Phone</label><input className="d-input" value={phone} onChange={e => setPhone(e.target.value)} /></div>
+            <div className="field"><label className="lbl">Email</label><input className="d-input" value={email} onChange={e => setEmail(e.target.value)} /></div>
+          </div>
+          <div className="field"><label className="lbl">Insurance provider</label><input className="d-input" value={insurance} onChange={e => setInsurance(e.target.value)} /></div>
+          <div className="field" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <input type="checkbox" id="isMinor" checked={isMinor} onChange={e => setIsMinor(e.target.checked)} />
+            <label htmlFor="isMinor" className="lbl" style={{ marginBottom: 0 }}>Patient is a minor</label>
+          </div>
+          {isMinor && <div className="field"><label className="lbl">Guardian name</label><input className="d-input" value={guardian} onChange={e => setGuardian(e.target.value)} /></div>}
+          <div className="field" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <input type="checkbox" id="consent" checked={consent} onChange={e => setConsent(e.target.checked)} />
+            <label htmlFor="consent" className="lbl" style={{ marginBottom: 0 }}>Consent approved</label>
+          </div>
+        </div>
+        <div className="drawer-footer">
+          <button className="btn btn-ghost btn-md" onClick={onClose}>Back</button>
+          <button className="btn btn-primary btn-md" disabled={!first || !last} onClick={handleSave}>Save patient</button>
+        </div>
+      </aside>
+    </>
+  );
+};
+
+const NewAppointmentDrawer = ({ onClose, onBook }) => {
+  const [patient, setPatient] = React.useState(null);
+  const [patientQ, setPatientQ] = React.useState('');
+  const [patientFocus, setPatientFocus] = React.useState(false);
+  const [provider, setProvider] = React.useState(null);
+  const [providerQ, setProviderQ] = React.useState('');
+  const [providerFocus, setProviderFocus] = React.useState(false);
+  const [date, setDate] = React.useState('2026-05-04');
+  const [time, setTime] = React.useState('09:00');
+  const [showNewPatient, setShowNewPatient] = React.useState(false);
+
+  React.useEffect(() => {
+    const h = e => e.key === 'Escape' && onClose();
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [onClose]);
+
+  const handleBook = () => {
+    const name = patient ? patient.first + ' ' + patient.last : 'Unknown';
+    onBook(name + ' \u00b7 ' + date + ' \u00b7 ' + time);
+  };
+
+  if (showNewPatient) return <NewPatientDrawer onClose={() => setShowNewPatient(false)} onSave={(p) => { setPatient(p); setPatientQ(p.first + ' ' + p.last); setShowNewPatient(false); }} />;
+
+  const filteredPatients = window.PATIENTS.filter(p => !patientQ || (p.first + ' ' + p.last).toLowerCase().includes(patientQ.toLowerCase()));
+  const filteredProviders = PROVIDERS.filter(p => !providerQ || p.name.toLowerCase().includes(providerQ.toLowerCase()));
+
+  return (
+    <>
+      <div className="drawer-overlay" onClick={onClose} />
+      <aside className="drawer" role="dialog">
+        <div className="drawer-header">
+          <div>
+            <div className="drawer-meta">New appointment</div>
+            <div className="drawer-title">Book a new appointment</div>
+            <div className="drawer-sub">Select patient, provider, and slot.</div>
+          </div>
+          <button className="drawer-x" onClick={onClose}>&times;</button>
+        </div>
+        <div className="drawer-body">
+          <div className="field">
+            <div className="field-label-row">
+              <label className="lbl">Patient</label>
+              <a className="field-link" onClick={() => setShowNewPatient(true)}>+ New patient</a>
+            </div>
+            <div className="search-select">
+              <input className="d-input" placeholder="Search patients..." value={patientQ} onChange={e => { setPatientQ(e.target.value); setPatient(null); }} onFocus={() => setPatientFocus(true)} onBlur={() => setTimeout(() => setPatientFocus(false), 150)} />
+              {patientFocus && filteredPatients.length > 0 && (
+                <div className="search-results">
+                  {filteredPatients.slice(0, 8).map(p => (
+                    <div key={p.id} className={'search-opt' + (patient && patient.id === p.id ? ' selected' : '')} onMouseDown={() => { setPatient(p); setPatientQ(p.first + ' ' + p.last); setPatientFocus(false); }}>
+                      <span className="search-ava">{(p.first[0] + p.last[0]).toUpperCase()}</span>
+                      {p.first} {p.last}
+                      <span className="search-sub">{p.id}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="field">
+            <label className="lbl">Provider</label>
+            <div className="search-select">
+              <input className="d-input" placeholder="Search providers..." value={providerQ} onChange={e => { setProviderQ(e.target.value); setProvider(null); }} onFocus={() => setProviderFocus(true)} onBlur={() => setTimeout(() => setProviderFocus(false), 150)} />
+              {providerFocus && filteredProviders.length > 0 && (
+                <div className="search-results">
+                  {filteredProviders.map(p => (
+                    <div key={p.id} className={'search-opt' + (provider && provider.id === p.id ? ' selected' : '')} onMouseDown={() => { setProvider(p); setProviderQ(p.name); setProviderFocus(false); }}>
+                      <span className="search-ava">{p.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}</span>
+                      {p.name}
+                      <span className="search-sub">{p.op}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="field">
+            <label className="lbl">Procedure</label>
+            <select className="d-input" defaultValue="recall">
+              <option value="recall">Recall &middot; 6mo (30 min)</option>
+              <option value="crown-prep">Crown prep (60 min)</option>
+              <option value="hygiene">Hygiene &middot; scaling (30 min)</option>
+              <option value="implant">Implant follow-up (90 min)</option>
+              <option value="composite">Composite &middot; MOD (60 min)</option>
+              <option value="consult">New patient consult (30 min)</option>
+              <option value="reline">Denture relines (45 min)</option>
+              <option value="crown-seat">Crown seat (45 min)</option>
+            </select>
+          </div>
+          <div className="field-row">
+            <div className="field">
+              <label className="lbl">Date</label>
+              <input type="date" className="d-input" value={date} onChange={e => setDate(e.target.value)} />
+            </div>
+            <div className="field">
+              <label className="lbl">Time</label>
+              <input type="time" className="d-input" value={time} onChange={e => setTime(e.target.value)} />
+            </div>
+          </div>
+          <div className="field">
+            <label className="lbl">Duration</label>
+            <select className="d-input" defaultValue="60">
+              <option value="30">30 min</option>
+              <option value="45">45 min</option>
+              <option value="60">60 min</option>
+              <option value="90">90 min</option>
+            </select>
+          </div>
+          <div className="field">
+            <label className="lbl">Notes</label>
+            <textarea className="d-textarea" placeholder="Reason for visit, special instructions..." />
+          </div>
+        </div>
+        <div className="drawer-footer">
+          <button className="btn btn-ghost btn-md" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary btn-md" onClick={handleBook}>Book appointment</button>
+        </div>
+      </aside>
+    </>
+  );
+};
+
+const CommandPalette = ({ onClose, onNewAppt }) => {
+  const [q, setQ] = React.useState('');
+  React.useEffect(() => {
+    const h = e => e.key === 'Escape' && onClose();
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [onClose]);
+  const pts = window.PATIENTS.filter(p => !q || (p.first + ' ' + p.last).toLowerCase().includes(q.toLowerCase()));
+  return (
+    <div className="cmd-overlay" onClick={onClose}>
+      <div className="cmd-palette" onClick={e => e.stopPropagation()}>
+        <div className="cmd-input-wrap">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search patients, invoices, appointments..." autoFocus />
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.68rem', color: 'var(--rr-slate-dark)', padding: '2px 6px', background: 'var(--rr-off-white)', border: '1px solid var(--rr-parchment)', borderRadius: 3 }}>⌘K</span>
+        </div>
+        <div className="cmd-group">
+          <div className="cmd-heading">Patients</div>
+          {pts.slice(0, 4).map(p => (
+            <div key={p.id} className="cmd-item" onClick={onClose}>
+              <span className="cmd-ava">{(p.first[0] + p.last[0]).toUpperCase()}</span>
+              <div className="cmd-name">{p.first} {p.last}</div>
+              <span className="cmd-sub">{p.id}</span>
+            </div>
+          ))}
+        </div>
+        <div className="cmd-group">
+          <div className="cmd-heading">Quick actions</div>
+          <div className="cmd-item" onClick={() => { onClose(); onNewAppt(); }}>
+            <svg className="cmd-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+            <div className="cmd-name">New appointment</div>
+            <span className="cmd-sub">⌘⇧A</span>
+          </div>
+        </div>
+        <div className="cmd-footer"><span>↑↓ navigate</span><span>↵ open</span><span>esc close</span></div>
+      </div>
+    </div>
+  );
+};
+
+const NotificationsDropdown = ({ onClose }) => (
+  <>
+    <div className="dd-overlay" onClick={onClose} />
+    <div className="dd-menu" style={{ top: 58, right: 80, minWidth: 340 }}>
+      <div className="dd-head"><div className="dd-name">Notifications</div><div className="dd-sub">{NOTIFICATIONS.filter(n => !n.read).length} unread</div></div>
+      <div className="dd-sep" />
+      {NOTIFICATIONS.map(n => (
+        <div key={n.id} className="notif-item" onClick={onClose}>
+          <span className={'notif-dot' + (n.read ? ' read' : '')} />
+          <div><div className="notif-text">{n.text}</div><div className="notif-time">{n.time}</div></div>
+        </div>
+      ))}
+    </div>
+  </>
+);
+
+const ProfileDropdown = ({ onClose }) => (
+  <>
+    <div className="dd-overlay" onClick={onClose} />
+    <div className="dd-menu" style={{ top: 58, right: 28 }}>
+      <div className="dd-head"><div className="dd-name">Dr Hau Le</div><div className="dd-sub">hau@oakdentalcalgary.com</div></div>
+      <div className="dd-sep" />
+      <div className="dd-item" onClick={onClose}><svg className="dd-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Profile</div>
+      <div className="dd-item" onClick={() => { window.location = 'dashboard.html'; }}><svg className="dd-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 1 1 0 4h-.09c-.658.003-1.25.396-1.51 1z"/></svg>Settings</div>
+      <div className="dd-sep" />
+      <div className="dd-item" onClick={() => { window.location = 'login.html'; }}><svg className="dd-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Sign out</div>
+    </div>
+  </>
+);
+
+const DetailDrawer = ({ meta, title, sub, rows, onClose, actions }) => {
+  React.useEffect(() => {
+    const h = e => e.key === 'Escape' && onClose();
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [onClose]);
+  return (
+    <>
+      <div className="drawer-overlay" onClick={onClose} />
+      <aside className="drawer" role="dialog">
+        <div className="drawer-header">
+          <div>
+            <div className="drawer-meta">{meta}</div>
+            <div className="drawer-title">{title}</div>
+            <div className="drawer-sub" style={{ fontFamily: 'var(--font-mono)' }}>{sub}</div>
+          </div>
+          <button className="drawer-x" onClick={onClose}>&times;</button>
+        </div>
+        <div className="drawer-body">
+          {rows.map((r, i) => <div key={i} className="detail-row"><span className="detail-k">{r.k}</span><span className="detail-v">{r.v}</span></div>)}
+        </div>
+        <div className="drawer-footer">
+          <button className="btn btn-ghost btn-md" onClick={onClose}>Close</button>
+          {actions}
+        </div>
+      </aside>
+    </>
+  );
+};
+
+const CenterModal = ({ onClose, width, children }) => {
+  React.useEffect(() => {
+    const h = e => e.key === 'Escape' && onClose();
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [onClose]);
+  return (
+    <div className="center-modal-backdrop" onClick={onClose}>
+      <div className="center-modal" style={width ? { width } : undefined} onClick={e => e.stopPropagation()}>
+        {children}
+      </div>
+    </div>
+  );
+};
+
+const WS_STATUS = {
+  confirmed: { bg: '#E8F5EE', fg: '#2A7D4F', label: 'Confirmed' },
+  pending:   { bg: '#FDF3E5', fg: '#B45309', label: 'Pending'   },
+  no_show:   { bg: '#F8E5E8', fg: '#9B2335', label: 'No-show'   },
+  completed: { bg: '#F5F2EC', fg: '#4A5568', label: 'Completed' },
+};
+
+const PatientModal = ({ patient, onClose }) => {
+  const p = patient;
+  const initials = (p.first[0] + p.last[0]).toUpperCase();
+  const sTone = { active: { bg: '#E8F5EE', fg: '#2A7D4F' }, recall: { bg: '#FDF3E5', fg: '#B45309' }, plan: { bg: '#F5F2EC', fg: '#4A5568' }, inactive: { bg: '#F5F2EC', fg: '#8A9BB0' } };
+  const tone = sTone[p.status] || sTone.active;
+  return (
+    <CenterModal onClose={onClose} width="min(600px, 92vw)">
+      <div className="center-modal-topbar">
+        <button className="drawer-back" onClick={onClose}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg></button>
+        <span className="back-label">Back to Dashboard</span>
+      </div>
+      <div className="center-modal-body">
+        <div className="appt-ws-hero">
+          <div className="appt-ws-ava">{initials}</div>
+          <div className="appt-ws-info">
+            <div className="appt-ws-name">{p.first} {p.last}</div>
+            <div className="appt-ws-id">{p.id} · {p.dob} · {p.insurance}</div>
+          </div>
+          <span style={{ fontSize: '.68rem', fontWeight: 600, padding: '4px 12px', borderRadius: 999, letterSpacing: '.06em', textTransform: 'uppercase', background: tone.bg, color: tone.fg }}>{p.status}</span>
+        </div>
+        <div>
+          <div className="detail-row"><span className="detail-k">Date of birth</span><span className="detail-v">{p.dob}</span></div>
+          <div className="detail-row"><span className="detail-k">Insurance</span><span className="detail-v">{p.insurance}</span></div>
+          <div className="detail-row"><span className="detail-k">Last visit</span><span className="detail-v">{p.last_visit}</span></div>
+          <div className="detail-row"><span className="detail-k">Status</span><span className="detail-v">{p.status}</span></div>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-primary btn-md" onClick={() => { window.location = 'patients.html'; }}>Open chart</button>
+          <button className="btn btn-ghost btn-md" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </CenterModal>
+  );
+};
+
+const InvoiceModal = ({ invoice, onClose }) => {
+  const i = invoice;
+  const tone = i.status === 'paid' ? { bg: '#E8F5EE', fg: '#2A7D4F' } : i.status === 'partial' ? { bg: '#FDF3E5', fg: '#B45309' } : { bg: '#F8E5E8', fg: '#9B2335' };
+  return (
+    <CenterModal onClose={onClose} width="min(560px, 92vw)">
+      <div className="center-modal-topbar">
+        <button className="drawer-back" onClick={onClose}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg></button>
+        <span className="back-label">Back to Dashboard</span>
+      </div>
+      <div className="center-modal-body">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <div className="appt-ws-name">{i.id}</div>
+            <div className="appt-ws-detail">{i.patient}</div>
+          </div>
+          <span style={{ fontSize: '.68rem', fontWeight: 600, padding: '4px 12px', borderRadius: 4, letterSpacing: '.06em', textTransform: 'uppercase', background: tone.bg, color: tone.fg }}>{i.status}</span>
+        </div>
+        <div>
+          <div className="detail-row"><span className="detail-k">Patient</span><span className="detail-v">{i.patient}</span></div>
+          <div className="detail-row"><span className="detail-k">Total</span><span className="detail-v" style={{ fontFamily: 'var(--font-mono)' }}>${i.total.toFixed(2)}</span></div>
+          <div className="detail-row"><span className="detail-k">Balance</span><span className="detail-v" style={{ fontFamily: 'var(--font-mono)', color: i.balance > 0 ? 'var(--rr-warning, #B45309)' : 'var(--rr-ink)' }}>${i.balance.toFixed(2)}</span></div>
+          <div className="detail-row"><span className="detail-k">Status</span><span className="detail-v">{i.status}</span></div>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-primary btn-md" onClick={() => { window.location = 'billing.html'; }}>View invoice</button>
+          <button className="btn btn-ghost btn-md" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </CenterModal>
+  );
+};
+
+const LabCaseModal = ({ labCase, onClose }) => {
+  const c = labCase;
+  const colLabel = { sent: 'Sent', progress: 'In progress', returned: 'Returned' };
+  return (
+    <CenterModal onClose={onClose} width="min(560px, 92vw)">
+      <div className="center-modal-topbar">
+        <button className="drawer-back" onClick={onClose}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg></button>
+        <span className="back-label">Back to Dashboard</span>
+      </div>
+      <div className="center-modal-body">
+        <div className="appt-ws-hero">
+          <div className="appt-ws-ava">{c.patient.split(' ').map(s => s[0]).join('').toUpperCase()}</div>
+          <div className="appt-ws-info">
+            <div className="appt-ws-name">{c.patient}</div>
+            <div className="appt-ws-detail">{c.item}</div>
+            <div className="appt-ws-id">{c.id}</div>
+          </div>
+          <span style={{ fontSize: '.68rem', fontWeight: 600, padding: '4px 12px', borderRadius: 4, letterSpacing: '.06em', textTransform: 'uppercase', background: '#FDF3E5', color: '#B45309' }}>{colLabel[c.col] || c.col}</span>
+        </div>
+        <div>
+          <div className="detail-row"><span className="detail-k">Case ID</span><span className="detail-v">{c.id}</span></div>
+          <div className="detail-row"><span className="detail-k">Item</span><span className="detail-v">{c.item}</span></div>
+          <div className="detail-row"><span className="detail-k">Vendor</span><span className="detail-v">{c.vendor}</span></div>
+          <div className="detail-row"><span className="detail-k">ETA</span><span className="detail-v">{c.eta}</span></div>
+          <div className="detail-row"><span className="detail-k">Status</span><span className="detail-v">{colLabel[c.col] || c.col}</span></div>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-primary btn-md" onClick={() => { window.location = 'lab.html'; }}>Track case</button>
+          <button className="btn btn-ghost btn-md" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </CenterModal>
+  );
+};
+
+const AppointmentWorkspace = ({ appointment, onClose }) => {
+  const a = appointment;
+  const tone = WS_STATUS[a.status] || WS_STATUS.confirmed;
+  const initials = a.patient.split(' ').map(s => s[0]).slice(0, 2).join('').toUpperCase();
+
+  return (
+    <CenterModal onClose={onClose}>
+      <div className="center-modal-topbar">
+        <button className="drawer-back" onClick={onClose}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+        </button>
+        <span className="back-label">Back to Dashboard</span>
+      </div>
+      <div className="center-modal-body">
+        <div className="appt-ws-hero">
+          <div className="appt-ws-ava">{initials}</div>
+          <div className="appt-ws-info">
+            <div className="appt-ws-name">{a.patient}</div>
+            <div className="appt-ws-detail">{a.kind} · {a.provider} · Op {a.chair} · {a.time} — {a.duration} min</div>
+            <div className="appt-ws-id">{a.id} · {a.patient_id}</div>
+          </div>
+          <span style={{ fontSize: '.68rem', fontWeight: 600, padding: '4px 12px', borderRadius: 4, letterSpacing: '.06em', textTransform: 'uppercase', background: tone.bg, color: tone.fg, alignSelf: 'flex-start' }}>{tone.label}</span>
+        </div>
+        <div className="appt-ws-actions">
+          <button className="btn btn-primary btn-md">Confirm</button>
+          <button className="btn btn-ghost btn-md">Check in</button>
+          <button className="btn btn-ghost btn-md">Start</button>
+          <button className="btn btn-ghost btn-md">Complete</button>
+          <button className="btn btn-ghost btn-md">No show</button>
+          <button className="btn btn-ghost btn-md">Reschedule</button>
+          <button className="btn btn-ghost btn-md" style={{ color: 'var(--rr-error)' }}>Cancel</button>
+        </div>
+        <ToothChartTile />
+      </div>
+    </CenterModal>
+  );
+};
+
+const Dashboard = () => {
+  const [drawerOpen, setDrawerOpen] = React.useState(false);
+  const [toasts, setToasts] = React.useState([]);
+  const [cmdOpen, setCmdOpen] = React.useState(false);
+  const [notifOpen, setNotifOpen] = React.useState(false);
+  const [profileOpen, setProfileOpen] = React.useState(false);
+  const [detail, setDetail] = React.useState(null);
+  const [activeAppt, setActiveAppt] = React.useState(null);
+  const [expandedApptId, setExpandedApptId] = React.useState(null);
+
+  const addToast = (msg, detail) => {
+    const id = Date.now();
+    setToasts(t => [...t, { id, msg, detail }]);
+    setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 4000);
+  };
+  const dismissToast = (id) => setToasts(t => t.filter(x => x.id !== id));
+  const navigate = (id) => { if (NAV_MAP[id]) window.location = NAV_MAP[id]; };
+
+  React.useEffect(() => {
+    const h = e => { if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); setCmdOpen(true); } };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, []);
+
+  return (
+    <>
+    <div className="shell">
+      <Sidebar active="dashboard" onNav={navigate} />
+      <div className="stage">
+        <TopBar clinicName="Oak Dental · Calgary" breadcrumb={['Dashboard', 'Today']} onSearch={() => setCmdOpen(true)} onNotifications={() => setNotifOpen(o => !o)} onProfile={() => setProfileOpen(o => !o)} />
+        <div className="body">
+          <div className="page-header">
+            <div>
+              <h1 className="page-title">Today's clinic</h1>
+              <div className="page-sub">Saturday · May 4 · 2026 — 8 appointments scheduled · 5 lab cases in flight.</div>
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button className="btn btn-ghost btn-md" onClick={() => addToast('Day exported.', 'dashboard-2026-05-04.pdf')}>Export day</button>
+              <button className="btn btn-primary btn-md" onClick={() => setDrawerOpen(true)}>+ New appointment</button>
+            </div>
+          </div>
+
+          <div className="kpi-row">
+            <a href="schedule.html" style={{ textDecoration: 'none', color: 'inherit', display: 'contents' }}><KpiTile label="Schedule fill" value="78%" delta="+ 4%"  trend="up"   accent="steel" /></a>
+            <a href="schedule.html" style={{ textDecoration: 'none', color: 'inherit', display: 'contents' }}><KpiTile label="Recall reach" value="92%" delta="+ 1.2%" trend="up"   accent="steel" /></a>
+            <a href="billing.html"  style={{ textDecoration: 'none', color: 'inherit', display: 'contents' }}><KpiTile label="No-shows"      value="3"   delta="+ 1"    trend="down" accent="navy" /></a>
+            <a href="lab.html"      style={{ textDecoration: 'none', color: 'inherit', display: 'contents' }}><KpiTile label="Lab in flight" value="5"   delta="– 2"    trend="up"   accent="steel" /></a>
+          </div>
+
+          <div className="grid-2">
+            <div className="panel">
+              <div className="panel-header">
+                <div>
+                  <div className="panel-h-title">Today's appointments</div>
+                  <div className="panel-h-sub">8 scheduled · 6 confirmed · 1 pending · 1 no-show</div>
+                </div>
+                <a className="panel-h-action" href="schedule.html">Open the schedule →</a>
+              </div>
+              <div className="stack">
+                {window.APPOINTMENTS.map(a => (
+                  <div key={a.id}>
+                    <AppointmentCard appointment={a} expanded={expandedApptId === a.id} onClick={() => setExpandedApptId(expandedApptId === a.id ? null : a.id)} />
+                    {expandedApptId === a.id && (
+                      <div className="appt-quick-actions">
+                        <button className="btn btn-ghost btn-md" onClick={() => addToast('Checked in.', a.patient)}>Check in</button>
+                        <button className="btn btn-primary btn-md" onClick={() => { setExpandedApptId(null); setActiveAppt(a); }}>Open Chart</button>
+                        <button className="btn btn-ghost btn-md" onClick={() => addToast('Reschedule requested.', a.patient)}>Reschedule</button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+              <div className="panel">
+                <div className="panel-header">
+                  <div>
+                    <div className="panel-h-title">Lab pipeline</div>
+                    <div className="panel-h-sub">Sent · in progress · returned</div>
+                  </div>
+                  <a className="panel-h-action" href="lab.html">Open the lab →</a>
+                </div>
+                <LabPipeline onCaseClick={(c) => setDetail({ meta: 'Lab case detail', title: c.patient, sub: c.id + ' · ' + c.item, rows: [{ k: 'Case ID', v: c.id }, { k: 'Item', v: c.item }, { k: 'Vendor', v: c.vendor }, { k: 'ETA', v: c.eta }, { k: 'Status', v: c.col }] })} />
+              </div>
+              <ToothChartTile />
+            </div>
+          </div>
+
+          <div className="panel">
+            <div className="panel-header">
+              <div>
+                <div className="panel-h-title">Recent patients</div>
+                <div className="panel-h-sub">Last 6 visits across all providers</div>
+              </div>
+              <a className="panel-h-action" href="patients.html">All patients →</a>
+            </div>
+            <div className="stack" style={{ gap: 8 }}>
+              {window.PATIENTS.map(p => (
+                <a key={p.id} className="row-link" href={`patient-detail.html?id=${p.id}`} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
+                  <PatientCard patient={p} onClick={() => {}} />
+                </a>
+              ))}
+            </div>
+          </div>
+
+          <div className="panel">
+            <div className="panel-header">
+              <div>
+                <div className="panel-h-title">Recent invoices</div>
+                <div className="panel-h-sub">Last 4 days</div>
+              </div>
+              <a className="panel-h-action" href="billing.html">All invoices →</a>
+            </div>
+            <table className="recent-table">
+              <thead><tr><th>Invoice</th><th>Patient</th><th style={{textAlign:'right'}}>Total</th><th style={{textAlign:'right'}}>Balance</th><th>Status</th></tr></thead>
+              <tbody>
+                {window.INVOICES.map(i => (
+                  <tr key={i.id} style={{ cursor: 'pointer' }} onClick={() => { window.location = `invoice-detail.html?id=${i.id}`; }}>
+                    <td className="id">{i.id}</td>
+                    <td>{i.patient}</td>
+                    <td style={{textAlign:'right', fontFamily: "'JetBrains Mono', monospace"}}>${i.total.toFixed(2)}</td>
+                    <td style={{textAlign:'right', fontFamily: "'JetBrains Mono', monospace", color: i.balance > 0 ? '#B45309' : '#4A5568'}}>${i.balance.toFixed(2)}</td>
+                    <td>
+                      <span style={{
+                        fontSize: '.66rem', fontWeight: 600, padding: '3px 10px', borderRadius: 4, letterSpacing: '.06em', textTransform: 'uppercase',
+                        background: i.status === 'paid' ? '#E8F5EE' : i.status === 'partial' ? '#FDF3E5' : '#F8E5E8',
+                        color: i.status === 'paid' ? '#2A7D4F' : i.status === 'partial' ? '#B45309' : '#9B2335',
+                      }}>{i.status}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div style={{ textAlign: 'center', padding: '20px 0', fontFamily: "'Inter', sans-serif", fontSize: '.72rem', color: 'var(--rr-slate)', letterSpacing: '.06em' }}>
+            ROCKYRIDGE · DENTAL AI · v1
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {drawerOpen && <NewAppointmentDrawer onClose={() => setDrawerOpen(false)} onBook={(summary) => { setDrawerOpen(false); addToast('Appointment booked.', summary); }} />}
+
+    {cmdOpen && <CommandPalette onClose={() => setCmdOpen(false)} onNewAppt={() => setDrawerOpen(true)} />}
+    {notifOpen && <NotificationsDropdown onClose={() => setNotifOpen(false)} />}
+    {profileOpen && <ProfileDropdown onClose={() => setProfileOpen(false)} />}
+    {detail && <DetailDrawer {...detail} onClose={() => setDetail(null)} actions={<button className="btn btn-primary btn-md" onClick={() => setDetail(null)}>Open chart</button>} />}
+    {activeAppt && <AppointmentWorkspace appointment={activeAppt} onClose={() => setActiveAppt(null)} />}
+
+    {toasts.length > 0 && (
+      <div className="toast-stack">
+        {toasts.map(t => (
+          <div key={t.id} className="toast success">
+            <svg className="toast-ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            <div className="toast-body">{t.msg}{t.detail && <span className="toast-detail">{t.detail}</span>}</div>
+            <button className="toast-x" onClick={() => dismissToast(t.id)}>&times;</button>
+          </div>
+        ))}
+      </div>
+    )}
+    </>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<Dashboard />);
+</script>
+</body>
+</html>

@@ -68,8 +68,27 @@ Notifications must never raise back to the request handler — they're best-effo
 
 `run_api.py` always binds to `PORT` even if `api.main` fails to import — it falls back to a stub app that only serves `/health`. This is intentional so Cloud Run / Railway health checks pass and you can debug a misconfigured deploy via logs rather than a crash loop. Don't "fix" this by removing the try/except.
 
+## Design System (mandatory for all frontend/UI work)
+
+**Before writing, modifying, or reviewing any frontend code** (`frontend/src/`, HTML prototypes, marketing pages), you MUST read and follow the Rockyridge Dental AI design system:
+
+1. Read `frontend/design_system/rockyridgeai-dental.com/SKILL.md` — it defines when and how to apply the brand.
+2. Read `frontend/design_system/rockyridgeai-dental.com/README.md` — brand voice, component library, file layout.
+3. Read `frontend/design_system/rockyridgeai-dental.com/colors_and_type.css` — all design tokens live here. Never invent new colours, radii, or font sizes.
+4. Browse `frontend/design_system/rockyridgeai-dental.com/preview/` for component markup references.
+5. Check `frontend/design_system/rockyridgeai-dental.com/ui_kits/website/` for full-page compositions.
+
+Key rules:
+- Use `--primary` / `--foreground` / `--border` CSS custom properties — never raw hex values in components.
+- Light theme for all clinical surfaces. Dark theme is only for the login portal.
+- No emoji, no filled icons, no playful/spring easing.
+- Production React code imports from `frontend/src/components/ui/` (which already consumes these tokens). Never import from the `design_system/` folder at runtime.
+- Brand voice: authoritative, clinical, calm. Definite article on system parts (The Schedule, The Roster, The Lab).
+
 ## Things to know
 
+- **Ignore existing styling in `frontend/src/`.** The current design/CSS in the frontend app is not authoritative. Always follow the Design System section above — do not preserve or match the existing look and feel in `frontend/src/`.
+- **Ignore `frontend/design_system/rockyridgeai.com/` and `frontend/design_system/dental-pms.v1/`.** Only use `frontend/design_system/rockyridgeai-dental.com/` as the design source.
 - Provider was renamed from "Doctor"; the `Provider` model is generic (denturist, doctor, assistant, etc.) and `provider.title` + `provider.name` are joined for display (`"Dr Smith"`).
 - Default timezone fallback throughout is `America/Edmonton`.
 - `tmp/` is an archive of older docs/frontend/scripts — don't add new code there.

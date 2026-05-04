@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Textarea · Rockyridge Dental AI</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { padding: 32px; background: hsl(var(--background)); font-family: var(--font-ui); max-width: 560px; display: flex; flex-direction: column; gap: 16px; }
+  .lbl { font-size: .82rem; font-weight: 600; color: var(--rr-ink); }
+  .help { font-size: .72rem; color: var(--rr-slate-dark); }
+  textarea {
+    font-family: var(--font-ui); font-size: .9rem; color: var(--rr-ink);
+    background: #fff; border: 1.5px solid var(--rr-mist);
+    border-radius: var(--radius-md); padding: 10px 14px;
+    width: 100%; outline: none; resize: vertical; min-height: 110px;
+    transition: border-color var(--duration-fast) var(--ease-out), box-shadow var(--duration-fast) var(--ease-out);
+    line-height: 1.6;
+  }
+  textarea:focus { border-color: hsl(var(--ring)); box-shadow: var(--shadow-ring); }
+  .meta { display: flex; justify-content: space-between; font-size: .7rem; color: var(--rr-slate); }
+</style></head><body>
+<div>
+  <label class="lbl">Clinical note</label>
+  <textarea placeholder="Patient reports mild sensitivity on #36 with cold stimulus, no spontaneous pain. Probing depths within normal limits…"></textarea>
+  <div class="meta"><span class="help">Markdown supported · auto-saves every 5s</span><span>0 / 2000</span></div>
+</div>
+</body></html>

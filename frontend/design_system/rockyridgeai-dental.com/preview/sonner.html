@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Sonner · Rockyridge Dental AI</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { padding: 32px; background: hsl(var(--background)); font-family: var(--font-ui); min-height: 100vh; }
+  .stack { position: fixed; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 10px; align-items: stretch; width: 360px; }
+  .toast { background: #fff; border: 1px solid var(--rr-parchment); border-radius: 6px; padding: 12px 14px; box-shadow: var(--shadow-md); display: grid; grid-template-columns: 22px 1fr auto; gap: 12px; align-items: center; }
+  .toast.success { border-color: #BBE0CC; }
+  .toast.error   { border-color: #ECC8CE; }
+  .toast .ico    { color: var(--rr-slate-dark); }
+  .toast.success .ico { color: var(--rr-success); }
+  .toast.error   .ico { color: var(--rr-error); }
+  .toast .body   { font-size: .85rem; color: var(--rr-ink); line-height: 1.4; }
+  .toast .body .meta { display: block; font-family: var(--font-mono); font-size: .68rem; color: var(--rr-slate-dark); margin-top: 2px; }
+  .toast .x { background: none; border: none; cursor: pointer; padding: 4px; color: var(--rr-slate-dark); }
+</style></head><body>
+<p style="color:var(--rr-slate-dark); font-size:.82rem">Sonner / toast stack — bottom-right.</p>
+<div class="stack">
+  <div class="toast success">
+    <svg class="ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+    <div class="body">Appointment booked.<span class="meta">Alice Stevens · May 4 · 09:00</span></div>
+    <button class="x">×</button>
+  </div>
+  <div class="toast">
+    <svg class="ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    <div class="body">Reminder scheduled.<span class="meta">SMS · 24h + 2h before</span></div>
+    <button class="x">×</button>
+  </div>
+  <div class="toast error">
+    <svg class="ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9"  x2="9" y2="15"/><line x1="9"  y1="9"  x2="15" y2="15"/></svg>
+    <div class="body">Slot conflict — operatory 2 already booked at 11:00.</div>
+    <button class="x">×</button>
+  </div>
+</div>
+</body></html>

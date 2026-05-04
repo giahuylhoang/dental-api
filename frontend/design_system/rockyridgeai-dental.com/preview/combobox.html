@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Combobox · Rockyridge Dental AI</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { padding: 32px; background: hsl(var(--background)); font-family: var(--font-ui); display: flex; flex-direction: column; gap: 14px; max-width: 520px; }
+  .lbl { font-size: .82rem; font-weight: 600; color: var(--rr-ink); }
+  .input {
+    width: 100%; background: #fff; border: 1.5px solid hsl(var(--ring));
+    box-shadow: var(--shadow-ring); border-radius: 6px; padding: 10px 14px;
+    font-family: var(--font-ui); font-size: .9rem; outline: none;
+  }
+  .menu {
+    background: #fff; border: 1px solid var(--rr-parchment); border-radius: 6px;
+    padding: 6px; box-shadow: var(--shadow-md); margin-top: 6px;
+    display: flex; flex-direction: column; gap: 2px; max-height: 280px; overflow-y: auto;
+  }
+  .item { padding: 8px 12px; border-radius: 4px; cursor: pointer; display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; align-items: center; }
+  .item:hover, .item.hl { background: var(--rr-steel-050); }
+  .item.selected { background: var(--rr-steel-100); }
+  .ava { width: 28px; height: 28px; border-radius: 999px; background: hsl(var(--primary)); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: .72rem; }
+  .name { font-size: .9rem; color: var(--rr-ink); font-weight: 500; }
+  .sub  { font-family: var(--font-mono); font-size: .72rem; color: var(--rr-slate-dark); }
+  .empty { padding: 16px; text-align: center; font-size: .82rem; color: var(--rr-slate-dark); }
+</style></head><body>
+<label class="lbl">Patient · type 2+ characters</label>
+<input class="input" value="ali" autofocus>
+<div class="menu">
+  <div class="item selected"><div class="ava">AS</div><div class="name">Alice Stevens</div><div class="sub">P-018342</div></div>
+  <div class="item"><div class="ava" style="background:var(--rr-navy-600)">AB</div><div class="name">Aaron Brouwer</div><div class="sub">P-017901</div></div>
+  <div class="item hl"><div class="ava" style="background:var(--rr-steel-600)">AK</div><div class="name">Alina Kovac</div><div class="sub">P-018611</div></div>
+  <div class="item"><div class="ava" style="background:var(--rr-warning)">AC</div><div class="name">Alejandro Cruz</div><div class="sub">P-018298</div></div>
+</div>
+<div class="empty" style="display:none">No patients matched.</div>
+</body></html>

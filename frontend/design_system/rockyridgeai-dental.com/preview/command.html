@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Command · Rockyridge Dental AI</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { padding: 0; background: rgba(10,25,47,0.4); font-family: var(--font-ui); min-height: 100vh; display: flex; align-items: flex-start; justify-content: center; padding-top: 80px; }
+  .palette { width: min(640px, 100%); background: #fff; border: 1px solid var(--rr-parchment); border-radius: 8px; box-shadow: var(--shadow-xl); overflow: hidden; }
+  .input-wrap { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--rr-parchment); }
+  .input-wrap svg { color: var(--rr-slate-dark); }
+  .input-wrap input { flex: 1; border: none; outline: none; font-family: var(--font-ui); font-size: 1rem; color: var(--rr-ink); background: transparent; }
+  .input-wrap input::placeholder { color: var(--rr-slate); }
+  .kbd { font-family: var(--font-mono); font-size: .68rem; color: var(--rr-slate-dark); padding: 2px 6px; background: var(--rr-off-white); border: 1px solid var(--rr-parchment); border-radius: 3px; }
+  .group { padding: 8px 0; border-bottom: 1px solid var(--rr-parchment); }
+  .group:last-child { border-bottom: none; }
+  .heading { padding: 4px 18px; font-size: .65rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--rr-slate); }
+  .item { display: grid; grid-template-columns: 28px 1fr auto; gap: 12px; align-items: center; padding: 7px 18px; cursor: pointer; }
+  .item:hover, .item.hl { background: var(--rr-steel-050); }
+  .item .ico { color: var(--rr-slate-dark); }
+  .item:hover .ico, .item.hl .ico { color: hsl(var(--primary)); }
+  .item .name { font-size: .88rem; color: var(--rr-ink); }
+  .item .sub  { font-family: var(--font-mono); font-size: .7rem; color: var(--rr-slate-dark); }
+  .ava { width: 24px; height: 24px; border-radius: 999px; background: hsl(var(--primary)); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-weight: 600; font-size: .62rem; }
+  .footer { padding: 8px 14px; border-top: 1px solid var(--rr-parchment); display: flex; justify-content: flex-end; gap: 12px; font-size: .7rem; color: var(--rr-slate-dark); }
+</style></head><body>
+<div class="palette">
+  <div class="input-wrap">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input value="ali" placeholder="Search patients, invoices, appointments…" autofocus>
+    <span class="kbd">⌘K</span>
+  </div>
+  <div class="group">
+    <div class="heading">Patients</div>
+    <div class="item hl"><span class="ava">AS</span><div><div class="name">Alice Stevens</div></div><span class="sub">P-018342</span></div>
+    <div class="item"><span class="ava" style="background:var(--rr-navy-600)">AB</span><div><div class="name">Aaron Brouwer</div></div><span class="sub">P-017901</span></div>
+    <div class="item"><span class="ava" style="background:var(--rr-warning)">AC</span><div><div class="name">Alejandro Cruz</div></div><span class="sub">P-018298</span></div>
+  </div>
+  <div class="group">
+    <div class="heading">Quick actions</div>
+    <div class="item"><svg class="ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 12h14"/><path d="M12 5v14"/></svg><div class="name">New appointment</div><span class="sub">⌘⇧A</span></div>
+    <div class="item"><svg class="ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><div class="name">Find invoice…</div></div>
+  </div>
+  <div class="footer"><span>↑↓ to navigate</span><span>↵ open</span><span>esc close</span></div>
+</div>
+</body></html>

@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CRM · Rockyridge Dental AI</title>
+<link rel="stylesheet" href="../../colors_and_type.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin></script>
+<style>
+  html, body { margin: 0; }
+  body { background: var(--rr-warm-white); min-height: 100vh; }
+  .shell { display: flex; min-height: 100vh; }
+  .stage { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .stage > .body { padding: 28px 32px; display: flex; flex-direction: column; gap: 22px; }
+  .page-header { display: flex; justify-content: space-between; align-items: center; }
+  .page-title { font-family: var(--font-display); font-weight: 800; font-size: 1.8rem; color: var(--rr-navy-800); letter-spacing: -.025em; margin: 0 0 4px; }
+  .page-sub { font-family: var(--font-ui); font-size: .88rem; color: var(--rr-slate-dark); }
+
+  .panel { background: #fff; border: 1px solid var(--rr-parchment); border-radius: 6px; padding: 22px 24px; box-shadow: var(--shadow-xs); }
+  .panel-pad-sm { padding: 16px 18px; }
+  .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .panel-h-title { font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; color: var(--rr-navy-800); }
+  .panel-h-sub { font-family: var(--font-ui); font-size: .72rem; color: var(--rr-slate-dark); margin-top: 2px; }
+  .panel-h-action { font-family: var(--font-ui); font-size: .82rem; color: hsl(var(--primary)); cursor: pointer; }
+
+  /* Kanban */
+  .kanban { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; }
+  .kanban .col {
+    background: var(--rr-warm-white); border: 1px solid var(--rr-parchment); border-radius: 6px;
+    padding: 12px; display: flex; flex-direction: column; gap: 10px; min-height: 480px;
+  }
+  .col-head { display: flex; justify-content: space-between; align-items: center; padding: 4px 4px 6px; }
+  .col-label { display: flex; align-items: center; gap: 8px; font-family: var(--font-ui); font-size: .7rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--rr-navy-800); }
+  .col-dot { width: 9px; height: 9px; border-radius: 999px; }
+  .col-count { font-family: var(--font-mono); font-size: .7rem; color: var(--rr-steel-700); padding: 2px 8px; background: var(--rr-mist); border-radius: 999px; font-weight: 600; }
+  .col-sum { font-family: var(--font-mono); font-size: .68rem; color: var(--rr-slate-dark); padding-left: 4px; }
+
+  .lead-card {
+    background: #fff; border: 1px solid var(--rr-parchment); border-radius: 6px; padding: 12px 14px;
+    display: flex; flex-direction: column; gap: 8px; box-shadow: 0 1px 2px rgba(10,25,47,0.04);
+    cursor: grab; transition: box-shadow 200ms cubic-bezier(0.16,1,0.3,1), transform 200ms cubic-bezier(0.16,1,0.3,1);
+  }
+  .lead-card:hover { box-shadow: 0 4px 14px rgba(10,25,47,0.12); transform: translateY(-1px); }
+  .lead-card.selected { border-color: var(--rr-steel-500); box-shadow: 0 0 0 3px rgba(58,127,189,0.18); }
+  .lead-name { font-family: var(--font-ui); font-weight: 600; font-size: .9rem; color: var(--rr-navy-800); display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; }
+  .lead-source { font-family: var(--font-ui); font-size: .64rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; letter-spacing: .04em; text-transform: uppercase; background: var(--rr-mist); color: var(--rr-steel-700); flex-shrink: 0; }
+  .lead-contact { font-family: var(--font-ui); font-size: .76rem; color: var(--rr-slate-dark); display: flex; align-items: center; gap: 6px; }
+  .lead-notes { font-family: var(--font-ui); font-size: .76rem; color: #4A5568; line-height: 1.4; max-height: 36px; overflow: hidden; }
+  .lead-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 2px; padding-top: 8px; border-top: 1px solid var(--rr-parchment); }
+  .lead-owner { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-ui); font-size: .7rem; color: var(--rr-slate-dark); }
+  .avatar-mini { width: 18px; height: 18px; border-radius: 999px; background: var(--rr-steel-500); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: .58rem; font-weight: 600; }
+
+  /* Drawer */
+  .drawer-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 18px; align-items: flex-start; }
+  .drawer-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--rr-parchment); margin-bottom: 14px; }
+  .drawer-tab { padding: 10px 14px; font-family: var(--font-ui); font-size: .82rem; color: var(--rr-slate-dark); cursor: pointer; border-bottom: 2px solid transparent; }
+  .drawer-tab.active { color: var(--rr-navy-800); border-bottom-color: var(--rr-steel-500); font-weight: 600; }
+  .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+  .field-grid .full { grid-column: 1 / -1; }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label { font-family: var(--font-ui); font-size: .68rem; color: var(--rr-slate-dark); letter-spacing: .08em; text-transform: uppercase; font-weight: 600; }
+  .field input, .field select, .field textarea {
+    padding: 9px 11px; border: 1px solid var(--rr-parchment); border-radius: 4px;
+    font-family: var(--font-ui); font-size: .85rem; color: var(--rr-ink); background: #fff;
+  }
+  .field textarea { resize: vertical; min-height: 70px; }
+
+  /* Activity timeline */
+  .timeline-row { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--rr-parchment); }
+  .timeline-row:last-child { border: none; }
+  .timeline-icon { width: 28px; height: 28px; border-radius: 999px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; }
+  .ti-call    { background: #D9EAF5; color: #2E6494; }
+  .ti-email   { background: #F5F2EC; color: #4A5568; }
+  .ti-sms     { background: #E8F5EE; color: #2A7D4F; }
+  .ti-note    { background: #FDF3E5; color: #B45309; }
+  .ti-meeting { background: #F8E5E8; color: #9B2335; }
+  .ti-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+  .ti-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .ti-kind { font-family: var(--font-ui); font-weight: 600; font-size: .82rem; color: var(--rr-navy-800); }
+  .ti-when { font-family: var(--font-mono); font-size: .68rem; color: var(--rr-slate-dark); flex-shrink: 0; }
+  .ti-text { font-family: var(--font-ui); font-size: .82rem; color: var(--rr-ink); line-height: 1.5; }
+  .ti-author { font-family: var(--font-ui); font-size: .7rem; color: var(--rr-slate-dark); }
+
+  /* Source breakdown */
+  .src-row { display: flex; justify-content: space-between; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--rr-parchment); font-family: var(--font-ui); font-size: .85rem; color: var(--rr-ink); }
+  .src-row:last-child { border: none; }
+  .src-bar { flex: 1; max-width: 130px; height: 6px; background: var(--rr-parchment); border-radius: 999px; margin: 0 14px; overflow: hidden; }
+  .src-bar-fill { height: 100%; background: var(--rr-steel-500); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="Sidebar.jsx"></script>
+<script type="text/babel" src="TopBar.jsx"></script>
+<script type="text/babel" src="KpiTile.jsx"></script>
+<script type="text/babel" src="StatusPill.jsx"></script>
+
+<script type="text/babel">
+window.RRD.requireSession?.();
+const COLUMNS = [
+  { id: 'NEW',       label: 'New',       dot: '#8A9BB0' },
+  { id: 'CONTACTED', label: 'Contacted', dot: '#3A7FBD' },
+  { id: 'QUALIFIED', label: 'Qualified', dot: '#B45309' },
+  { id: 'CONVERTED', label: 'Converted', dot: '#2A7D4F' },
+  { id: 'LOST',      label: 'Lost',      dot: '#9B2335' },
+];
+
+const LEADS = [
+  { id: 'L-1', first: 'Rae',     last: 'Tomlinson', email: 'rae.t@example.com',     phone: '+1 (403) 555-0182', status: 'NEW',       source: 'Google',    owner: 'KS', notes: 'Asking about Invisalign — has Manulife insurance, husband already a patient.' },
+  { id: 'L-2', first: 'Dimitri', last: 'Voss',      email: 'dimitri.voss@example.com', phone: '+1 (587) 555-0099', status: 'NEW',       source: 'Referral',  owner: 'KS', notes: 'Referred by P-018342 (Stevens). Interested in cosmetic consult.' },
+  { id: 'L-3', first: 'Aanya',   last: 'Patel',     email: 'aanya.p@example.com',     phone: '+1 (780) 555-0224', status: 'NEW',       source: 'Instagram', owner: 'HL', notes: '' },
+  { id: 'L-4', first: 'Tom',     last: 'Brennan',   email: 'tbrennan@example.com',    phone: '+1 (403) 555-0319', status: 'CONTACTED', source: 'Google',    owner: 'KS', notes: 'Voicemail Apr 28 · followed up by email Apr 30. Awaiting reply.' },
+  { id: 'L-5', first: 'Linh',    last: 'Nguyen',    email: 'linh.n@example.com',      phone: '+1 (403) 555-0431', status: 'CONTACTED', source: 'Walk-in',   owner: 'HL', notes: 'Came by front desk · had x-rays from previous clinic.' },
+  { id: 'L-6', first: 'Joaquin', last: 'Ramos',     email: 'jramos@example.com',      phone: '+1 (587) 555-0540', status: 'QUALIFIED', source: 'Referral',  owner: 'SL', notes: 'Confirmed insurance · ready to book. Wants Saturday.' },
+  { id: 'L-7', first: 'Hana',    last: 'Park',      email: 'hana.p@example.com',      phone: '+1 (780) 555-0612', status: 'QUALIFIED', source: 'Google',    owner: 'KS', notes: 'Pre-auth submitted to Sun Life · waiting on response.' },
+  { id: 'L-8', first: 'Marcus',  last: 'Reilly',    email: 'mreilly@example.com',     phone: '+1 (403) 555-0728', status: 'CONVERTED', source: 'Google',    owner: 'HL', notes: 'Booked May 2 · first appointment scheduled.' },
+  { id: 'L-9', first: 'Ines',    last: 'Sokolova',  email: 'ines.s@example.com',      phone: '+1 (587) 555-0844', status: 'CONVERTED', source: 'Instagram', owner: 'KS', notes: 'Now patient P-018612.' },
+  { id: 'L-10',first: 'Pat',     last: 'Sanderson', email: 'pat.s@example.com',       phone: '+1 (403) 555-0961', status: 'LOST',      source: 'Google',    owner: 'KS', notes: 'Found a closer clinic — politely closed.' },
+];
+
+const ACTIVITIES = [
+  { id: 'a1', kind: 'sms',     icon: 'sms',     author: 'Kim Sato',    when: 'Today 10:14',  body: 'Sent confirmation SMS for Saturday 10:30 consult — replied with thumbs-up.' },
+  { id: 'a2', kind: 'note',    icon: 'note',    author: 'Hau Le',      when: 'Today 09:42',  body: 'Quoted $4,200 for upper Invisalign incl. retainers. Patient considering.' },
+  { id: 'a3', kind: 'call',    icon: 'call',    author: 'Kim Sato',    when: 'Yesterday',    body: '14-minute discovery call. Coverage clarified · Manulife covers 60% to $1,500 cap.' },
+  { id: 'a4', kind: 'email',   icon: 'email',   author: 'Auto · system', when: '2 days ago', body: 'Welcome packet sent · pricing PDF attached.' },
+  { id: 'a5', kind: 'meeting', icon: 'meeting', author: 'Hau Le',      when: '3 days ago',   body: 'In-clinic exam · panoramic taken · referred to ortho consult before treatment plan.' },
+];
+
+const SOURCES = [
+  { name: 'Google',    leads: 28, conv_rate: 22 },
+  { name: 'Referral',  leads: 19, conv_rate: 47 },
+  { name: 'Instagram', leads: 11, conv_rate: 18 },
+  { name: 'Walk-in',   leads:  7, conv_rate: 36 },
+  { name: 'Other',     leads:  3, conv_rate:  0 },
+];
+
+const ACTIVITY_ICON = {
+  sms: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,
+  email: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>,
+  call: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>,
+  note: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>,
+  meeting: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+};
+
+const CrmPage = () => {
+  const [selected, setSelected] = React.useState('L-1');
+  const [tab, setTab] = React.useState('activity');
+  const lead = LEADS.find(l => l.id === selected) || LEADS[0];
+
+  const active = LEADS.filter(l => l.status !== 'CONVERTED' && l.status !== 'LOST').length;
+  const converted = LEADS.filter(l => l.status === 'CONVERTED').length;
+  const conversion = Math.round((converted / LEADS.length) * 100);
+
+  return (
+    <div className="shell">
+      <Sidebar active="crm" />
+      <div className="stage">
+        <TopBar clinicName="Oak Dental · Calgary" breadcrumb={['CRM', 'Leads pipeline']} />
+        <div className="body">
+          <div className="page-header">
+            <div>
+              <h1 className="page-title">CRM · Leads</h1>
+              <div className="page-sub">{active} active leads · {converted} converted this month · {conversion}% conversion · 3 owners</div>
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button className="btn btn-ghost btn-md">Import CSV</button>
+              <button className="btn btn-ghost btn-md">Campaigns</button>
+              <button className="btn btn-primary btn-md">+ New lead</button>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
+            <KpiTile label="Active leads"      value={String(active)}    delta="+ 6"     trend="up"   accent="steel" />
+            <KpiTile label="Converted · 30d"   value={String(converted)} delta="+ 2"     trend="up"   accent="steel" />
+            <KpiTile label="Conversion rate"   value={`${conversion}%`}  delta="+ 4.2%"  trend="up"   accent="steel" />
+            <KpiTile label="Avg time to first" value="4 h"               delta="– 1 h"   trend="up"   accent="navy"  />
+          </div>
+
+          <div className="kanban">
+            {COLUMNS.map(col => {
+              const items = LEADS.filter(l => l.status === col.id);
+              return (
+                <div key={col.id} className="col">
+                  <div className="col-head">
+                    <span className="col-label">
+                      <span className="col-dot" style={{ background: col.dot }} />
+                      {col.label}
+                    </span>
+                    <span className="col-count">{items.length}</span>
+                  </div>
+                  {items.length === 0 && (
+                    <div style={{ textAlign: 'center', color: '#8A9BB0', fontSize: '.74rem', padding: '24px 0', fontFamily: 'Inter, sans-serif' }}>Drop leads here</div>
+                  )}
+                  {items.map(l => (
+                    <a key={l.id} href={`lead-detail.html?id=${l.id}`} className={`lead-card row-link${selected === l.id ? ' selected' : ''}`} style={{ textDecoration: 'none', color: 'inherit', display: 'flex', flexDirection: 'column', gap: 8 }} onClick={(e) => { e.preventDefault(); setSelected(l.id); }}>
+                      <div className="lead-name">
+                        <span>{l.first} {l.last}</span>
+                        <span className="lead-source">{l.source}</span>
+                      </div>
+                      <div className="lead-contact">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '.72rem' }}>{l.phone}</span>
+                      </div>
+                      {l.notes && <div className="lead-notes">{l.notes}</div>}
+                      <div className="lead-foot">
+                        <span className="lead-owner">
+                          <span className="avatar-mini">{l.owner}</span>
+                          {l.id}
+                        </span>
+                        <span style={{ fontFamily: "'Inter', sans-serif", fontSize: '.68rem', color: '#3A7FBD', cursor: 'pointer', fontWeight: 600 }}>Actions ▾</span>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="drawer-grid">
+            <div className="panel">
+              <div className="panel-header">
+                <div>
+                  <div className="panel-h-title">{lead.first} {lead.last}</div>
+                  <div className="panel-h-sub">{lead.id} · <StatusPill kind="lead" value={lead.status} /> · Owner {lead.owner} · Source {lead.source}</div>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn btn-ghost btn-sm">Archive</button>
+                  <button className="btn btn-primary btn-sm">Convert to patient</button>
+                </div>
+              </div>
+
+              <div className="drawer-tabs">
+                {[{id:'detail',label:'Detail'},{id:'activity',label:'Activity'},{id:'convert',label:'Convert'}].map(t => (
+                  <span key={t.id} className={`drawer-tab${tab === t.id ? ' active' : ''}`} onClick={() => setTab(t.id)}>{t.label}</span>
+                ))}
+              </div>
+
+              {tab === 'detail' && (
+                <div className="field-grid">
+                  <div className="field"><label>First name</label><input defaultValue={lead.first} /></div>
+                  <div className="field"><label>Last name</label><input defaultValue={lead.last} /></div>
+                  <div className="field"><label>Phone</label><input defaultValue={lead.phone} style={{ fontFamily: "'JetBrains Mono', monospace" }} /></div>
+                  <div className="field"><label>Email</label><input defaultValue={lead.email} type="email" /></div>
+                  <div className="field"><label>Owner</label>
+                    <select defaultValue={lead.owner}>
+                      <option value="HL">Dr Hau Le</option>
+                      <option value="SL">Dr Sara Lim</option>
+                      <option value="KS">Kim Sato (front desk)</option>
+                    </select>
+                  </div>
+                  <div className="field"><label>Status</label>
+                    <select defaultValue={lead.status}>
+                      {COLUMNS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                    </select>
+                  </div>
+                  <div className="field full"><label>Notes</label><textarea defaultValue={lead.notes}></textarea></div>
+                  <div className="full" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
+                    <button className="btn btn-ghost btn-sm">Cancel</button>
+                    <button className="btn btn-primary btn-sm">Save</button>
+                  </div>
+                </div>
+              )}
+
+              {tab === 'activity' && (
+                <div>
+                  <div className="panel-pad-sm" style={{ background: 'var(--rr-warm-white)', border: '1px solid var(--rr-parchment)', borderRadius: 6, marginBottom: 14 }}>
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                      {[
+                        { id: 'note',    label: 'Note' },
+                        { id: 'call',    label: 'Call' },
+                        { id: 'email',   label: 'Email' },
+                        { id: 'sms',     label: 'SMS' },
+                        { id: 'meeting', label: 'Meeting' },
+                      ].map((t, i) => (
+                        <span key={t.id} className="filter-pill" style={{
+                          height: 28, padding: '0 12px', borderRadius: 999, border: '1px solid var(--rr-parchment)',
+                          background: i === 0 ? 'var(--rr-mist)' : '#fff', color: i === 0 ? 'var(--rr-navy-800)' : 'var(--rr-slate-dark)',
+                          fontFamily: 'Inter, sans-serif', fontSize: '.72rem', fontWeight: i === 0 ? 600 : 400, cursor: 'pointer', display: 'inline-flex', alignItems: 'center',
+                        }}>{t.label}</span>
+                      ))}
+                    </div>
+                    <textarea placeholder="Add a note · what was discussed, next steps, follow-up date…" rows="2" style={{ width: '100%', padding: 10, border: '1px solid var(--rr-parchment)', borderRadius: 4, fontFamily: 'Inter, sans-serif', fontSize: '.84rem', color: 'var(--rr-ink)', resize: 'vertical', boxSizing: 'border-box' }}></textarea>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                      <button className="btn btn-primary btn-sm">Log activity</button>
+                    </div>
+                  </div>
+
+                  <div>
+                    {ACTIVITIES.map(a => (
+                      <div key={a.id} className="timeline-row">
+                        <span className={`timeline-icon ti-${a.icon}`}>{ACTIVITY_ICON[a.icon]}</span>
+                        <div className="ti-body">
+                          <div className="ti-head">
+                            <span className="ti-kind">{a.kind.charAt(0).toUpperCase() + a.kind.slice(1)}</span>
+                            <span className="ti-when">{a.when}</span>
+                          </div>
+                          <div className="ti-text">{a.body}</div>
+                          <div className="ti-author">— {a.author}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {tab === 'convert' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '8px 0' }}>
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: '.88rem', color: 'var(--rr-ink)', margin: 0, lineHeight: 1.6 }}>
+                    Convert <strong>{lead.first} {lead.last}</strong> into a patient record. The lead history, notes, and activity timeline carry over to the new chart.
+                  </p>
+                  <div className="field"><label>Insurance carrier</label><select><option>Self pay</option><option>Manulife</option><option>Sun Life</option><option>Alberta Blue Cross</option></select></div>
+                  <div className="field"><label>First appointment</label><input type="text" defaultValue="2026-05-04 · 10:30 · Op 3 · Hyg. Renu" /></div>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                    <button className="btn btn-ghost btn-sm">Cancel</button>
+                    <button className="btn btn-primary btn-sm">Convert to patient</button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div className="panel">
+                <div className="panel-header">
+                  <div>
+                    <div className="panel-h-title">Source breakdown</div>
+                    <div className="panel-h-sub">30 days · leads · conversion rate</div>
+                  </div>
+                </div>
+                {SOURCES.map(s => (
+                  <div key={s.name} className="src-row">
+                    <span style={{ minWidth: 86 }}>{s.name}</span>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '.78rem', color: '#1C2333', minWidth: 30, textAlign: 'right' }}>{s.leads}</span>
+                    <span className="src-bar"><span className="src-bar-fill" style={{ width: `${s.conv_rate * 2}%` }} /></span>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '.78rem', color: '#3A7FBD', fontWeight: 600, minWidth: 40, textAlign: 'right' }}>{s.conv_rate}%</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="panel">
+                <div className="panel-header">
+                  <div>
+                    <div className="panel-h-title">Tasks & follow-ups</div>
+                    <div className="panel-h-sub">Owned by you · 4 due today</div>
+                  </div>
+                </div>
+                <div>
+                  {[
+                    { time: 'Today',     who: 'Rae Tomlinson',   what: 'Send Invisalign quote PDF',      kind: 'email' },
+                    { time: 'Today',     who: 'Tom Brennan',     what: 'Follow-up call · voicemail',     kind: 'call' },
+                    { time: 'Tomorrow',  who: 'Hana Park',       what: 'Check Sun Life pre-auth status', kind: 'note' },
+                    { time: 'May 6',     who: 'Joaquin Ramos',   what: 'Confirm Saturday booking',       kind: 'sms' },
+                  ].map((t, i) => (
+                    <div key={i} className="src-row" style={{ padding: '11px 0' }}>
+                      <span className={`timeline-icon ti-${t.kind}`} style={{ width: 22, height: 22, marginRight: 10 }}>{ACTIVITY_ICON[t.kind]}</span>
+                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <span style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600, fontSize: '.84rem', color: '#1C2333' }}>{t.what}</span>
+                        <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '.72rem', color: '#8A9BB0' }}>{t.who}</span>
+                      </div>
+                      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '.7rem', color: '#B45309', fontWeight: 600 }}>{t.time}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ textAlign: 'center', padding: '20px 0', fontFamily: "'Inter', sans-serif", fontSize: '.72rem', color: 'var(--rr-slate)', letterSpacing: '.06em' }}>
+            ROCKYRIDGE · DENTAL AI · v1
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<CrmPage />);
+</script>
+</body>
+</html>

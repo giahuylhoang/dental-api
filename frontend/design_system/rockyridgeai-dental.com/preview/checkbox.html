@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Checkbox · Rockyridge Dental AI</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { padding: 32px; background: hsl(var(--background)); font-family: var(--font-ui); display: flex; flex-direction: column; gap: 14px; }
+  .row { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; }
+  .cb {
+    appearance: none; -webkit-appearance: none;
+    width: 18px; height: 18px; border: 1.5px solid var(--rr-mist);
+    border-radius: 4px; background: #fff; cursor: pointer; position: relative;
+    flex-shrink: 0; margin-top: 2px;
+    transition: border-color var(--duration-fast) var(--ease-out), background-color var(--duration-fast) var(--ease-out);
+  }
+  .cb:checked { background: hsl(var(--primary)); border-color: hsl(var(--primary)); }
+  .cb:checked::after {
+    content: ''; position: absolute; left: 5px; top: 1px;
+    width: 5px; height: 10px; border: solid #fff; border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+  .cb:focus-visible { outline: none; box-shadow: var(--shadow-ring); }
+  .cb:disabled { background: var(--rr-off-white); cursor: not-allowed; }
+  .cb-lbl { font-size: .9rem; color: var(--rr-ink); cursor: pointer; }
+  .cb-help { font-size: .72rem; color: var(--rr-slate-dark); display: block; margin-top: 2px; }
+</style></head><body>
+<div class="row"><input class="cb" type="checkbox" id="c1" checked><label class="cb-lbl" for="c1">Send appointment reminder by SMS<span class="cb-help">24h and 2h before · Twilio</span></label></div>
+<div class="row"><input class="cb" type="checkbox" id="c2"><label class="cb-lbl" for="c2">Send appointment reminder by email</label></div>
+<div class="row"><input class="cb" type="checkbox" id="c3" checked><label class="cb-lbl" for="c3">Patient consents to digital communications<span class="cb-help">Stored on the chart · revocable any time</span></label></div>
+<div class="row"><input class="cb" type="checkbox" id="c4" disabled><label class="cb-lbl" for="c4" style="color:var(--rr-slate-dark)">Use insurance auto-claim (requires Tier 2)</label></div>
+</body></html>

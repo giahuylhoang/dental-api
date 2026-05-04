@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Pagination · Rockyridge Dental AI</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { padding: 32px; background: hsl(var(--background)); font-family: var(--font-ui); display: flex; flex-direction: column; gap: 24px; }
+  .row { display: flex; align-items: center; justify-content: space-between; }
+  .meta { font-size: .82rem; color: var(--rr-slate-dark); }
+  .meta strong { color: var(--rr-ink); font-weight: 600; }
+  .pager { display: flex; gap: 4px; }
+  .pg-btn {
+    min-width: 36px; height: 36px; padding: 0 10px;
+    border: 1px solid var(--rr-parchment); background: #fff;
+    border-radius: 4px; cursor: pointer; font-size: .82rem; color: var(--rr-ink);
+    display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  }
+  .pg-btn:hover { background: var(--rr-off-white); }
+  .pg-btn.active { background: hsl(var(--primary)); border-color: hsl(var(--primary)); color: #fff; font-weight: 600; }
+  .pg-btn:disabled { color: var(--rr-mist); cursor: not-allowed; }
+  .pg-ell { padding: 0 6px; color: var(--rr-slate-dark); align-self: center; }
+</style></head><body>
+<div class="row">
+  <div class="meta">Showing <strong>21</strong>–<strong>40</strong> of <strong>412</strong> patients</div>
+  <div class="pager">
+    <button class="pg-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m15 18-6-6 6-6"/></svg>Prev</button>
+    <button class="pg-btn">1</button>
+    <button class="pg-btn active">2</button>
+    <button class="pg-btn">3</button>
+    <button class="pg-btn">4</button>
+    <span class="pg-ell">…</span>
+    <button class="pg-btn">21</button>
+    <button class="pg-btn">Next<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m9 18 6-6-6-6"/></svg></button>
+  </div>
+</div>
+</body></html>

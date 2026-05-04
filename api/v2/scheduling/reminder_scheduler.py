@@ -71,8 +71,8 @@ async def _dispatch_due_reminders(get_db_factory):
                 reminder.failure_reason = str(e)
 
             db.commit()
-    except Exception:
-        raise
+    finally:
+        db.close()
 
 
 def start_reminder_scheduler(get_db_factory):

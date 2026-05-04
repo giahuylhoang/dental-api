@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in · Rockyridge Dental AI</title>
+<link rel="stylesheet" href="../../colors_and_type.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin></script>
+<script src="../../data/users.js"></script>
+<script src="../../lib/auth.js"></script>
+<style>
+  html, body { margin: 0; height: 100%; }
+  body { background: #060F1E; color: var(--rr-warm-white); min-height: 100vh; }
+  .layout { display: grid; grid-template-columns: 1.05fr 1fr; min-height: 100vh; position: relative; overflow: hidden; }
+  .left   { padding: 60px 56px; display: flex; flex-direction: column; justify-content: space-between; position: relative; z-index: 2; }
+  .brand-row { display: flex; align-items: center; gap: 12px; }
+  .brand-row img { height: 32px; }
+  .brand-row .b1 { font-family: var(--font-display); font-weight: 800; font-size: .95rem; letter-spacing: .08em; text-transform: uppercase; color: var(--rr-warm-white); }
+  .brand-row .b2 { font-family: var(--font-display); font-weight: 400; font-size: .82rem; letter-spacing: 1.8px; color: rgba(250,249,246,0.7); text-transform: uppercase; }
+  .copy-block { max-width: 540px; }
+  .ovl   { font-family: var(--font-ui); font-weight: 600; font-size: .72rem; letter-spacing: .15em; text-transform: uppercase; color: #6BAED6; margin-bottom: 24px; }
+  .head  { font-family: var(--font-display); font-weight: 900; font-size: clamp(2.2rem, 4.5vw, 3.6rem); line-height: 1.08; letter-spacing: -.03em; color: var(--rr-warm-white); margin: 0; }
+  .cycle { display: inline-block; color: #6BAED6; min-width: 4ch; transition: opacity 320ms cubic-bezier(0.16,1,0.3,1), transform 320ms cubic-bezier(0.16,1,0.3,1); }
+  .lede  { font-family: var(--font-ui); font-size: 1rem; line-height: 1.75; color: rgba(250,249,246,0.6); margin-top: 22px; max-width: 460px; }
+  .stats { display: flex; gap: 36px; padding-top: 32px; border-top: 1px solid rgba(255,255,255,0.09); flex-wrap: wrap; }
+  .stat-k { font-family: var(--font-display); font-weight: 700; font-size: 1rem; color: var(--rr-warm-white); letter-spacing: -.01em; }
+  .stat-v { font-family: var(--font-ui); font-size: .72rem; color: rgba(250,249,246,0.4); margin-top: 3px; letter-spacing: .03em; }
+  .right  { position: relative; height: 100vh; }
+  .pillar-lbl { position: absolute; left: 8px; font-family: var(--font-ui); font-weight: 700; font-size: .6rem; letter-spacing: .14em; text-transform: uppercase; color: rgba(58,127,189,0.35); writing-mode: vertical-rl; transform: rotate(180deg); user-select: none; }
+  .pillar-rule { position: absolute; left: 32px; right: 0; height: 1px; background: rgba(58,127,189,0.07); }
+  .login-anchor {
+    position: absolute; right: 56px; top: 50%; transform: translateY(-50%);
+    z-index: 3;
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+  // Handle ?logout=1
+  (function () {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('logout') === '1') window.RRD.logout();
+  })();
+</script>
+<script type="text/babel" src="Hero.jsx"></script>
+<script type="text/babel" src="LoginCard.jsx"></script>
+
+<script type="text/babel">
+const LOGIN_WORDS = ['Schedules.', 'Charts.', 'Plans.', 'Practices.'];
+
+const LoginPortal = () => {
+  const [wordIdx, setWordIdx] = React.useState(0);
+  const [visible, setVisible] = React.useState(true);
+
+  React.useEffect(() => {
+    const id = setInterval(() => {
+      setVisible(false);
+      setTimeout(() => { setWordIdx(i => (i + 1) % LOGIN_WORDS.length); setVisible(true); }, 380);
+    }, 2800);
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <div className="layout">
+      <div className="left">
+        <a href="index.html" className="brand-row" style={{ textDecoration: 'none' }}>
+          <img src="../../assets/RR_logo_white.svg" alt="Rockyridge Dental AI" />
+          <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.05 }}>
+            <span className="b1">ROCKYRIDGE</span>
+            <span className="b2">DENTAL AI</span>
+          </div>
+        </a>
+
+        <div className="copy-block">
+          <div className="ovl">Sign in to your clinic · Sovereign · Audit-logged</div>
+          <h1 className="head">
+            Architecting<br />Sovereign{' '}
+            <span className="cycle" style={{
+              opacity: visible ? 1 : 0,
+              transform: visible ? 'translateY(0)' : 'translateY(10px)',
+            }}>{LOGIN_WORDS[wordIdx]}</span>
+          </h1>
+          <p className="lede">
+            Open the schedule. Open the chart. Open the lab. The history is already there — patient context, recall windows, lab ETAs, insurance status, all in one connected system.
+          </p>
+        </div>
+
+        <div className="stats">
+          {[
+            ['Sovereign', 'Your data, your tenancy'],
+            ['Audit-logged', 'Every clinical edit, every login'],
+            ['Light-on-the-eyes', '8-hour shift-friendly'],
+          ].map(([k, v]) => (
+            <div key={k}>
+              <div className="stat-k">{k}</div>
+              <div className="stat-v">{v}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="right">
+        {[['THE SCHEDULE', '14%'], ['THE CHART', '47%'], ['THE LAB', '76%']].map(([lbl, top]) => (
+          <div key={lbl} className="pillar-lbl" style={{ top }}>{lbl}</div>
+        ))}
+        {['33.3%', '66.6%'].map(top => <div key={top} className="pillar-rule" style={{ top }} />)}
+        <div style={{ position: 'absolute', inset: 0, opacity: 0.85 }}>
+          <NodeGraph dark={true} />
+        </div>
+      </div>
+
+      <div className="login-anchor">
+        <LoginCard />
+      </div>
+    </div>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<LoginPortal />);
+
+// Wire login form after React renders
+setTimeout(function () {
+  const form = document.getElementById('login-form');
+  if (!form) return;
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    const email = document.getElementById('login-email').value.trim();
+    const password = document.getElementById('login-password').value;
+    const result = window.RRD.login(email, password);
+    if (result.ok) {
+      const next = new URLSearchParams(window.location.search).get('next');
+      window.location.assign(next ? decodeURIComponent(next) : 'dashboard.html');
+    } else {
+      const err = document.getElementById('login-error');
+      if (err) { err.textContent = result.error; err.style.display = 'block'; }
+    }
+  });
+}, 100);
+</script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Label · Rockyridge Dental AI</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { padding: 32px; background: hsl(var(--background)); font-family: var(--font-ui); display: flex; flex-direction: column; gap: 14px; max-width: 480px; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .lbl { font-size: .82rem; font-weight: 600; color: var(--rr-ink); display: inline-flex; align-items: center; gap: 6px; }
+  .req { color: var(--rr-error); font-weight: 700; }
+  .pill { background: var(--rr-steel-100); color: var(--rr-steel-600); font-size: .65rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; letter-spacing: .04em; }
+  .help { font-size: .72rem; color: var(--rr-slate-dark); }
+  input { font-family: var(--font-ui); font-size: .9rem; padding: 9px 12px; border: 1.5px solid var(--rr-mist); border-radius: 6px; width: 100%; outline: none; }
+</style></head><body>
+<div class="field"><label class="lbl">Full name <span class="req">*</span></label><input placeholder="Jane Smith"><span class="help">As shown on government ID.</span></div>
+<div class="field"><label class="lbl">Date of birth <span class="req">*</span></label><input placeholder="YYYY-MM-DD"></div>
+<div class="field"><label class="lbl">Insurance group <span class="pill">Optional</span></label><input placeholder="GRP-00917"></div>
+</body></html>

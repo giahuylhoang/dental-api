@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Card · Rockyridge Dental AI</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { padding: 32px; background: var(--rr-off-white); font-family: var(--font-ui); }
+  .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; }
+  .card { background: #fff; border: 1px solid var(--rr-parchment); border-radius: 6px; padding: 28px; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; gap: 12px; transition: box-shadow var(--duration-base) var(--ease-out); }
+  .card:hover { box-shadow: var(--shadow-md); }
+  .card-dark { background: var(--rr-navy-800); border: none; box-shadow: var(--shadow-md); }
+  .num { font-family: var(--font-display); font-weight: 900; font-size: 2.5rem; line-height: 1; letter-spacing: -.04em; }
+  .num-light { color: rgba(10,25,47,0.06); }
+  .num-dark  { color: rgba(255,255,255,0.08); }
+  .ovl { font-size: .68rem; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: hsl(var(--primary)); }
+  .title { font-family: var(--font-display); font-weight: 700; font-size: 1.15rem; color: var(--rr-navy-800); letter-spacing: -.02em; }
+  .title-dark { color: var(--rr-warm-white); }
+  .body { font-size: .88rem; line-height: 1.7; color: var(--rr-ink-light); }
+  .body-dark { color: rgba(250,249,246,0.6); }
+  .head { display: flex; justify-content: space-between; align-items: flex-start; }
+  .footer { padding-top: 14px; margin-top: 8px; border-top: 1px solid var(--rr-parchment); display: flex; justify-content: space-between; align-items: center; font-size: .78rem; color: var(--rr-slate-dark); }
+</style></head><body>
+<div class="grid">
+  <div class="card">
+    <div class="head"><span class="ovl">Pillar One</span><span class="num num-light">01</span></div>
+    <div class="title">The Schedule</div>
+    <div class="body">Real-time chair-by-chair availability across operatories, providers, and recall windows.</div>
+  </div>
+  <div class="card card-dark">
+    <div class="head"><span class="ovl" style="color:var(--rr-steel-300)">Pillar Two</span><span class="num num-dark">02</span></div>
+    <div class="title title-dark">The Chart</div>
+    <div class="body body-dark">Tooth-level history, treatment plans, lab cases, and clinical notes — one screen, always in sync.</div>
+  </div>
+  <div class="card">
+    <div class="head"><span class="ovl">Pillar Three</span><span class="num num-light">03</span></div>
+    <div class="title">The Lab</div>
+    <div class="body">Track every case from impression to seat. Vendor SLAs, materials, and patient ETAs in one queue.</div>
+    <div class="footer"><span>4 cases in flight</span><a href="#" style="color:hsl(var(--primary));text-decoration:none">View all →</a></div>
+  </div>
+</div>
+</body></html>

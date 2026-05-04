@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Resizable · Rockyridge Dental AI</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { padding: 32px; background: hsl(var(--background)); font-family: var(--font-ui); }
+  .group { display: grid; grid-template-columns: 1fr 4px 2fr; gap: 0; height: 280px; background: #fff; border: 1px solid var(--rr-parchment); border-radius: 6px; overflow: hidden; box-shadow: var(--shadow-xs); }
+  .panel { padding: 18px; overflow: auto; }
+  .panel h4 { font-family: var(--font-display); font-weight: 700; font-size: .95rem; color: var(--rr-navy-800); margin-bottom: 8px; }
+  .panel p  { font-size: .82rem; line-height: 1.7; color: var(--rr-ink-light); }
+  .handle { background: var(--rr-parchment); cursor: col-resize; position: relative; }
+  .handle::after { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 2px; height: 24px; background: var(--rr-mist); border-radius: 1px; }
+  .handle:hover { background: var(--rr-steel-200); }
+</style></head><body>
+<div class="group">
+  <div class="panel">
+    <h4>Patient list</h4>
+    <p>Alice Stevens</p>
+    <p>Marcus Doan</p>
+    <p>Priya Khanna</p>
+    <p>Eli Brouwer</p>
+    <p>Sofía Castillo</p>
+    <p>Daniel Okafor</p>
+  </div>
+  <div class="handle" tabindex="0" role="separator" aria-orientation="vertical"></div>
+  <div class="panel">
+    <h4>Patient detail · Alice Stevens</h4>
+    <p>Resize the dividers to redistribute horizontal space. Each panel preserves its own scroll. Drag the bar between Patient list and Patient detail to widen or narrow either side.</p>
+  </div>
+</div>
+</body></html>

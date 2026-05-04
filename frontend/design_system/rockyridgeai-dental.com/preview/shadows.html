@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Shadows · Rockyridge Dental AI</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { padding: 32px; background: var(--rr-off-white); font-family: var(--font-ui); }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .card { background: #fff; border-radius: 6px; padding: 22px; display: flex; flex-direction: column; gap: 6px; }
+  .token { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--rr-slate-dark); }
+  .val { font-size: 10px; color: var(--rr-slate); font-family: var(--font-mono); }
+</style></head><body>
+<div class="grid">
+  <div class="card" style="box-shadow:var(--shadow-xs)"><span class="token">shadow-xs</span><span class="val">0 1px 2px navy/6%</span></div>
+  <div class="card" style="box-shadow:var(--shadow-sm)"><span class="token">shadow-sm · default card</span><span class="val">0 2px 8px navy/8%</span></div>
+  <div class="card" style="box-shadow:var(--shadow-md)"><span class="token">shadow-md · hover</span><span class="val">0 4px 20px navy/12%</span></div>
+  <div class="card" style="box-shadow:var(--shadow-lg)"><span class="token">shadow-lg</span><span class="val">0 8px 40px navy/16%</span></div>
+  <div class="card" style="box-shadow:var(--shadow-xl)"><span class="token">shadow-xl · dialog</span><span class="val">0 16px 60px navy/22%</span></div>
+  <div class="card" style="box-shadow:var(--shadow-inset)"><span class="token">shadow-inset</span><span class="val">inset 0 1px 3px navy/10%</span></div>
+  <div class="card" style="box-shadow:var(--shadow-ring);border:1.5px solid hsl(var(--ring))"><span class="token">shadow-ring · focus</span><span class="val">0 0 0 3px steel/18%</span></div>
+</div>
+</body></html>

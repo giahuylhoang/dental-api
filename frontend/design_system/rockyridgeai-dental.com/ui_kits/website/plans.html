@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en" class="">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Treatment Plans · Rockyridge Dental AI</title>
+<link rel="stylesheet" href="../../colors_and_type.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin></script>
+<style>
+  html, body { margin: 0; }
+  body { background: var(--rr-warm-white); min-height: 100vh; }
+  .shell { display: flex; min-height: 100vh; }
+  .stage { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .stage > .body { padding: 28px 32px; display: flex; flex-direction: column; gap: 24px; }
+  .page-header { display: flex; justify-content: space-between; align-items: center; }
+  .page-title { font-family: var(--font-display); font-weight: 800; font-size: 1.8rem; color: var(--rr-navy-800); letter-spacing: -.025em; margin: 0 0 4px; }
+  .page-sub { font-family: var(--font-ui); font-size: .88rem; color: var(--rr-slate-dark); }
+  .two-col { display: grid; grid-template-columns: 380px 1fr; gap: 18px; align-items: start; }
+  .panel { background: #fff; border: 1px solid var(--rr-parchment); border-radius: 6px; padding: 22px 24px; box-shadow: var(--shadow-xs); }
+  .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .panel-h-title { font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; color: var(--rr-navy-800); }
+  .panel-h-sub { font-family: var(--font-ui); font-size: .72rem; color: var(--rr-slate-dark); margin-top: 2px; }
+  table.list { width: 100%; border-collapse: collapse; font-family: var(--font-ui); font-size: .85rem; }
+  table.list th { text-align: left; padding: 10px 12px; color: var(--rr-slate-dark); font-size: .68rem; letter-spacing: .08em; text-transform: uppercase; border-bottom: 1px solid var(--rr-parchment); font-weight: 600; }
+  table.list td { padding: 12px; border-bottom: 1px solid var(--rr-parchment); vertical-align: middle; }
+  table.list tr:last-child td { border-bottom: none; }
+  table.list tr:hover td { background: rgba(58,127,189,0.03); cursor: pointer; }
+  table.list tr.selected td { background: rgba(58,127,189,0.06); }
+  .num { font-family: var(--font-mono); font-size: .82rem; }
+  .id-cell { font-family: var(--font-mono); font-size: .76rem; color: var(--rr-slate-dark); }
+  .pill { font-size: .66rem; font-weight: 600; padding: 3px 10px; border-radius: 999px; letter-spacing: .06em; text-transform: uppercase; display: inline-block; }
+  .pill-draft       { background: #F5F2EC; color: #4A5568; }
+  .pill-presented   { background: #D9EAF5; color: #2E6494; }
+  .pill-accepted    { background: #E8F5EE; color: #2A7D4F; }
+  .pill-in_progress { background: #FDF3E5; color: #B45309; }
+  .pill-completed   { background: #E8F5EE; color: #2A7D4F; }
+  .pill-declined    { background: #F8E5E8; color: #9B2335; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="../../lib/query.js"></script>
+<script type="text/babel" src="Sidebar.jsx"></script>
+<script type="text/babel" src="TopBar.jsx"></script>
+<script type="text/babel" src="EmptyState.jsx"></script>
+<script type="text/babel">
+window.RRD.requireSession?.();
+
+const fmt = new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' });
+
+const PLANS_DATA = (typeof window.TREATMENT_PLANS !== 'undefined' && window.TREATMENT_PLANS) || [
+  { id: 'TP-001', patient: 'Alice Stevens',  total: 3200, ins_est: 1800, pt_est: 1400, status: 'accepted',    presented_at: '2026-04-15',
+    items: [
+      { code: '52101', desc: 'Upper complete denture', fee: 1800, ins_pct: 60, tooth: null, completed_at: null },
+      { code: '52201', desc: 'Lower partial denture',  fee: 1400, ins_pct: 50, tooth: null, completed_at: null },
+    ]},
+  { id: 'TP-002', patient: 'Priya Khanna',   total: 1650, ins_est: 900,  pt_est: 750,  status: 'presented',   presented_at: '2026-04-28',
+    items: [
+      { code: '21211', desc: 'Amalgam 1S — #14', fee: 148, ins_pct: 80, tooth: '14', completed_at: null },
+      { code: '43101', desc: 'Scaling × 10 units', fee: 220, ins_pct: 80, tooth: null, completed_at: null },
+      { code: '11101', desc: 'Periodic exam',      fee: 65,  ins_pct: 100, tooth: null, completed_at: null },
+    ]},
+  { id: 'TP-003', patient: 'Marcus Doan',    total: 580,  ins_est: 464,  pt_est: 116,  status: 'in_progress', presented_at: '2026-03-10',
+    items: [
+      { code: '11101', desc: 'Periodic exam', fee: 65, ins_pct: 100, tooth: null, completed_at: '2026-03-10' },
+      { code: '43101', desc: 'Scaling × 8',   fee: 176, ins_pct: 80, tooth: null, completed_at: null },
+    ]},
+  { id: 'TP-004', patient: 'Eli Brouwer',    total: 420,  ins_est: 336,  pt_est: 84,   status: 'draft',       presented_at: null,
+    items: [
+      { code: '21211', desc: 'Amalgam 1S — #36', fee: 148, ins_pct: 80, tooth: '36', completed_at: null },
+    ]},
+];
+
+const PILL_CLASS = { draft: 'pill-draft', presented: 'pill-presented', accepted: 'pill-accepted', in_progress: 'pill-in_progress', completed: 'pill-completed', declined: 'pill-declined' };
+
+const PlansPage = () => {
+  const patientFilter = window.RRD.query('patient');
+  const plans = patientFilter ? PLANS_DATA.filter(p => String(p.patient_id) === patientFilter) : PLANS_DATA;
+  const [selected, setSelected] = React.useState(plans[0] || null);
+
+  return (
+    <div className="shell">
+      <Sidebar active="plans" />
+      <div className="stage">
+        <TopBar breadcrumb={['Treatment Plans']} />
+        <div className="body">
+          <div className="page-header">
+            <div>
+              <h1 className="page-title">Treatment Plans</h1>
+              <p className="page-sub">Draft, present, and track patient treatment plans</p>
+            </div>
+            <button className="btn btn-primary btn-sm">New plan</button>
+          </div>
+
+          <div className="two-col">
+            <div className="panel" style={{ padding: 0 }}>
+              <table className="list">
+                <thead><tr><th>Patient</th><th>Total</th><th>Status</th></tr></thead>
+                <tbody>
+                  {plans.map(p => (
+                    <tr key={p.id} className={selected?.id === p.id ? 'selected' : ''} onClick={() => setSelected(p)}>
+                      <td>
+                        <div style={{ fontWeight: 600, fontSize: '.88rem', color: 'var(--rr-navy-800)' }}>{p.patient}</div>
+                        <div className="id-cell">{p.id}</div>
+                      </td>
+                      <td className="num">{fmt.format(p.total)}</td>
+                      <td><span className={`pill ${PILL_CLASS[p.status]}`}>{p.status.replace('_', ' ')}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {selected ? (
+              <div className="panel">
+                <div className="panel-header">
+                  <div>
+                    <div className="panel-h-title">{selected.patient}</div>
+                    <div className="panel-h-sub">{selected.id} · Presented {selected.presented_at || 'not yet'}</div>
+                  </div>
+                  <span className={`pill ${PILL_CLASS[selected.status]}`}>{selected.status.replace('_', ' ')}</span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 18 }}>
+                  {[['Total estimate', fmt.format(selected.total)], ['Insurance est.', fmt.format(selected.ins_est)], ['Patient est.', fmt.format(selected.pt_est)]].map(([k, v]) => (
+                    <div key={k} style={{ border: '1px solid var(--rr-parchment)', borderRadius: 6, padding: '12px 14px' }}>
+                      <div style={{ fontFamily: 'var(--font-ui)', fontSize: '.68rem', color: 'var(--rr-slate-dark)', textTransform: 'uppercase', letterSpacing: '.08em' }}>{k}</div>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: '1.1rem', fontWeight: 600, color: 'var(--rr-navy-800)', marginTop: 4 }}>{v}</div>
+                    </div>
+                  ))}
+                </div>
+                <table className="list">
+                  <thead><tr><th>Code</th><th>Description</th><th>Fee</th><th>Ins %</th><th>Tooth</th><th>Completed</th></tr></thead>
+                  <tbody>
+                    {selected.items.map((it, i) => (
+                      <tr key={i}>
+                        <td className="id-cell">{it.code}</td>
+                        <td>{it.desc}</td>
+                        <td className="num">{fmt.format(it.fee)}</td>
+                        <td className="num">{it.ins_pct}%</td>
+                        <td className="id-cell">{it.tooth || '—'}</td>
+                        <td className="id-cell">{it.completed_at || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+                  <button className="btn btn-primary btn-sm">Save</button>
+                  <button className="btn btn-ghost btn-sm">Present to patient</button>
+                </div>
+              </div>
+            ) : (
+              <EmptyState icon="clipboard-list" title="No plan selected" sub="Select a plan from the list to view details." />
+            )}
+          </div>
+
+          <div style={{ textAlign: 'center', padding: '20px 0', fontFamily: "'Inter', sans-serif", fontSize: '.72rem', color: 'var(--rr-slate)', letterSpacing: '.06em' }}>
+            ROCKYRIDGE · DENTAL AI · v1
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<PlansPage />);
+</script>
+</body>
+</html>

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Skeleton · Rockyridge Dental AI</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { padding: 32px; background: hsl(var(--background)); font-family: var(--font-ui); }
+  @keyframes shimmer { 0% { background-position: -200px 0 } 100% { background-position: 200px 0 } }
+  .sk { background: linear-gradient(90deg, var(--rr-off-white) 0px, var(--rr-parchment) 80px, var(--rr-off-white) 160px); background-size: 200px 100%; background-repeat: repeat-x; animation: shimmer 1.4s linear infinite; border-radius: 4px; display: inline-block; }
+  .sk-line { height: 12px; }
+  .sk-circle { border-radius: 999px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .card { background: #fff; border: 1px solid var(--rr-parchment); border-radius: 6px; padding: 22px; box-shadow: var(--shadow-xs); display: flex; flex-direction: column; gap: 12px; }
+  .head { display: flex; gap: 12px; align-items: center; }
+</style></head><body>
+<div class="grid">
+  <div class="card">
+    <div class="head">
+      <div class="sk sk-circle" style="width:40px;height:40px"></div>
+      <div style="display:flex;flex-direction:column;gap:6px;flex:1">
+        <div class="sk sk-line" style="width:60%"></div>
+        <div class="sk sk-line" style="width:40%;height:10px"></div>
+      </div>
+    </div>
+    <div class="sk sk-line" style="width:100%"></div>
+    <div class="sk sk-line" style="width:90%"></div>
+    <div class="sk sk-line" style="width:75%"></div>
+  </div>
+  <div class="card">
+    <div class="sk sk-line" style="width:50%;height:18px"></div>
+    <div style="display:flex;gap:8px">
+      <div class="sk" style="width:60px;height:24px;border-radius:999px"></div>
+      <div class="sk" style="width:80px;height:24px;border-radius:999px"></div>
+    </div>
+    <div class="sk sk-line" style="width:100%"></div>
+    <div class="sk sk-line" style="width:88%"></div>
+    <div class="sk sk-line" style="width:60%"></div>
+  </div>
+</div>
+</body></html>

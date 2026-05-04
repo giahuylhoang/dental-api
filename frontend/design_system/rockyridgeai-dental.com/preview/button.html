@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Button · Rockyridge Dental AI</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { padding: 32px; background: hsl(var(--background)); display: flex; flex-direction: column; gap: 22px; font-family: var(--font-ui); }
+  h2 { font-size: .72rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--rr-slate-dark); margin: 0 0 10px; }
+  .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .dark-bg { background: var(--rr-navy-800); padding: 20px; border-radius: 6px; }
+</style></head><body>
+<div><h2>Sweep variants — sizes</h2>
+  <div class="row">
+    <button class="btn btn-primary btn-sm">Schedule</button>
+    <button class="btn btn-primary btn-md">Schedule a recall</button>
+    <button class="btn btn-primary btn-lg">Open patient chart</button>
+  </div>
+</div>
+<div><h2>Variants</h2>
+  <div class="row">
+    <button class="btn btn-primary btn-md">Primary · steel</button>
+    <button class="btn btn-navy btn-md">Navy</button>
+    <button class="btn btn-ghost btn-md">Ghost</button>
+    <button class="btn btn-destructive btn-md">Cancel appointment</button>
+    <button class="btn btn-solid btn-md">Solid (no sweep)</button>
+  </div>
+</div>
+<div><h2>States — disabled · with icon · loading skeleton</h2>
+  <div class="row">
+    <button class="btn btn-primary btn-md" disabled>Disabled</button>
+    <button class="btn btn-primary btn-md">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+      New patient
+    </button>
+    <button class="btn btn-ghost btn-md">
+      Loading…
+    </button>
+  </div>
+</div>
+<div><h2>On dark background — login portal</h2>
+  <div class="dark-bg">
+    <div class="row">
+      <button class="btn btn-white btn-md">Sign in</button>
+      <button class="btn btn-white btn-lg">Schedule a demo</button>
+    </div>
+  </div>
+</div>
+</body></html>

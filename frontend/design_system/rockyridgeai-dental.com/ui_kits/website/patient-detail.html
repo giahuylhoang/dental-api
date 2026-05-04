@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en" class="">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Patient Detail · Rockyridge Dental AI</title>
+<link rel="stylesheet" href="../../colors_and_type.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin></script>
+<style>
+  html, body { margin: 0; }
+  body { background: var(--rr-warm-white); min-height: 100vh; }
+  .shell { display: flex; min-height: 100vh; }
+  .stage { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .stage > .body { padding: 28px 32px; display: flex; flex-direction: column; gap: 24px; }
+  .panel { background: #fff; border: 1px solid var(--rr-parchment); border-radius: 6px; padding: 22px 24px; box-shadow: var(--shadow-xs); }
+  .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .panel-h-title { font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; color: var(--rr-navy-800); }
+  .tab-bar { display: flex; gap: 0; border-bottom: 1px solid var(--rr-parchment); margin-bottom: 18px; overflow-x: auto; }
+  .tab-btn { background: none; border: none; border-bottom: 2px solid transparent; padding: 10px 16px; font-family: var(--font-ui); font-size: .82rem; font-weight: 500; color: var(--rr-slate-dark); cursor: pointer; white-space: nowrap; }
+  .tab-btn.active { color: hsl(var(--primary)); border-bottom-color: hsl(var(--primary)); font-weight: 600; }
+  table.list { width: 100%; border-collapse: collapse; font-family: var(--font-ui); font-size: .85rem; }
+  table.list th { text-align: left; padding: 10px 12px; color: var(--rr-slate-dark); font-size: .68rem; letter-spacing: .08em; text-transform: uppercase; border-bottom: 1px solid var(--rr-parchment); font-weight: 600; }
+  table.list td { padding: 12px; border-bottom: 1px solid var(--rr-parchment); vertical-align: middle; }
+  table.list tr:last-child td { border-bottom: none; }
+  .num { font-family: var(--font-mono); font-size: .82rem; }
+  .id-cell { font-family: var(--font-mono); font-size: .76rem; color: var(--rr-slate-dark); }
+  .pill { font-size: .66rem; font-weight: 600; padding: 3px 10px; border-radius: 999px; letter-spacing: .06em; text-transform: uppercase; display: inline-block; }
+  .pill-active   { background: #E8F5EE; color: #2A7D4F; }
+  .pill-inactive { background: #F5F2EC; color: #4A5568; }
+  .pill-pending  { background: #FDF3E5; color: #B45309; }
+  .detail-row { display: grid; grid-template-columns: 140px 1fr; gap: 14px; padding: 10px 0; border-bottom: 1px solid var(--rr-parchment); }
+  .detail-row:last-child { border-bottom: none; }
+  .detail-k { font-family: var(--font-ui); font-size: .72rem; font-weight: 600; color: var(--rr-slate-dark); letter-spacing: .04em; text-transform: uppercase; padding-top: 2px; }
+  .detail-v { font-family: var(--font-ui); font-size: .9rem; color: var(--rr-ink); }
+  .flag-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px; background: #F8E5E8; color: #9B2335; font-family: var(--font-ui); font-size: .72rem; font-weight: 600; margin-right: 6px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="../../data/patients.js"></script>
+<script src="../../data/appointments.js"></script>
+<script src="../../data/invoices.js"></script>
+<script src="../../lib/query.js"></script>
+<script type="text/babel" src="Sidebar.jsx"></script>
+<script type="text/babel" src="TopBar.jsx"></script>
+<script type="text/babel" src="EmptyState.jsx"></script>
+<script type="text/babel" src="ToothChartTile.jsx"></script>
+<script type="text/babel">
+window.RRD.requireSession?.();
+
+const fmt = new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' });
+
+const FALLBACK_PATIENTS = [
+  { id: 'P-1001', first_name: 'Alice',  last_name: 'Stevens',  mrn: 'MRN-10001', dob: '1978-03-14', insurance: 'Alberta Blue Cross', status: 'active',
+    allergies: ['Penicillin'], medications: ['Metformin'], bisphosphonates: false },
+  { id: 'P-1002', first_name: 'Priya',  last_name: 'Khanna',   mrn: 'MRN-10002', dob: '1990-07-22', insurance: 'Manulife',           status: 'active',
+    allergies: [], medications: [], bisphosphonates: false },
+  { id: 'P-1003', first_name: 'Marcus', last_name: 'Doan',     mrn: 'MRN-10003', dob: '1965-11-05', insurance: 'Sun Life',           status: 'active',
+    allergies: ['Latex'], medications: ['Warfarin'], bisphosphonates: true },
+];
+
+const TABS = ['Overview','Tooth chart','Insurance','Documents','Notes','Treatment plans','Communications','Billing','Audit'];
+
+const age = dob => Math.floor((Date.now() - new Date(dob)) / 31557600000);
+
+const PatientDetailPage = () => {
+  const id = window.RRD.query('id');
+  const collection = (typeof window.PATIENTS !== 'undefined' && window.PATIENTS) || FALLBACK_PATIENTS;
+  const patient = id ? window.RRD.findById(collection, id) : collection[0];
+  const [tab, setTab] = React.useState(0);
+
+  if (!patient) return (
+    <div className="shell">
+      <Sidebar active="patients" />
+      <div className="stage">
+        <TopBar breadcrumb={['Patients','Not found']} />
+        <div className="body"><EmptyState icon="users" title="Patient not found" sub="No patient matches this ID." /></div>
+      </div>
+    </div>
+  );
+
+  const initials = `${patient.first_name[0]}${patient.last_name[0]}`;
+  const fullName = `${patient.first_name} ${patient.last_name}`;
+
+  return (
+    <div className="shell">
+      <Sidebar active="patients" />
+      <div className="stage">
+        <TopBar breadcrumb={['Patients', fullName]} />
+        <div className="body">
+          {/* Header */}
+          <div className="panel" style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+            <div style={{ width: 64, height: 64, borderRadius: 999, background: 'hsl(var(--primary))', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1.4rem', flexShrink: 0 }}>{initials}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.5rem', color: 'var(--rr-navy-800)', letterSpacing: '-.02em' }}>{fullName}</div>
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 4, flexWrap: 'wrap' }}>
+                <span className="id-cell">{patient.mrn}</span>
+                <span style={{ fontFamily: 'var(--font-ui)', fontSize: '.82rem', color: 'var(--rr-slate-dark)' }}>DOB {patient.dob} · Age {age(patient.dob)}</span>
+                <span className="pill" style={{ background: '#D9EAF5', color: '#2E6494' }}>{patient.insurance}</span>
+                <span className={`pill pill-${patient.status}`}>{patient.status}</span>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <a href={`appointment-detail.html?patient=${patient.id}`} className="btn btn-ghost btn-sm">Schedule</a>
+              <a href={`invoice-detail.html?patient=${patient.id}`} className="btn btn-ghost btn-sm">New invoice</a>
+              <button className="btn btn-primary btn-sm">Edit</button>
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div className="panel" style={{ padding: 0 }}>
+            <div className="tab-bar" style={{ padding: '0 24px' }}>
+              {TABS.map((t, i) => (
+                <button key={t} className={`tab-btn${tab === i ? ' active' : ''}`} onClick={() => setTab(i)}>{t}</button>
+              ))}
+            </div>
+            <div style={{ padding: '24px' }}>
+              {tab === 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+                  <div>
+                    <div style={{ fontFamily: 'var(--font-ui)', fontSize: '.72rem', fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--rr-slate-dark)', marginBottom: 8 }}>Medical flags</div>
+                    {patient.bisphosphonates && <span className="flag-chip">Bisphosphonates</span>}
+                    {patient.allergies?.map(a => <span key={a} className="flag-chip">Allergy: {a}</span>)}
+                    {patient.medications?.map(m => <span key={m} className="pill" style={{ background: '#FDF3E5', color: '#B45309', marginRight: 6 }}>{m}</span>)}
+                    {!patient.bisphosphonates && !patient.allergies?.length && !patient.medications?.length && <span style={{ fontFamily: 'var(--font-ui)', fontSize: '.85rem', color: 'var(--rr-slate-dark)' }}>No flags recorded.</span>}
+                  </div>
+                  <div>
+                    <div style={{ fontFamily: 'var(--font-ui)', fontSize: '.72rem', fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--rr-slate-dark)', marginBottom: 8 }}>Recent appointments</div>
+                    <table className="list">
+                      <thead><tr><th>Date</th><th>Provider</th><th>Service</th><th>Status</th></tr></thead>
+                      <tbody>
+                        <tr><td className="id-cell">2026-04-30</td><td>Dr. Hau Le</td><td>Periodic exam</td><td><span className="pill pill-active">Completed</span></td></tr>
+                        <tr><td className="id-cell">2026-02-14</td><td>Dr. Sara Osei</td><td>Scaling</td><td><span className="pill pill-active">Completed</span></td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+              {tab === 1 && <ToothChartTile patientId={patient.id} />}
+              {tab === 2 && (
+                <table className="list">
+                  <thead><tr><th>Carrier</th><th>Policy #</th><th>Group</th><th>Holder</th><th>Coverage</th></tr></thead>
+                  <tbody>
+                    <tr>
+                      <td>{patient.insurance}</td>
+                      <td className="id-cell">POL-{patient.id}-01</td>
+                      <td className="id-cell">GRP-4421</td>
+                      <td>{fullName}</td>
+                      <td>
+                        {[['Basic', '80%'], ['Major', '50%'], ['Ortho', '0%']].map(([k, v]) => (
+                          <span key={k} className="pill" style={{ background: 'var(--rr-mist)', color: 'var(--rr-steel-700)', marginRight: 4 }}>{k}: {v}</span>
+                        ))}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              )}
+              {tab === 3 && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                  {[['xray','Panoramic 2026-01-10','2.4 MB'],['photo','Intraoral photo','1.1 MB'],['consent','Treatment consent','84 KB']].map(([kind, name, size]) => (
+                    <div key={name} style={{ border: '1px solid var(--rr-parchment)', borderRadius: 6, padding: '14px 16px' }}>
+                      <span className="pill" style={{ background: 'var(--rr-mist)', color: 'var(--rr-steel-700)', marginBottom: 8, display: 'inline-block' }}>{kind}</span>
+                      <div style={{ fontFamily: 'var(--font-ui)', fontSize: '.85rem', color: 'var(--rr-navy-800)', fontWeight: 500 }}>{name}</div>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: '.72rem', color: 'var(--rr-slate-dark)', marginTop: 4 }}>{size}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {tab === 4 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {[{ date: '2026-04-30', s: 'Pt reports mild sensitivity upper left.', o: 'Caries #14 confirmed on BW.', a: 'Caries #14.', p: 'Restore with amalgam.', locked: true }].map((n, i) => (
+                    <div key={i} style={{ border: '1px solid var(--rr-parchment)', borderRadius: 6, padding: '14px 16px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                        <span className="id-cell">{n.date}</span>
+                        {n.locked && <span className="pill" style={{ background: '#F5F2EC', color: '#4A5568' }}>Locked</span>}
+                      </div>
+                      {[['S', n.s], ['O', n.o], ['A', n.a], ['P', n.p]].map(([k, v]) => (
+                        <div key={k} style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.76rem', fontWeight: 600, color: 'hsl(var(--primary))', width: 14 }}>{k}</span>
+                          <span style={{ fontFamily: 'var(--font-ui)', fontSize: '.85rem', color: 'var(--rr-ink)' }}>{v}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {tab === 5 && (
+                <div>
+                  <a href={`plans.html?patient=${patient.id}`} className="btn btn-ghost btn-sm" style={{ marginBottom: 14, display: 'inline-block' }}>Open in editor</a>
+                  <table className="list">
+                    <thead><tr><th>Plan ID</th><th>Total</th><th>Status</th><th>Presented</th></tr></thead>
+                    <tbody>
+                      <tr><td className="id-cell">TP-001</td><td className="num">$3,200.00</td><td><span className="pill pill-active">Accepted</span></td><td className="id-cell">2026-04-15</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {tab === 6 && <EmptyState icon="message-square" title="No communications" sub="No messages for this patient yet." />}
+              {tab === 7 && (
+                <table className="list">
+                  <thead><tr><th>Invoice</th><th>Total</th><th>Balance</th><th>Status</th></tr></thead>
+                  <tbody>
+                    <tr>
+                      <td><a href="invoice-detail.html?id=INV-2026-0418" className="id-cell" style={{ color: 'hsl(var(--primary))' }}>INV-2026-0418</a></td>
+                      <td className="num">$609.00</td>
+                      <td className="num">$0.00</td>
+                      <td><span className="pill pill-active">Paid</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              )}
+              {tab === 8 && (
+                <table className="list">
+                  <thead><tr><th>Action</th><th>Entity</th><th>User</th><th>When</th></tr></thead>
+                  <tbody>
+                    <tr><td><span className="pill" style={{ background: '#F5F2EC', color: '#4A5568' }}>UPDATE</span></td><td>Patient record</td><td>Hau Le</td><td className="id-cell">2026-05-02 14:32</td></tr>
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+
+          <div style={{ textAlign: 'center', padding: '20px 0', fontFamily: "'Inter', sans-serif", fontSize: '.72rem', color: 'var(--rr-slate)', letterSpacing: '.06em' }}>
+            ROCKYRIDGE · DENTAL AI · v1
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<PatientDetailPage />);
+</script>
+</body>
+</html>

@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en" class="">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reports · Rockyridge Dental AI</title>
+<link rel="stylesheet" href="../../colors_and_type.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin></script>
+<style>
+  html, body { margin: 0; }
+  body { background: var(--rr-warm-white); min-height: 100vh; }
+  .shell { display: flex; min-height: 100vh; }
+  .stage { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .stage > .body { padding: 28px 32px; display: flex; flex-direction: column; gap: 24px; }
+  .page-header { display: flex; justify-content: space-between; align-items: center; }
+  .page-title { font-family: var(--font-display); font-weight: 800; font-size: 1.8rem; color: var(--rr-navy-800); letter-spacing: -.025em; margin: 0 0 4px; }
+  .page-sub { font-family: var(--font-ui); font-size: .88rem; color: var(--rr-slate-dark); }
+  .kpi-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .panel { background: #fff; border: 1px solid var(--rr-parchment); border-radius: 6px; padding: 22px 24px; box-shadow: var(--shadow-xs); }
+  .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .panel-h-title { font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; color: var(--rr-navy-800); }
+  .panel-h-sub { font-family: var(--font-ui); font-size: .72rem; color: var(--rr-slate-dark); margin-top: 2px; }
+  table.list { width: 100%; border-collapse: collapse; font-family: var(--font-ui); font-size: .85rem; }
+  table.list th { text-align: left; padding: 10px 12px; color: var(--rr-slate-dark); font-size: .68rem; letter-spacing: .08em; text-transform: uppercase; border-bottom: 1px solid var(--rr-parchment); font-weight: 600; }
+  table.list td { padding: 12px; border-bottom: 1px solid var(--rr-parchment); }
+  table.list tr:last-child td { border-bottom: none; }
+  .num { font-family: var(--font-mono); font-size: .82rem; }
+  .aging-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+  .aging-cell { border: 1px solid var(--rr-parchment); border-radius: 6px; padding: 14px 16px; }
+  .aging-label { font-family: var(--font-ui); font-size: .68rem; color: var(--rr-slate-dark); letter-spacing: .08em; text-transform: uppercase; }
+  .aging-amount { font-family: var(--font-mono); font-size: 1.1rem; font-weight: 600; color: var(--rr-navy-800); margin-top: 4px; }
+  .aging-bar-track { height: 4px; background: var(--rr-parchment); border-radius: 999px; margin-top: 10px; overflow: hidden; }
+  .aging-bar-fill { height: 100%; background: var(--rr-steel-500); }
+  .aging-cell.warn .aging-bar-fill { background: #B45309; }
+  .aging-cell.danger .aging-bar-fill { background: #9B2335; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="../../data/invoices.js"></script>
+<script src="../../data/appointments.js"></script>
+<script src="../../lib/query.js"></script>
+<script type="text/babel" src="Sidebar.jsx"></script>
+<script type="text/babel" src="TopBar.jsx"></script>
+<script type="text/babel" src="KpiTile.jsx"></script>
+<script type="text/babel">
+window.RRD.requireSession?.();
+
+const fmt = new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' });
+
+const SPARKLINE_DATA = [42800,45200,41600,48900,52100,49300,55400,51800,58200,54600,61300,63800];
+const maxSpark = Math.max(...SPARKLINE_DATA);
+const sparkPoints = SPARKLINE_DATA.map((v, i) => `${(i / (SPARKLINE_DATA.length - 1)) * 280},${60 - (v / maxSpark) * 55}`).join(' ');
+
+const AGING = [
+  { label: 'Current', amount: '$12,840', pct: 100, cls: '' },
+  { label: '1–30 days', amount: '$4,210', pct: 33, cls: '' },
+  { label: '31–60 days', amount: '$2,180', pct: 17, cls: 'warn' },
+  { label: '61–90 days', amount: '$890', pct: 7, cls: 'warn' },
+  { label: '90+ days', amount: '$340', pct: 3, cls: 'danger' },
+];
+
+const PROVIDERS = [
+  { name: 'Dr. Hau Le',       hrs_booked: 38, hrs_billed: 36, rate: '$312' },
+  { name: 'Dr. Sara Osei',    hrs_booked: 32, hrs_billed: 31, rate: '$298' },
+  { name: 'Dr. Raj Patel',    hrs_booked: 28, hrs_billed: 26, rate: '$274' },
+];
+
+const TOP_PROCS = [
+  { code: '11101', desc: 'Periodic oral exam',       count: 84, avg: '$65' },
+  { code: '21211', desc: 'Amalgam restoration 1S',   count: 42, avg: '$148' },
+  { code: '43101', desc: 'Scaling per unit',         count: 210, avg: '$22' },
+  { code: '52101', desc: 'Acrylic denture — upper',  count: 8, avg: '$1,240' },
+];
+
+const RECALL = [
+  { rule: '6-month recall',    due: 24, conv: '71%' },
+  { rule: '3-month perio',     due: 9,  conv: '55%' },
+  { rule: 'Post-treatment',    due: 6,  conv: '83%' },
+];
+
+const ReportsPage = () => (
+  <div className="shell">
+    <Sidebar active="reports" />
+    <div className="stage">
+      <TopBar breadcrumb={['Reports']} />
+      <div className="body">
+        <div className="page-header">
+          <div>
+            <h1 className="page-title">Reports</h1>
+            <p className="page-sub">Operational and clinical KPIs</p>
+          </div>
+        </div>
+
+        <div className="kpi-row">
+          <KpiTile label="Revenue (30d)" value="$63,800" delta="+8.4% vs prev 30d" trend="up" />
+          <KpiTile label="AR Outstanding" value="$20,460" delta="-3.1% vs prev 30d" trend="down" />
+          <KpiTile label="Recall conversion" value="71%" delta="+2pp" trend="up" />
+          <KpiTile label="New patients (30d)" value="18" delta="+3 vs prev 30d" trend="up" />
+          <KpiTile label="Avg booking lead" value="3.2d" delta="-0.4d" trend="down" />
+        </div>
+
+        <div className="grid-2">
+          <div className="panel">
+            <div className="panel-header">
+              <div>
+                <div className="panel-h-title">Revenue trend</div>
+                <div className="panel-h-sub">12-week rolling</div>
+              </div>
+            </div>
+            <svg viewBox="0 0 280 64" style={{ width: '100%', height: 80 }}>
+              <polyline points={sparkPoints} fill="none" stroke="var(--rr-steel-500)" strokeWidth="2" strokeLinejoin="round" />
+              <polyline points={`0,64 ${sparkPoints} 280,64`} fill="rgba(58,127,189,0.08)" stroke="none" />
+            </svg>
+          </div>
+          <div className="panel">
+            <div className="panel-header">
+              <div>
+                <div className="panel-h-title">AR Aging</div>
+                <div className="panel-h-sub">Outstanding by age bucket</div>
+              </div>
+            </div>
+            <div className="aging-grid">
+              {AGING.map(a => (
+                <div key={a.label} className={`aging-cell ${a.cls}`}>
+                  <div className="aging-label">{a.label}</div>
+                  <div className="aging-amount">{a.amount}</div>
+                  <div className="aging-bar-track"><div className="aging-bar-fill" style={{ width: `${a.pct}%` }} /></div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid-2">
+          <div className="panel">
+            <div className="panel-header">
+              <div><div className="panel-h-title">Provider productivity</div></div>
+            </div>
+            <table className="list">
+              <thead><tr><th>Provider</th><th>Hrs booked</th><th>Hrs billed</th><th>$/hr</th></tr></thead>
+              <tbody>
+                {PROVIDERS.map(p => (
+                  <tr key={p.name}>
+                    <td>{p.name}</td>
+                    <td className="num">{p.hrs_booked}</td>
+                    <td className="num">{p.hrs_billed}</td>
+                    <td className="num">{p.rate}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="panel">
+            <div className="panel-header">
+              <div><div className="panel-h-title">Top procedures</div></div>
+            </div>
+            <table className="list">
+              <thead><tr><th>Code</th><th>Description</th><th>Count</th><th>Avg fee</th></tr></thead>
+              <tbody>
+                {TOP_PROCS.map(p => (
+                  <tr key={p.code}>
+                    <td style={{ fontFamily: 'var(--font-mono)', fontSize: '.76rem' }}>{p.code}</td>
+                    <td>{p.desc}</td>
+                    <td className="num">{p.count}</td>
+                    <td className="num">{p.avg}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="panel">
+          <div className="panel-header">
+            <div><div className="panel-h-title">Recall queue summary</div></div>
+          </div>
+          <table className="list">
+            <thead><tr><th>Rule</th><th>Due this week</th><th>Conversion %</th></tr></thead>
+            <tbody>
+              {RECALL.map(r => (
+                <tr key={r.rule}>
+                  <td>{r.rule}</td>
+                  <td className="num">{r.due}</td>
+                  <td className="num">{r.conv}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div style={{ textAlign: 'center', padding: '20px 0', fontFamily: "'Inter', sans-serif", fontSize: '.72rem', color: 'var(--rr-slate)', letterSpacing: '.06em' }}>
+          ROCKYRIDGE · DENTAL AI · v1
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+ReactDOM.createRoot(document.getElementById('root')).render(<ReportsPage />);
+</script>
+</body>
+</html>
