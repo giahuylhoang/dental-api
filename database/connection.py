@@ -62,6 +62,10 @@ engine = create_engine(
     connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
 )
 
+# Register SQL observability events (off by default, enable with OBSERVE_SQL=1)
+from database.observability import register_sql_events
+register_sql_events(engine)
+
 # Create session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

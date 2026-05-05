@@ -196,6 +196,12 @@ async def lifespan(app: FastAPI):
         logger.info("Database tables ready")
     except Exception as e:
         logger.warning("Database init failed: %s", e)
+    try:
+        from database.connection import engine as _engine
+        from database.observability import register_sql_events
+        register_sql_events(_engine)
+    except Exception as e:
+        logger.warning("SQL observability not registered: %s", e)
     # Start Track 3 reminder scheduler
     _reminder_task = None
     try:
@@ -220,6 +226,10 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+
+# Observability middleware (request tracing, structured logging) - registered BEFORE CORS
+from api.middleware.observability import ObservabilityMiddleware
+app.add_middleware(ObservabilityMiddleware)
 
 # CORS: allow frontend (Vite often on 5173 or 5174 when 5173 is in use)
 app.add_middleware(
@@ -1523,7 +1533,9 @@ try:
     from api.v2.treatment_plans.router import router as _tp_router
     app.include_router(_clinical_router)
     app.include_router(_lab_router)
-    app.include_router(_tp_router)
+    # Mount treatment plans at both hyphenated and underscore paths
+    app.include_router(_tp_router, prefix="/api/v2/treatment-plans")
+    app.include_router(_tp_router, prefix="/api/v2/treatment_plans")
 except ImportError:
     pass  # v2 clinical modules not yet present
 

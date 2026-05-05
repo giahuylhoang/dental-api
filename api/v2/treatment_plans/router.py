@@ -11,7 +11,8 @@ from database.models import Clinic, Patient
 from database.clinical.models import TreatmentPlan, TreatmentPlanItem, Procedure
 from api.main import get_clinic
 
-router = APIRouter(prefix="/api/v2/treatment-plans", tags=["treatment-plans"])
+# No prefix here - will be set when including in main.py
+router = APIRouter(tags=["treatment-plans"])
 
 
 # ---------------------------------------------------------------------------

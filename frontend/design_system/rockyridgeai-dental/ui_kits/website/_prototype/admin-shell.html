@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin Shell · Rockyridge Dental AI</title>
+<link rel="stylesheet" href="../../../colors_and_type.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin></script>
+<script src="../../../lib/console-tap.js"></script>
+<style>
+  html, body { margin: 0; }
+  body { background: var(--rr-warm-white); min-height: 100vh; }
+  .shell { display: flex; min-height: 100vh; }
+  .stage { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .stage > .body { padding: 28px 32px; display: flex; flex-direction: column; gap: 20px; max-width: 1280px; margin: 0 auto; width: 100%; box-sizing: border-box; }
+  .page-title { font-family: var(--font-display); font-weight: 800; font-size: 1.8rem; color: var(--rr-navy-800); letter-spacing: -.025em; margin: 0 0 4px; }
+  .page-sub { font-family: var(--font-ui); font-size: .88rem; color: var(--rr-slate-dark); }
+  .panel { background: #fff; border: 1px solid var(--rr-parchment); border-radius: 6px; padding: 22px 24px; box-shadow: var(--shadow-xs); }
+  .panel-h { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .panel-h-title { font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; color: var(--rr-navy-800); }
+  .panel-h-sub { font-family: var(--font-ui); font-size: .72rem; color: var(--rr-slate-dark); margin-top: 2px; letter-spacing: .12em; text-transform: uppercase; }
+  .stub-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .stub-tile { background: var(--rr-off-white); border: 1px dashed var(--rr-parchment); border-radius: 6px; padding: 16px; font-family: var(--font-ui); font-size: .85rem; color: var(--rr-slate-dark); }
+  .stub-tile strong { color: var(--rr-navy-800); display: block; margin-bottom: 4px; font-weight: 600; }
+  .topbar-stub {
+    height: 64px; padding: 0 28px; background: #fff; border-bottom: 1px solid var(--rr-parchment);
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 10;
+    font-family: var(--font-ui);
+  }
+  .topbar-clinic { font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: .9rem; color: var(--rr-navy-800); letter-spacing: -.01em; }
+  .topbar-crumb { display: inline-flex; align-items: center; gap: 8px; font-size: .82rem; color: var(--rr-slate-dark); }
+  .topbar-crumb .sep { color: #C8CCCC; }
+  .topbar-crumb .last { color: var(--rr-ink); font-weight: 500; }
+  .topbar-pill { font-family: var(--font-mono); font-size: .68rem; color: var(--rr-slate-dark); padding: 3px 10px; border-radius: 999px; background: var(--rr-off-white); border: 1px solid var(--rr-parchment); letter-spacing: .04em; }
+  .topbar-right { display: flex; align-items: center; gap: 10px; }
+  .topbar-avatar { width: 32px; height: 32px; border-radius: 999px; background: hsl(var(--primary)); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-weight: 600; font-size: .72rem; font-family: var(--font-ui); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="../../../data/clinics.js"></script>
+<script src="../../../data/admin_mock.js"></script>
+<script src="../../../data/ai_config.js"></script>
+<script src="../../../lib/query.js"></script>
+<script src="../../../lib/auth.js"></script>
+<script type="text/babel" src="AdminSidebar.jsx"></script>
+<script type="text/babel" src="../TopBar.jsx"></script>
+<script type="text/babel">
+window.RRD?.requireSession?.();
+
+const { CLINIC } = window.ADMIN_MOCK;
+
+const OwnerPill = () => {
+  const session = (window.RRD && window.RRD.getSession && window.RRD.getSession()) || {};
+  const userName = session.full_name || 'Demo User';
+  const userEmail = session.email || '';
+  const role = session.role || 'Demo';
+  const initials = userName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+  const [menuOpen, setMenuOpen] = React.useState(false);
+  React.useEffect(() => {
+    if (!menuOpen) return undefined;
+    const handler = (e) => {
+      const pill = document.getElementById('rrd-profile-pill');
+      const menu = document.getElementById('rrd-profile-menu');
+      if (pill && pill.contains(e.target)) return;
+      if (menu && menu.contains(e.target)) return;
+      setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [menuOpen]);
+  const handleSignOut = () => {
+    try { if (window.RRD && window.RRD.logout) window.RRD.logout(); } catch (_) {}
+    window.location.href = '/ui_kits/website/login.html?logout=1';
+  };
+  return (
+    <div style={{ position: 'relative' }}>
+      <button id="rrd-profile-pill" type="button" title={userEmail} aria-expanded={menuOpen} aria-controls="rrd-profile-menu" onClick={() => setMenuOpen(o => !o)} style={{ width: 32, height: 32, borderRadius: 999, background: '#3A7FBD', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: '0.72rem' }}>{initials}</button>
+      {menuOpen && (
+        <div id="rrd-profile-menu" role="menu" style={{ position: 'absolute', top: '100%', right: 0, marginTop: 6, width: 240, background: '#fff', border: '1px solid #EDE9E0', borderRadius: 6, boxShadow: '0 8px 24px rgba(10,25,47,0.18)', zIndex: 30, padding: 4 }}>
+          <div style={{ padding: '12px 14px 8px' }}>
+            <div style={{ fontFamily: "'Inter', sans-serif", fontWeight: 600, fontSize: '0.95rem', color: '#1C2333' }}>{userName}</div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '0.74rem', color: '#4A5568', marginTop: 2 }}>{userEmail}</div>
+            <span style={{ display: 'inline-block', marginTop: 8, background: role === 'Owner' ? '#D9EAF5' : '#F5F2EC', color: role === 'Owner' ? '#2E6494' : '#4A5568', padding: '3px 10px', borderRadius: 999, fontSize: '0.66rem', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{role}</span>
+          </div>
+          <div style={{ height: 1, background: '#EDE9E0', margin: '4px 0' }} />
+          <a role="menuitem" href="#" onClick={(e) => e.preventDefault()} style={{ display: 'block', padding: '10px 14px', color: '#1C2333', fontFamily: "'Inter', sans-serif", fontSize: '0.85rem', textDecoration: 'none', borderRadius: 4 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F2EC'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>Account</a>
+          <a role="menuitem" href="/ui_kits/website/login.html?logout=1" onClick={(e) => { e.preventDefault(); handleSignOut(); }} style={{ display: 'block', padding: '10px 14px', color: '#9B2335', fontFamily: "'Inter', sans-serif", fontSize: '0.85rem', textDecoration: 'none', borderRadius: 4 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F2EC'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>Sign out</a>
+        </div>
+      )}
+    </div>
+  );
+};
+
+function AdminTopBarStub({ breadcrumb }) {
+  return (
+    <TopBar breadcrumb={breadcrumb} clinicName={CLINIC.name} homeHref="../dashboard.html" mode="AI Receptionist" />
+  );
+}
+
+function AdminShellDemo() {
+  const [collapsed, setCollapsed] = React.useState(false);
+  return (
+    <div className="shell">
+      <AdminSidebar
+        active="dashboard"
+        collapsed={collapsed}
+        clinicName={CLINIC.name}
+        clinicSlug={CLINIC.slug}
+      />
+      <div className="stage">
+        <TopBar breadcrumb={['Dental AI', 'Shell preview']} clinicName={CLINIC.name} homeHref="../dashboard.html" mode="AI Receptionist" />
+        <div className="body">
+          <div>
+            <h1 className="page-title">Admin shell preview</h1>
+            <p className="page-sub">
+              We render the sidebar, top bar, and main slot here so every later
+              prototype page can share one chrome. Toggle the sidebar to confirm
+              both states render cleanly.
+            </p>
+          </div>
+
+          <div className="panel">
+            <div className="panel-h">
+              <div>
+                <div className="panel-h-sub">Layout check</div>
+                <div className="panel-h-title">Sidebar collapse / expand</div>
+              </div>
+              <button
+                onClick={() => setCollapsed(c => !c)}
+                style={{
+                  fontFamily: 'var(--font-ui)', fontSize: '.82rem',
+                  background: 'hsl(var(--primary))', color: '#fff',
+                  border: 'none', borderRadius: 6, padding: '8px 14px',
+                  cursor: 'pointer', fontWeight: 500,
+                }}
+              >
+                {collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              </button>
+            </div>
+            <div className="stub-grid">
+              <div className="stub-tile">
+                <strong>Reception</strong>
+                Dashboard, Calls — owned by Dental AI.
+              </div>
+              <div className="stub-tile">
+                <strong>Practice</strong>
+                Patients, Schedule — read-only mirrors of practice state.
+              </div>
+              <div className="stub-tile">
+                <strong>Configuration</strong>
+                Routing, Greeting — operator-edit, engineer-gated.
+              </div>
+            </div>
+          </div>
+
+          <div className="panel">
+            <div className="panel-h">
+              <div>
+                <div className="panel-h-sub">Mock health</div>
+                <div className="panel-h-title">Clinic configuration loaded</div>
+              </div>
+            </div>
+            <div className="stub-grid">
+              <div className="stub-tile"><strong>Clinic</strong>{CLINIC.name}</div>
+              <div className="stub-tile"><strong>Slug</strong><code style={{ fontFamily: 'var(--font-mono)', fontSize: '.78rem' }}>{CLINIC.slug}</code></div>
+              <div className="stub-tile"><strong>Timezone</strong>{CLINIC.timezone}</div>
+              <div className="stub-tile"><strong>Avg case value</strong>${(CLINIC.avg_case_value_cents / 100).toFixed(0)}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<AdminShellDemo />);
+
+// console-tap render beacon — deferred so React 18 mount completes
+setTimeout(function () {
+  try {
+    var root = document.getElementById('root');
+    var rootChildren = root ? root.children.length : -1;
+    var firstTag = (root && root.firstElementChild) ? root.firstElementChild.tagName : null;
+    var bodyBg = getComputedStyle(document.body).backgroundColor;
+    fetch('/__log__', { method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ kind: 'render-reached', url: location.pathname,
+        rootChildren: rootChildren, firstTag: firstTag, bodyBg: bodyBg,
+        title: document.title, readyState: document.readyState }) });
+  } catch(_){}
+}, 250);
+
+</script>
+</body>
+</html>

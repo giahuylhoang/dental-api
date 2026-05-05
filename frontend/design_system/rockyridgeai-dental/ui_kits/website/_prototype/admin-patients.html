@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Patients · Rockyridge Dental AI</title>
+<link rel="stylesheet" href="../../../colors_and_type.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin></script>
+<script src="../../../lib/console-tap.js"></script>
+<style>
+  html, body { margin: 0; }
+  body { background: var(--rr-warm-white); min-height: 100vh; }
+  .shell { display: flex; min-height: 100vh; }
+  .stage { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .stage > .body { padding: 28px 32px; display: flex; flex-direction: column; gap: 20px; max-width: 1280px; margin: 0 auto; width: 100%; box-sizing: border-box; }
+
+  .topbar-stub { height: 64px; padding: 0 28px; background: #fff; border-bottom: 1px solid var(--rr-parchment); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10; font-family: var(--font-ui); }
+  .topbar-clinic { font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: .9rem; color: var(--rr-navy-800); letter-spacing: -.01em; }
+  .topbar-crumb { display: inline-flex; align-items: center; gap: 8px; font-size: .82rem; color: var(--rr-slate-dark); }
+  .topbar-crumb .sep { color: #C8CCCC; }
+  .topbar-crumb .last { color: var(--rr-ink); font-weight: 500; }
+  .topbar-pill { font-family: var(--font-mono); font-size: .68rem; color: var(--rr-slate-dark); padding: 3px 10px; border-radius: 999px; background: var(--rr-off-white); border: 1px solid var(--rr-parchment); letter-spacing: .04em; }
+  .topbar-right { display: flex; align-items: center; gap: 10px; }
+  .topbar-avatar { width: 32px; height: 32px; border-radius: 999px; background: hsl(var(--primary)); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-weight: 600; font-size: .72rem; }
+
+  .page-title { font-family: var(--font-display); font-weight: 800; font-size: 1.8rem; color: var(--rr-navy-800); letter-spacing: -.025em; margin: 0 0 4px; }
+  .page-sub { font-family: var(--font-ui); font-size: .9rem; color: var(--rr-slate-dark); max-width: 64ch; line-height: 1.5; margin: 0; }
+  .page-helper { font-family: var(--font-ui); font-size: .82rem; color: var(--rr-slate-dark); margin: 2px 0 0; }
+  .overline { font-family: var(--font-ui); font-size: .68rem; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; color: var(--rr-slate-dark); }
+
+  .panel { background: #fff; border: 1px solid var(--rr-parchment); border-radius: 6px; box-shadow: var(--shadow-xs); }
+
+  /* Filter bar */
+  .filter-bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+  .filter-field { display: flex; flex-direction: column; gap: 4px; }
+  .filter-field label { font-family: var(--font-ui); font-size: .72rem; font-weight: 600; color: var(--rr-slate-dark); }
+  .d-input, .d-select {
+    font-family: var(--font-ui); font-size: .85rem; padding: 8px 12px;
+    border: 1.5px solid var(--rr-mist); border-radius: 6px;
+    background: #fff; color: var(--rr-ink); box-sizing: border-box;
+  }
+  .d-input:focus, .d-select:focus { border-color: hsl(var(--ring)); outline: none; box-shadow: 0 0 0 3px hsl(var(--primary) / 0.12); }
+  .d-select { cursor: pointer; }
+
+  /* Table */
+  .pt-table { width: 100%; border-collapse: collapse; font-family: var(--font-ui); font-size: .85rem; }
+  .pt-table th { text-align: left; font-size: .72rem; font-weight: 600; color: var(--rr-slate-dark); letter-spacing: .04em; text-transform: uppercase; padding: 10px 14px; border-bottom: 1px solid var(--rr-parchment); }
+  .pt-table td { padding: 10px 14px; border-bottom: 1px solid var(--rr-parchment); color: var(--rr-ink); vertical-align: middle; }
+  .pt-table tbody tr { cursor: pointer; transition: background-color 150ms ease; }
+  .pt-table tbody tr:hover { background: var(--rr-off-white); }
+  .mono { font-family: var(--font-mono); font-size: .82rem; }
+  .sub-line { font-size: .72rem; color: var(--rr-slate-dark); margin-top: 2px; }
+
+  /* Status pills */
+  .status-pill { display: inline-block; font-family: var(--font-ui); font-size: .68rem; font-weight: 600; padding: 2px 10px; border-radius: 999px; letter-spacing: .02em; text-transform: capitalize; }
+  .status-new { background: hsl(var(--primary) / 0.12); color: #3A7FBD; }
+  .status-contacted { background: var(--rr-off-white); color: #3D4D61; border: 1px solid var(--rr-parchment); }
+  .status-booked { background: #E8F5EE; color: #2A7D4F; }
+  .status-completed { background: #D4EDDA; color: #1B5E35; }
+  .status-lost { background: var(--rr-off-white); color: #9CA3AF; }
+
+  /* Tag pills */
+  .tag-pill { display: inline-block; font-family: var(--font-ui); font-size: .64rem; font-weight: 500; padding: 1px 8px; border-radius: 999px; background: var(--rr-off-white); color: var(--rr-slate-dark); border: 1px solid var(--rr-parchment); margin-right: 4px; }
+
+  /* Empty state */
+  .empty-state { padding: 48px 24px; text-align: center; font-family: var(--font-ui); font-size: .9rem; color: var(--rr-slate-dark); line-height: 1.6; }
+
+  /* Skeleton */
+  .skel-row td { padding: 12px 14px; }
+  .skel-bar { height: 14px; border-radius: 4px; background: var(--rr-off-white); animation: pulse 1.4s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
+
+  /* Link icon */
+  .link-icon { color: var(--rr-slate-dark); opacity: .5; transition: opacity 150ms; }
+  tr:hover .link-icon { opacity: 1; color: hsl(var(--primary)); }
+
+  /* Drawer */
+  .drawer-backdrop { position: fixed; inset: 0; background: rgba(10,25,47,0.35); z-index: 50; opacity: 0; transition: opacity 350ms ease; pointer-events: none; }
+  .drawer-backdrop.open { opacity: 1; pointer-events: auto; }
+  .drawer-panel { position: fixed; top: 0; right: 0; bottom: 0; width: 480px; max-width: 92vw; background: #fff; z-index: 51; transform: translateX(100%); transition: transform 350ms cubic-bezier(0.16,1,0.3,1); display: flex; flex-direction: column; box-shadow: -4px 0 24px rgba(10,25,47,0.12); }
+  .drawer-panel.open { transform: translateX(0); }
+  .drawer-header { padding: 20px 24px; border-bottom: 1px solid var(--rr-parchment); display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .drawer-header-info { display: flex; flex-direction: column; gap: 4px; }
+  .drawer-name { font-family: var(--font-display); font-weight: 700; font-size: 1.1rem; color: var(--rr-navy-800); }
+  .drawer-phone { font-family: var(--font-mono); font-size: .82rem; color: var(--rr-slate-dark); }
+  .drawer-close { background: none; border: 1.5px solid var(--rr-mist); border-radius: 6px; width: 32px; height: 32px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--rr-slate-dark); transition: border-color 200ms; flex-shrink: 0; }
+  .drawer-close:hover { border-color: hsl(var(--primary)); color: hsl(var(--primary)); }
+  .drawer-body { flex: 1; overflow-y: auto; }
+
+  /* Drawer tabs */
+  .dtabs { display: flex; border-bottom: 1px solid var(--rr-parchment); padding: 0 24px; }
+  .dtab { font-family: var(--font-ui); font-size: .82rem; font-weight: 500; padding: 10px 14px; cursor: pointer; color: var(--rr-slate-dark); border-bottom: 2px solid transparent; transition: color 200ms, border-color 200ms; background: none; border-top: none; border-left: none; border-right: none; }
+  .dtab.active { color: hsl(var(--primary)); border-bottom-color: hsl(var(--primary)); font-weight: 600; }
+  .dtab-content { padding: 20px 24px; }
+
+  /* Drawer detail rows */
+  .detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--rr-parchment); font-family: var(--font-ui); font-size: .85rem; }
+  .detail-row:last-child { border-bottom: none; }
+  .detail-k { color: var(--rr-slate-dark); font-size: .78rem; }
+  .detail-v { color: var(--rr-ink); font-weight: 500; }
+
+  /* Drawer mini-table */
+  .mini-table { width: 100%; border-collapse: collapse; font-family: var(--font-ui); font-size: .82rem; }
+  .mini-table th { text-align: left; font-size: .68rem; font-weight: 600; color: var(--rr-slate-dark); letter-spacing: .04em; text-transform: uppercase; padding: 8px 10px; border-bottom: 1px solid var(--rr-parchment); }
+  .mini-table td { padding: 8px 10px; border-bottom: 1px solid var(--rr-parchment); color: var(--rr-ink); }
+  .mini-table tbody tr { cursor: pointer; transition: background-color 150ms; }
+  .mini-table tbody tr:hover { background: var(--rr-off-white); }
+  .drawer-empty { font-family: var(--font-ui); font-size: .85rem; color: var(--rr-slate-dark); font-style: italic; padding: 8px 0; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="../../../data/clinics.js"></script>
+<script src="../../../data/admin_mock.js"></script>
+<script src="../../../data/ai_config.js"></script>
+<script src="../../../lib/query.js"></script>
+<script src="../../../lib/auth.js"></script>
+<script type="text/babel" src="AdminSidebar.jsx"></script>
+<script type="text/babel" src="../TopBar.jsx"></script>
+<script type="text/babel">
+window.RRD?.requireSession?.();
+
+const { CLINIC, PATIENTS, CALLS, APPOINTMENTS } = window.ADMIN_MOCK;
+
+const STATUS_OPTIONS = [
+  { value: '', label: 'any status' },
+  { value: 'new', label: 'new' },
+  { value: 'contacted', label: 'contacted' },
+  { value: 'booked', label: 'booked' },
+  { value: 'completed', label: 'completed' },
+  { value: 'lost', label: 'lost' },
+];
+
+const STATUS_CLASS = {
+  new: 'status-new', contacted: 'status-contacted', booked: 'status-booked',
+  completed: 'status-completed', lost: 'status-lost',
+};
+
+function formatPhone(e164) {
+  if (!e164) return '\u2014';
+  return e164;
+}
+
+function relativeDate(iso) {
+  if (!iso) return '';
+  var d = new Date(iso);
+  var now = new Date();
+  var diff = Math.floor((now - d) / 86400000);
+  if (diff === 0) return 'today';
+  if (diff === 1) return 'yesterday';
+  if (diff < 30) return diff + 'd ago';
+  return Math.floor(diff / 30) + 'mo ago';
+}
+
+function formatDate(iso) {
+  if (!iso) return '\u2014';
+  try { return new Date(iso).toLocaleDateString(); } catch(e) { return iso; }
+}
+
+const OwnerPill = () => {
+  const session = (window.RRD && window.RRD.getSession && window.RRD.getSession()) || {};
+  const userName = session.full_name || 'Demo User';
+  const userEmail = session.email || '';
+  const role = session.role || 'Demo';
+  const initials = userName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+  const [menuOpen, setMenuOpen] = React.useState(false);
+  React.useEffect(() => {
+    if (!menuOpen) return undefined;
+    const handler = (e) => {
+      const pill = document.getElementById('rrd-profile-pill');
+      const menu = document.getElementById('rrd-profile-menu');
+      if (pill && pill.contains(e.target)) return;
+      if (menu && menu.contains(e.target)) return;
+      setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [menuOpen]);
+  const handleSignOut = () => {
+    try { if (window.RRD && window.RRD.logout) window.RRD.logout(); } catch (_) {}
+    window.location.href = '/ui_kits/website/login.html?logout=1';
+  };
+  return (
+    <div style={{ position: 'relative' }}>
+      <button id="rrd-profile-pill" type="button" title={userEmail} aria-expanded={menuOpen} aria-controls="rrd-profile-menu" onClick={() => setMenuOpen(o => !o)} style={{ width: 32, height: 32, borderRadius: 999, background: '#3A7FBD', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: '0.72rem' }}>{initials}</button>
+      {menuOpen && (
+        <div id="rrd-profile-menu" role="menu" style={{ position: 'absolute', top: '100%', right: 0, marginTop: 6, width: 240, background: '#fff', border: '1px solid #EDE9E0', borderRadius: 6, boxShadow: '0 8px 24px rgba(10,25,47,0.18)', zIndex: 30, padding: 4 }}>
+          <div style={{ padding: '12px 14px 8px' }}>
+            <div style={{ fontFamily: "'Inter', sans-serif", fontWeight: 600, fontSize: '0.95rem', color: '#1C2333' }}>{userName}</div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '0.74rem', color: '#4A5568', marginTop: 2 }}>{userEmail}</div>
+            <span style={{ display: 'inline-block', marginTop: 8, background: role === 'Owner' ? '#D9EAF5' : '#F5F2EC', color: role === 'Owner' ? '#2E6494' : '#4A5568', padding: '3px 10px', borderRadius: 999, fontSize: '0.66rem', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{role}</span>
+          </div>
+          <div style={{ height: 1, background: '#EDE9E0', margin: '4px 0' }} />
+          <a role="menuitem" href="#" onClick={(e) => e.preventDefault()} style={{ display: 'block', padding: '10px 14px', color: '#1C2333', fontFamily: "'Inter', sans-serif", fontSize: '0.85rem', textDecoration: 'none', borderRadius: 4 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F2EC'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>Account</a>
+          <a role="menuitem" href="/ui_kits/website/login.html?logout=1" onClick={(e) => { e.preventDefault(); handleSignOut(); }} style={{ display: 'block', padding: '10px 14px', color: '#9B2335', fontFamily: "'Inter', sans-serif", fontSize: '0.85rem', textDecoration: 'none', borderRadius: 4 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F2EC'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>Sign out</a>
+        </div>
+      )}
+    </div>
+  );
+};
+
+function AdminTopBar({ breadcrumb }) {
+  return (
+    <TopBar breadcrumb={breadcrumb} clinicName={CLINIC.name} homeHref="../dashboard.html" mode="AI Receptionist" />
+  );
+}
+
+function StatusPill({ status }) {
+  if (!status) return <span>{'\u2014'}</span>;
+  return <span className={'status-pill ' + (STATUS_CLASS[status] || '')}>{status}</span>;
+}
+
+function PatientDrawer({ patient, onClose }) {
+  var _React$useState = React.useState('overview');
+  var tab = _React$useState[0];
+  var setTab = _React$useState[1];
+
+  var patientCalls = CALLS.filter(function(c) { return c.patient_id === patient.patient_id; });
+  var patientAppts = APPOINTMENTS.filter(function(a) { return a.patient_id === patient.patient_id; });
+  var name = [patient.first_name, patient.last_name].filter(Boolean).join(' ') || '\u2014';
+
+  React.useEffect(function() {
+    function onKey(e) { if (e.key === 'Escape') onClose(); }
+    document.addEventListener('keydown', onKey);
+    return function() { document.removeEventListener('keydown', onKey); };
+  }, [onClose]);
+
+  var TABS = ['Overview', 'Calls', 'Appointments', 'Notes'];
+
+  return (
+    <React.Fragment>
+      <div className="drawer-backdrop open" onClick={onClose} />
+      <div className="drawer-panel open">
+        <div className="drawer-header">
+          <div className="drawer-header-info">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span className="drawer-name">{name}</span>
+              <StatusPill status={patient.lead_status} />
+            </div>
+            <span className="drawer-phone">{formatPhone(patient.phone_e164)}</span>
+          </div>
+          <button className="drawer-close" onClick={onClose} aria-label="Close drawer">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div className="dtabs">
+          {TABS.map(function(t) {
+            var key = t.toLowerCase();
+            return <button key={key} className={'dtab' + (tab === key ? ' active' : '')} onClick={function() { setTab(key); }}>{t}</button>;
+          })}
+        </div>
+        <div className="drawer-body">
+          {tab === 'overview' && (
+            <div className="dtab-content">
+              <div className="detail-row"><span className="detail-k">Phone</span><span className="detail-v mono">{formatPhone(patient.phone_e164)}</span></div>
+              <div className="detail-row"><span className="detail-k">Email</span><span className="detail-v">{patient.email || '\u2014'}</span></div>
+              <div className="detail-row"><span className="detail-k">Last contact</span><span className="detail-v">{formatDate(patient.last_contact_at)}</span></div>
+              <div className="detail-row"><span className="detail-k">Total calls</span><span className="detail-v mono">{patient.total_calls || 0}</span></div>
+              <div style={{ marginTop: 14 }}>
+                <span style={{ fontFamily: 'var(--font-ui)', fontSize: '.72rem', fontWeight: 600, color: 'var(--rr-slate-dark)', letterSpacing: '.04em', textTransform: 'uppercase' }}>Tags</span>
+                <div style={{ marginTop: 6 }}>
+                  {patient.tags && patient.tags.length > 0
+                    ? patient.tags.map(function(t, i) { return <span key={i} className="tag-pill">{t}</span>; })
+                    : <span style={{ fontFamily: 'var(--font-ui)', fontSize: '.82rem', color: 'var(--rr-slate-dark)' }}>{'\u2014'}</span>}
+                </div>
+              </div>
+            </div>
+          )}
+          {tab === 'calls' && (
+            <div className="dtab-content">
+              {patientCalls.length === 0
+                ? <p className="drawer-empty">No calls recorded for this patient.</p>
+                : (
+                  <table className="mini-table">
+                    <thead><tr><th>Date</th><th>Duration</th><th>Outcome</th></tr></thead>
+                    <tbody>
+                      {patientCalls.map(function(c) {
+                        return (
+                          <tr key={c.call_id} onClick={function() { window.location.href = 'admin-call-detail.html?call_id=' + c.call_id; }}>
+                            <td>{formatDate(c.started_at)}</td>
+                            <td className="mono">{c.duration_seconds ? Math.floor(c.duration_seconds / 60) + 'm ' + (c.duration_seconds % 60) + 's' : '\u2014'}</td>
+                            <td>{c.outcome || '\u2014'}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+            </div>
+          )}
+          {tab === 'appointments' && (
+            <div className="dtab-content">
+              {patientAppts.length === 0
+                ? <p className="drawer-empty">No appointments linked to this patient.</p>
+                : (
+                  <table className="mini-table">
+                    <thead><tr><th>Date</th><th>Provider</th><th>Procedure</th></tr></thead>
+                    <tbody>
+                      {patientAppts.map(function(a) {
+                        var dateStr = a.time_start ? a.time_start.split('T')[0] : '';
+                        return (
+                          <tr key={a.id} onClick={function() { window.location.href = 'admin-schedule.html?date=' + dateStr; }}>
+                            <td>{formatDate(a.time_start)}</td>
+                            <td>{a.provider || '\u2014'}</td>
+                            <td>{a.procedure || '\u2014'}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+            </div>
+          )}
+          {tab === 'notes' && (
+            <div className="dtab-content">
+              {patient.notes
+                ? <p style={{ fontFamily: 'var(--font-ui)', fontSize: '.85rem', color: 'var(--rr-ink)', lineHeight: 1.6, whiteSpace: 'pre-wrap', margin: 0 }}>{patient.notes}</p>
+                : <p className="drawer-empty">No notes yet.</p>}
+            </div>
+          )}
+        </div>
+      </div>
+    </React.Fragment>
+  );
+}
+
+function Body() {
+  var _q = React.useState('');
+  var query = _q[0]; var setQuery = _q[1];
+  var _t = React.useState('');
+  var tagFilter = _t[0]; var setTagFilter = _t[1];
+  var _s = React.useState('');
+  var statusFilter = _s[0]; var setStatusFilter = _s[1];
+  var _d = React.useState(null);
+  var selected = _d[0]; var setSelected = _d[1];
+  var _l = React.useState(true);
+  var loading = _l[0]; var setLoading = _l[1];
+
+  React.useEffect(function() {
+    var t = setTimeout(function() { setLoading(false); }, 600);
+    return function() { clearTimeout(t); };
+  }, []);
+
+  var filtered = PATIENTS.filter(function(p) {
+    if (statusFilter && p.lead_status !== statusFilter) return false;
+    if (tagFilter) {
+      var tl = tagFilter.toLowerCase();
+      if (!p.tags || !p.tags.some(function(t) { return t.toLowerCase().indexOf(tl) >= 0; })) return false;
+    }
+    if (query) {
+      var ql = query.toLowerCase();
+      var name = ((p.first_name || '') + ' ' + (p.last_name || '')).toLowerCase();
+      if (name.indexOf(ql) < 0 && (p.phone_e164 || '').indexOf(ql) < 0 && (p.email || '').toLowerCase().indexOf(ql) < 0) return false;
+    }
+    return true;
+  });
+
+  return (
+    <div className="shell">
+      <AdminSidebar active="patients" clinicName={CLINIC.name} clinicSlug={CLINIC.slug} />
+      <div className="stage">
+        <TopBar breadcrumb={['Dental AI', 'Practice', 'Patients']} clinicName={CLINIC.name} homeHref="../dashboard.html" mode="AI Receptionist" />
+        <div className="body">
+          <div>
+            <div className="overline">Practice</div>
+            <h1 className="page-title">The Roster</h1>
+            <p className="page-sub">Every caller the agent has spoken to, collected here before they become a chart entry.</p>
+            <p className="page-helper">CRM rollup from agent calls.</p>
+          </div>
+
+          <div className="filter-bar">
+            <div className="filter-field" style={{ flex: '1 1 220px' }}>
+              <label>Search</label>
+              <input className="d-input" placeholder="Search name, phone, or email" value={query} onChange={function(e) { setQuery(e.target.value); }} />
+            </div>
+            <div className="filter-field" style={{ flex: '0 1 160px' }}>
+              <label>Tag</label>
+              <input className="d-input" placeholder="Tag" value={tagFilter} onChange={function(e) { setTagFilter(e.target.value); }} />
+            </div>
+            <div className="filter-field" style={{ flex: '0 1 160px' }}>
+              <label>Status</label>
+              <select className="d-select" value={statusFilter} onChange={function(e) { setStatusFilter(e.target.value); }}>
+                {STATUS_OPTIONS.map(function(o) { return <option key={o.value} value={o.value}>{o.label}</option>; })}
+              </select>
+            </div>
+          </div>
+
+          <div className="panel">
+            <table className="pt-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Phone</th>
+                  <th>Status</th>
+                  <th>Tags</th>
+                  <th>Last contact</th>
+                  <th>Calls</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  Array.from({ length: 8 }).map(function(_, i) {
+                    return (
+                      <tr key={i} className="skel-row">
+                        <td><div className="skel-bar" style={{ width: '70%' }} /></td>
+                        <td><div className="skel-bar" style={{ width: '80%' }} /></td>
+                        <td><div className="skel-bar" style={{ width: '50%' }} /></td>
+                        <td><div className="skel-bar" style={{ width: '60%' }} /></td>
+                        <td><div className="skel-bar" style={{ width: '65%' }} /></td>
+                        <td><div className="skel-bar" style={{ width: '30%' }} /></td>
+                        <td><div className="skel-bar" style={{ width: 16, height: 16 }} /></td>
+                      </tr>
+                    );
+                  })
+                ) : PATIENTS.length === 0 ? (
+                  <tr><td colSpan={7}>
+                    <div className="empty-state">The patient list builds itself as AI takes calls. New callers appear here automatically, with every conversation linked.</div>
+                  </td></tr>
+                ) : filtered.length === 0 ? (
+                  <tr><td colSpan={7}>
+                    <div className="empty-state">No patients match. Try clearing a filter.</div>
+                  </td></tr>
+                ) : filtered.map(function(p) {
+                  var name = [p.first_name, p.last_name].filter(Boolean).join(' ') || '\u2014';
+                  return (
+                    <tr key={p.patient_id} onClick={function() { setSelected(p); }}>
+                      <td style={{ fontWeight: 500 }}>{name}</td>
+                      <td className="mono">{formatPhone(p.phone_e164)}</td>
+                      <td><StatusPill status={p.lead_status} /></td>
+                      <td>
+                        {p.tags && p.tags.length > 0
+                          ? p.tags.map(function(t, i) { return <span key={i} className="tag-pill">{t}</span>; })
+                          : '\u2014'}
+                      </td>
+                      <td>
+                        <div>{formatDate(p.last_contact_at)}</div>
+                        <div className="sub-line">{relativeDate(p.last_contact_at)}</div>
+                      </td>
+                      <td className="mono">{p.total_calls || 0}</td>
+                      <td>
+                        <svg className="link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {selected && <PatientDrawer patient={selected} onClose={function() { setSelected(null); }} />}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<Body />);
+
+// console-tap render beacon — deferred so React 18 mount completes
+setTimeout(function () {
+  try {
+    var root = document.getElementById('root');
+    var rootChildren = root ? root.children.length : -1;
+    var firstTag = (root && root.firstElementChild) ? root.firstElementChild.tagName : null;
+    var bodyBg = getComputedStyle(document.body).backgroundColor;
+    fetch('/__log__', { method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ kind: 'render-reached', url: location.pathname,
+        rootChildren: rootChildren, firstTag: firstTag, bodyBg: bodyBg,
+        title: document.title, readyState: document.readyState }) });
+  } catch(_){}
+}, 250);
+
+</script>
+</body>
+</html>

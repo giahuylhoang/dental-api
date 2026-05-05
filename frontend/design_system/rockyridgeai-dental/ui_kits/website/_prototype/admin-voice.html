@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voice & persona · Rockyridge Dental AI</title>
+<link rel="stylesheet" href="../../../colors_and_type.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin></script>
+<script src="../../../lib/console-tap.js"></script>
+<style>
+  html, body { margin: 0; }
+  body { background: var(--rr-warm-white); min-height: 100vh; }
+  .shell { display: flex; min-height: 100vh; }
+  .stage { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .stage > .body { padding: 28px 32px; display: flex; flex-direction: column; gap: 20px; max-width: 1280px; margin: 0 auto; width: 100%; box-sizing: border-box; }
+
+  .topbar-stub { height: 64px; padding: 0 28px; background: #fff; border-bottom: 1px solid var(--rr-parchment); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10; font-family: var(--font-ui); }
+  .topbar-clinic { font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: .9rem; color: var(--rr-navy-800); letter-spacing: -.01em; }
+  .topbar-crumb { display: inline-flex; align-items: center; gap: 8px; font-size: .82rem; color: var(--rr-slate-dark); }
+  .topbar-crumb .sep { color: #C8CCCC; }
+  .topbar-crumb .last { color: var(--rr-ink); font-weight: 500; }
+  .topbar-pill { font-family: var(--font-mono); font-size: .68rem; color: var(--rr-slate-dark); padding: 3px 10px; border-radius: 999px; background: var(--rr-off-white); border: 1px solid var(--rr-parchment); letter-spacing: .04em; }
+  .topbar-right { display: flex; align-items: center; gap: 10px; }
+
+  .page-title { font-family: var(--font-display); font-weight: 800; font-size: 1.8rem; color: var(--rr-navy-800); letter-spacing: -.025em; margin: 0 0 4px; }
+  .page-sub { font-family: var(--font-ui); font-size: .9rem; color: var(--rr-slate-dark); max-width: 64ch; line-height: 1.5; }
+  .overline { font-family: var(--font-ui); font-size: .68rem; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; color: var(--rr-slate-dark); }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 24px; align-items: start; }
+  @media (max-width: 1024px) { .layout { grid-template-columns: 1fr; } }
+  .preview-rail { position: sticky; top: 84px; }
+  @media (max-width: 1024px) { .preview-rail { position: static; } }
+
+  .panel { background: #fff; border: 1px solid var(--rr-parchment); border-radius: 6px; padding: 22px 24px; box-shadow: var(--shadow-xs); }
+  .panel-h { margin-bottom: 16px; }
+  .panel-h-title { font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; color: var(--rr-navy-800); margin: 0; }
+  .panel-h-sub { font-family: var(--font-ui); font-size: .82rem; color: var(--rr-slate-dark); margin-top: 4px; line-height: 1.5; }
+
+  .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+  .field:last-child { margin-bottom: 0; }
+  .lbl { font-family: var(--font-ui); font-size: .82rem; font-weight: 600; color: var(--rr-ink); }
+  .lbl-helper { font-family: var(--font-ui); font-size: .76rem; color: var(--rr-slate-dark); margin-top: -2px; }
+  .d-input, .d-select {
+    font-family: var(--font-ui); font-size: .9rem; padding: 9px 12px;
+    border: 1.5px solid var(--rr-mist); border-radius: 6px;
+    width: 100%; box-sizing: border-box; background: #fff; color: var(--rr-ink);
+  }
+  .d-input:focus, .d-select:focus { border-color: hsl(var(--ring)); outline: none; box-shadow: 0 0 0 3px hsl(var(--primary) / 0.12); }
+
+  .btn-primary { font-family: var(--font-ui); font-size: .88rem; font-weight: 500; padding: 9px 18px; border-radius: 6px; background: var(--rr-navy); color: #fff; border: none; cursor: pointer; transition: background-color 200ms ease; }
+  .btn-primary:hover { background: var(--rr-navy-800); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-ghost { font-family: var(--font-ui); font-size: .85rem; padding: 8px 14px; border-radius: 6px; background: #fff; color: var(--rr-ink); border: 1.5px solid var(--rr-mist); cursor: pointer; transition: border-color 200ms ease; }
+  .btn-ghost:hover { border-color: hsl(var(--primary)); color: hsl(var(--primary)); }
+
+  .save-bar { background: rgba(255,255,255,0.96); border-top: 1px solid var(--rr-parchment); padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; border-radius: 0 0 6px 6px; }
+  .save-bar .left { font-family: var(--font-ui); font-size: .82rem; color: var(--rr-slate-dark); }
+  .btn-row { display: flex; gap: 10px; align-items: center; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="../../../data/clinics.js"></script>
+<script src="../../../data/ai_config.js"></script>
+<script src="../../../data/admin_mock.js"></script>
+<script src="../../../lib/query.js"></script>
+<script src="../../../lib/auth.js"></script>
+<script type="text/babel" src="AdminSidebar.jsx"></script>
+<script type="text/babel" src="../TopBar.jsx"></script>
+<script type="text/babel">
+window.RRD?.requireSession?.();
+
+function getClinicAndVoice() {
+  const clinicId = (window.RRD && window.RRD.getCurrentClinicId) ? window.RRD.getCurrentClinicId() : 'northeast-denture-clinic';
+  const clinics = window.CLINICS || {};
+  const clinic = (clinics || []).find(c => c.id === clinicId) || { name: 'Clinic', slug: clinicId };
+  const cfg = (window.AI_CONFIG && window.AI_CONFIG[clinicId]) || {};
+  const voice = cfg.voice || { assistant_name: 'Dental AI', provider_title: 'Denturist', reason_question: 'What brings you in?', language: 'en-US' };
+  return { clinicId, clinic, voice };
+}
+
+const OwnerPill = () => {
+  const session = (window.RRD && window.RRD.getSession && window.RRD.getSession()) || {};
+  const userName = session.full_name || 'Demo User';
+  const userEmail = session.email || '';
+  const role = session.role || 'Demo';
+  const initials = userName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+  const [menuOpen, setMenuOpen] = React.useState(false);
+  React.useEffect(() => {
+    if (!menuOpen) return undefined;
+    const handler = (e) => {
+      const pill = document.getElementById('rrd-profile-pill');
+      const menu = document.getElementById('rrd-profile-menu');
+      if (pill && pill.contains(e.target)) return;
+      if (menu && menu.contains(e.target)) return;
+      setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [menuOpen]);
+  const handleSignOut = () => {
+    try { if (window.RRD && window.RRD.logout) window.RRD.logout(); } catch (_) {}
+    window.location.href = '/ui_kits/website/login.html?logout=1';
+  };
+  return (
+    <div style={{ position: 'relative' }}>
+      <button id="rrd-profile-pill" type="button" title={userEmail} aria-expanded={menuOpen} aria-controls="rrd-profile-menu" onClick={() => setMenuOpen(o => !o)} style={{ width: 32, height: 32, borderRadius: 999, background: '#3A7FBD', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: '0.72rem' }}>{initials}</button>
+      {menuOpen && (
+        <div id="rrd-profile-menu" role="menu" style={{ position: 'absolute', top: '100%', right: 0, marginTop: 6, width: 240, background: '#fff', border: '1px solid #EDE9E0', borderRadius: 6, boxShadow: '0 8px 24px rgba(10,25,47,0.18)', zIndex: 30, padding: 4 }}>
+          <div style={{ padding: '12px 14px 8px' }}>
+            <div style={{ fontFamily: "'Inter', sans-serif", fontWeight: 600, fontSize: '0.95rem', color: '#1C2333' }}>{userName}</div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '0.74rem', color: '#4A5568', marginTop: 2 }}>{userEmail}</div>
+            <span style={{ display: 'inline-block', marginTop: 8, background: role === 'Owner' ? '#D9EAF5' : '#F5F2EC', color: role === 'Owner' ? '#2E6494' : '#4A5568', padding: '3px 10px', borderRadius: 999, fontSize: '0.66rem', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{role}</span>
+          </div>
+          <div style={{ height: 1, background: '#EDE9E0', margin: '4px 0' }} />
+          <a role="menuitem" href="#" onClick={(e) => e.preventDefault()} style={{ display: 'block', padding: '10px 14px', color: '#1C2333', fontFamily: "'Inter', sans-serif", fontSize: '0.85rem', textDecoration: 'none', borderRadius: 4 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F2EC'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>Account</a>
+          <a role="menuitem" href="/ui_kits/website/login.html?logout=1" onClick={(e) => { e.preventDefault(); handleSignOut(); }} style={{ display: 'block', padding: '10px 14px', color: '#9B2335', fontFamily: "'Inter', sans-serif", fontSize: '0.85rem', textDecoration: 'none', borderRadius: 4 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F2EC'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>Sign out</a>
+        </div>
+      )}
+    </div>
+  );
+};
+
+function AdminTopBar({ breadcrumb, clinic }) {
+  return (
+    <TopBar breadcrumb={breadcrumb} clinicName={clinic.name} homeHref="../dashboard.html" mode="AI Receptionist" />
+  );
+}
+
+const LANGUAGES = [
+  { value: 'en-US', label: 'English (US)' },
+  { value: 'en-CA', label: 'English (CA)' },
+  { value: 'es-US', label: 'Spanish (US)' },
+  { value: 'fr-CA', label: 'French (CA)' },
+];
+
+const PROVIDER_TITLES = ['Doctor', 'Denturist', 'Hygienist', 'Dentist'];
+
+function Body() {
+  const init = getClinicAndVoice();
+  const [clinic, setClinic] = React.useState(init.clinic);
+  const [draft, setDraft] = React.useState(() => structuredClone(init.voice));
+  const [pristine, setPristine] = React.useState(() => structuredClone(init.voice));
+  const [saving, setSaving] = React.useState(false);
+
+  React.useEffect(() => {
+    const handler = () => {
+      const next = getClinicAndVoice();
+      setClinic(next.clinic);
+      setDraft(structuredClone(next.voice));
+      setPristine(structuredClone(next.voice));
+    };
+    window.addEventListener('clinic-changed', handler);
+    return () => window.removeEventListener('clinic-changed', handler);
+  }, []);
+
+  const dirty = JSON.stringify(draft) !== JSON.stringify(pristine);
+
+  function save(e) {
+    e?.preventDefault();
+    setSaving(true);
+    setTimeout(() => { setPristine(structuredClone(draft)); setSaving(false); }, 400);
+  }
+
+  return (
+    <div className="shell">
+      <AdminSidebar active="voice" clinicName={clinic.name} clinicSlug={clinic.slug} />
+      <div className="stage">
+        <TopBar breadcrumb={['Dental AI', 'Configuration', 'Voice & persona']} clinicName={clinic.name} homeHref="../dashboard.html" mode="AI Receptionist" />
+        <div className="body">
+          <div>
+            <div className="overline">Configuration</div>
+            <h1 className="page-title">Voice & persona</h1>
+            <p className="page-sub">What the AI calls itself, what it calls your providers, and what it asks for first.</p>
+          </div>
+
+          <div className="layout">
+            <form className="panel" onSubmit={save}>
+              <label className="field">
+                <span className="lbl">Assistant name</span>
+                <input className="d-input" maxLength={60} value={draft.assistant_name} onChange={e => setDraft({...draft, assistant_name: e.target.value})} />
+                <span className="lbl-helper">This is what the AI says when callers ask "who is this?"</span>
+              </label>
+
+              <label className="field">
+                <span className="lbl">Provider title</span>
+                <select className="d-select" value={draft.provider_title} onChange={e => setDraft({...draft, provider_title: e.target.value})}>
+                  {PROVIDER_TITLES.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+                <span className="lbl-helper">How the AI refers to the people callers are booking with.</span>
+              </label>
+
+              <label className="field">
+                <span className="lbl">Reason question</span>
+                <input className="d-input" maxLength={120} value={draft.reason_question} onChange={e => setDraft({...draft, reason_question: e.target.value})} />
+                <span className="lbl-helper">The first question the AI asks after the greeting.</span>
+              </label>
+
+              <label className="field">
+                <span className="lbl">Language</span>
+                <select className="d-select" value={draft.language} onChange={e => setDraft({...draft, language: e.target.value})}>
+                  {LANGUAGES.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
+                </select>
+                <span className="lbl-helper">Voice and recognition default. Engineer-managed if you need a custom voice.</span>
+              </label>
+
+              <div className="save-bar">
+                <span className="left">{dirty ? 'Unsaved changes.' : 'All changes saved.'}</span>
+                <div className="btn-row">
+                  {dirty && <button type="button" className="btn-ghost" onClick={() => setDraft(structuredClone(pristine))}>Discard</button>}
+                  <button type="submit" className="btn-primary" disabled={saving || !dirty}>{saving ? 'Saving\u2026' : 'Save voice'}</button>
+                </div>
+              </div>
+            </form>
+
+            <aside className="preview-rail">
+              <div className="panel">
+                <div className="panel-h">
+                  <div className="overline">Preview</div>
+                  <p className="panel-h-sub">Preview the AI voice with these settings before saving.</p>
+                </div>
+                <button type="button" className="btn-ghost">Hear it back</button>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<Body />);
+
+setTimeout(function () {
+  try {
+    var root = document.getElementById('root');
+    var rootChildren = root ? root.children.length : -1;
+    var firstTag = (root && root.firstElementChild) ? root.firstElementChild.tagName : null;
+    var bodyBg = getComputedStyle(document.body).backgroundColor;
+    fetch('/__log__', { method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ kind: 'render-reached', url: location.pathname,
+        rootChildren: rootChildren, firstTag: firstTag, bodyBg: bodyBg,
+        title: document.title, readyState: document.readyState }) });
+  } catch(_){}
+}, 250);
+</script>
+</body>
+</html>

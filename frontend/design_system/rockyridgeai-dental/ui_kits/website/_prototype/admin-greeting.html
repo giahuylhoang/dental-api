@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Greeting · Rockyridge Dental AI</title>
+<link rel="stylesheet" href="../../../colors_and_type.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin></script>
+<script src="../../../lib/console-tap.js"></script>
+<style>
+  html, body { margin: 0; }
+  body { background: var(--rr-warm-white); min-height: 100vh; }
+  .shell { display: flex; min-height: 100vh; }
+  .stage { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .stage > .body { padding: 28px 32px; display: flex; flex-direction: column; gap: 20px; max-width: 760px; }
+
+  .topbar-stub { height: 64px; padding: 0 28px; background: #fff; border-bottom: 1px solid var(--rr-parchment); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10; font-family: var(--font-ui); }
+  .topbar-clinic { font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: .9rem; color: var(--rr-navy-800); letter-spacing: -.01em; }
+  .topbar-crumb { display: inline-flex; align-items: center; gap: 8px; font-size: .82rem; color: var(--rr-slate-dark); }
+  .topbar-crumb .sep { color: #C8CCCC; }
+  .topbar-crumb .last { color: var(--rr-ink); font-weight: 500; }
+  .topbar-pill { font-family: var(--font-mono); font-size: .68rem; color: var(--rr-slate-dark); padding: 3px 10px; border-radius: 999px; background: var(--rr-off-white); border: 1px solid var(--rr-parchment); letter-spacing: .04em; }
+  .topbar-right { display: flex; align-items: center; gap: 10px; }
+  .topbar-avatar { width: 32px; height: 32px; border-radius: 999px; background: hsl(var(--primary)); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-weight: 600; font-size: .72rem; }
+
+  .page-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+  .page-title { font-family: var(--font-display); font-weight: 800; font-size: 1.8rem; color: var(--rr-navy-800); letter-spacing: -.025em; margin: 0 0 4px; }
+  .page-sub { font-family: var(--font-ui); font-size: .9rem; color: var(--rr-slate-dark); max-width: 64ch; line-height: 1.5; }
+  .overline { font-family: var(--font-ui); font-size: .68rem; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; color: var(--rr-slate-dark); }
+
+  .panel { background: #fff; border: 1px solid var(--rr-parchment); border-radius: 6px; padding: 22px 24px; box-shadow: var(--shadow-xs); }
+  .panel + .panel { margin-top: 16px; }
+  .panel-h-title { font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; color: var(--rr-navy-800); margin: 0 0 6px; }
+  .panel-h-sub { font-family: var(--font-ui); font-size: .82rem; color: var(--rr-slate-dark); line-height: 1.5; }
+
+  .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+  .field:last-child { margin-bottom: 0; }
+  .lbl { font-family: var(--font-ui); font-size: .82rem; font-weight: 600; color: var(--rr-ink); }
+  .d-textarea {
+    font-family: var(--font-ui); font-size: .9rem; padding: 9px 12px;
+    border: 1.5px solid var(--rr-mist); border-radius: 6px;
+    width: 100%; box-sizing: border-box; background: #fff; color: var(--rr-ink);
+    min-height: 84px; resize: vertical;
+  }
+  .d-textarea:focus { border-color: hsl(var(--ring)); outline: none; box-shadow: 0 0 0 3px hsl(var(--primary) / 0.12); }
+
+  .counter { font-family: var(--font-ui); font-size: .76rem; color: var(--rr-slate-dark); }
+  .counter.warn { color: var(--rr-warning, #B45309); }
+  .counter.over { color: var(--rr-error, #9B2335); }
+
+  .btn-primary { font-family: var(--font-ui); font-size: .88rem; font-weight: 500; padding: 9px 18px; border-radius: 6px; background: var(--rr-navy); color: #fff; border: none; cursor: pointer; transition: background-color 200ms ease; }
+  .btn-primary:hover { background: var(--rr-navy-800); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-ghost { font-family: var(--font-ui); font-size: .85rem; padding: 8px 14px; border-radius: 6px; background: #fff; color: var(--rr-ink); border: 1.5px solid var(--rr-mist); cursor: pointer; transition: border-color 200ms ease; }
+  .btn-ghost:hover { border-color: hsl(var(--primary)); color: hsl(var(--primary)); }
+  .btn-ghost:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding-top: 4px; }
+
+  .info-banner { font-family: var(--font-ui); font-size: .82rem; padding: 10px 14px; border-radius: 6px; line-height: 1.5; }
+  .info-banner code { font-family: var(--font-mono); font-size: .82rem; padding: 1px 5px; border-radius: 3px; }
+  .info-banner.amber { background: #FFF8EC; border: 1px solid #F0E2C8; color: #6B4F1B; }
+  .info-banner.amber code { background: rgba(180,83,9,0.08); }
+  .info-banner.green { background: #ECFDF5; border: 1px solid #A7F3D0; color: #065F46; }
+  .info-banner.green code { background: rgba(42,125,79,0.08); }
+
+  .toggle-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .toggle-chip {
+    font-family: var(--font-ui); font-size: .72rem; font-weight: 500;
+    padding: 4px 10px; border-radius: 999px; cursor: pointer;
+    border: 1.5px solid var(--rr-parchment); background: #fff; color: var(--rr-slate-dark);
+    transition: all 200ms ease;
+  }
+  .toggle-chip.active { background: var(--rr-navy); color: #fff; border-color: var(--rr-navy); }
+
+  .save-bar { background: rgba(255,255,255,0.96); border-top: 1px solid var(--rr-parchment); padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; border-radius: 0 0 6px 6px; }
+  .save-bar .left { font-family: var(--font-ui); font-size: .82rem; color: var(--rr-slate-dark); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="../../../data/clinics.js"></script>
+<script src="../../../data/admin_mock.js"></script>
+<script src="../../../data/ai_config.js"></script>
+<script src="../../../lib/query.js"></script>
+<script src="../../../lib/auth.js"></script>
+<script type="text/babel" src="AdminSidebar.jsx"></script>
+<script type="text/babel" src="../TopBar.jsx"></script>
+<script type="text/babel">
+window.RRD?.requireSession?.();
+
+const { CLINIC, GREETING } = window.ADMIN_MOCK;
+const MAX = 280;
+
+const DEMO_STATES = {
+  none: null,
+  pending: { message: 'Welcome to Northeast Denture Clinic. How can I help you today?', status: 'pending_review' },
+  approved: { message: 'Welcome to Northeast Denture Clinic. How can I help you today?', status: 'approved', clinic_approved: true, approved_by: 'engineer@rockyridgeai.com' },
+};
+
+const OwnerPill = () => {
+  const session = (window.RRD && window.RRD.getSession && window.RRD.getSession()) || {};
+  const userName = session.full_name || 'Demo User';
+  const userEmail = session.email || '';
+  const role = session.role || 'Demo';
+  const initials = userName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+  const [menuOpen, setMenuOpen] = React.useState(false);
+  React.useEffect(() => {
+    if (!menuOpen) return undefined;
+    const handler = (e) => {
+      const pill = document.getElementById('rrd-profile-pill');
+      const menu = document.getElementById('rrd-profile-menu');
+      if (pill && pill.contains(e.target)) return;
+      if (menu && menu.contains(e.target)) return;
+      setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [menuOpen]);
+  const handleSignOut = () => {
+    try { if (window.RRD && window.RRD.logout) window.RRD.logout(); } catch (_) {}
+    window.location.href = '/ui_kits/website/login.html?logout=1';
+  };
+  return (
+    <div style={{ position: 'relative' }}>
+      <button id="rrd-profile-pill" type="button" title={userEmail} aria-expanded={menuOpen} aria-controls="rrd-profile-menu" onClick={() => setMenuOpen(o => !o)} style={{ width: 32, height: 32, borderRadius: 999, background: '#3A7FBD', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: '0.72rem' }}>{initials}</button>
+      {menuOpen && (
+        <div id="rrd-profile-menu" role="menu" style={{ position: 'absolute', top: '100%', right: 0, marginTop: 6, width: 240, background: '#fff', border: '1px solid #EDE9E0', borderRadius: 6, boxShadow: '0 8px 24px rgba(10,25,47,0.18)', zIndex: 30, padding: 4 }}>
+          <div style={{ padding: '12px 14px 8px' }}>
+            <div style={{ fontFamily: "'Inter', sans-serif", fontWeight: 600, fontSize: '0.95rem', color: '#1C2333' }}>{userName}</div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '0.74rem', color: '#4A5568', marginTop: 2 }}>{userEmail}</div>
+            <span style={{ display: 'inline-block', marginTop: 8, background: role === 'Owner' ? '#D9EAF5' : '#F5F2EC', color: role === 'Owner' ? '#2E6494' : '#4A5568', padding: '3px 10px', borderRadius: 999, fontSize: '0.66rem', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{role}</span>
+          </div>
+          <div style={{ height: 1, background: '#EDE9E0', margin: '4px 0' }} />
+          <a role="menuitem" href="#" onClick={(e) => e.preventDefault()} style={{ display: 'block', padding: '10px 14px', color: '#1C2333', fontFamily: "'Inter', sans-serif", fontSize: '0.85rem', textDecoration: 'none', borderRadius: 4 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F2EC'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>Account</a>
+          <a role="menuitem" href="/ui_kits/website/login.html?logout=1" onClick={(e) => { e.preventDefault(); handleSignOut(); }} style={{ display: 'block', padding: '10px 14px', color: '#9B2335', fontFamily: "'Inter', sans-serif", fontSize: '0.85rem', textDecoration: 'none', borderRadius: 4 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F2EC'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>Sign out</a>
+        </div>
+      )}
+    </div>
+  );
+};
+
+function AdminTopBar({ breadcrumb }) {
+  return (
+    <TopBar breadcrumb={breadcrumb} clinicName={CLINIC.name} homeHref="../dashboard.html" mode="AI Receptionist" />
+  );
+}
+
+function StatusBanner({ record }) {
+  if (!record) {
+    return (
+      <div className="info-banner amber">
+        No custom greeting persisted yet. The agent uses the YAML default until you save one.
+      </div>
+    );
+  }
+  if (record.status === 'approved') {
+    return (
+      <div className="info-banner green">
+        Status: approved · approved by {record.approved_by}
+      </div>
+    );
+  }
+  return (
+    <div className="info-banner amber">
+      Status: pending_review
+    </div>
+  );
+}
+
+function Body() {
+  const [demoKey, setDemoKey] = React.useState('none');
+  const record = DEMO_STATES[demoKey];
+
+  const [text, setText] = React.useState('');
+  const [saving, setSaving] = React.useState(false);
+  const [approving, setApproving] = React.useState(false);
+  const [savedRecord, setSavedRecord] = React.useState(null);
+
+  // Sync textarea when demo state changes
+  React.useEffect(function () {
+    setText(record ? record.message : '');
+    setSavedRecord(record ? Object.assign({}, record) : null);
+  }, [demoKey]);
+
+  const charCount = text.length;
+  const overLimit = charCount > MAX;
+  const counterClass = 'counter' + (overLimit ? ' over' : charCount > 240 ? ' warn' : '');
+
+  // The active record is either the demo override or what we've "saved"
+  const activeRecord = record || savedRecord;
+  const dirty = activeRecord ? text !== activeRecord.message : text.length > 0;
+
+  function handleSave(e) {
+    e && e.preventDefault();
+    if (overLimit) return;
+    setSaving(true);
+    setTimeout(function () {
+      setSavedRecord({ message: text, status: 'pending_review' });
+      setSaving(false);
+    }, 400);
+  }
+
+  function handleApprove() {
+    setApproving(true);
+    setTimeout(function () {
+      var rec = activeRecord || savedRecord;
+      setSavedRecord(Object.assign({}, rec, { status: 'approved', clinic_approved: true, approved_by: 'engineer@rockyridgeai.com' }));
+      setApproving(false);
+    }, 400);
+  }
+
+  // For the banner: use demo record if set, otherwise use savedRecord
+  var bannerRecord = record || savedRecord;
+
+  return (
+    <div className="shell">
+      <AdminSidebar active="greeting" clinicName={CLINIC.name} clinicSlug={CLINIC.slug} />
+      <div className="stage">
+        <TopBar breadcrumb={['Dental AI', 'Configuration', 'Greeting']} clinicName={CLINIC.name} homeHref="../dashboard.html" mode="AI Receptionist" />
+        <div className="body">
+
+          <div className="page-header">
+            <div>
+              <div className="overline">Configuration</div>
+              <h1 className="page-title">Greeting</h1>
+              <p className="page-sub">
+                The first thing callers hear when Dental AI picks up. Write it in the
+                voice of your front desk — callers should not notice the difference.
+              </p>
+            </div>
+            <div className="toggle-row">
+              {[['none','No record'],['pending','Pending review'],['approved','Approved']].map(function (pair) {
+                return (
+                  <button key={pair[0]} className={'toggle-chip' + (demoKey === pair[0] ? ' active' : '')} onClick={function () { setDemoKey(pair[0]); }}>
+                    {pair[1]}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <StatusBanner record={bannerRecord} />
+
+          <form className="panel" onSubmit={handleSave}>
+            <label className="field">
+              <span className="lbl">Greeting message</span>
+              <textarea
+                className="d-textarea"
+                rows={4}
+                maxLength={MAX + 50}
+                placeholder="Welcome to … How can I help you today?"
+                value={text}
+                onChange={function (e) { setText(e.target.value); }}
+              />
+              <span className={counterClass}>{charCount} / 280 characters</span>
+            </label>
+
+            <div className="save-bar">
+              <span className="left">{dirty ? 'Unsaved changes.' : 'All changes saved.'}</span>
+              <div className="btn-row">
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  disabled
+                  title="Audio preview is wired in production."
+                >Hear It Back</button>
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  disabled={saving || overLimit || !text.length}
+                >{saving ? 'Saving\u2026' : 'Save greeting'}</button>
+              </div>
+            </div>
+          </form>
+
+          <div className="panel">
+            <h2 className="panel-h-title">Engineer approval</h2>
+            <p className="panel-h-sub">
+              First-time edits land as <code>pending_review</code>. An engineer (email allow-listed in <code>GREETING_APPROVERS</code>) must call <code>/approve</code> once per clinic; after that, edits auto-approve.
+            </p>
+            <div style={{ marginTop: 14 }}>
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={!bannerRecord || approving}
+                title={!bannerRecord ? 'Save a greeting first; engineers approve a saved record, not a draft.' : undefined}
+                onClick={handleApprove}
+              >{approving ? 'Approving\u2026' : 'Approve clinic (engineer-gated)'}</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<Body />);
+
+// console-tap render beacon — deferred so React 18 mount completes
+setTimeout(function () {
+  try {
+    var root = document.getElementById('root');
+    var rootChildren = root ? root.children.length : -1;
+    var firstTag = (root && root.firstElementChild) ? root.firstElementChild.tagName : null;
+    var bodyBg = getComputedStyle(document.body).backgroundColor;
+    fetch('/__log__', { method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ kind: 'render-reached', url: location.pathname,
+        rootChildren: rootChildren, firstTag: firstTag, bodyBg: bodyBg,
+        title: document.title, readyState: document.readyState }) });
+  } catch(_){}
+}, 250);
+
+</script>
+</body>
+</html>

@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard · Rockyridge Dental AI</title>
+<link rel="stylesheet" href="../../../colors_and_type.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin></script>
+<script src="../../../lib/console-tap.js"></script>
+<style>
+  html, body { margin: 0; }
+  body { background: var(--rr-warm-white); min-height: 100vh; }
+  .shell { display: flex; min-height: 100vh; }
+  .stage { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .stage > .body { padding: 28px 32px; display: flex; flex-direction: column; gap: 24px; max-width: 1280px; margin: 0 auto; width: 100%; box-sizing: border-box; }
+
+  /* Topbar */
+  .topbar-stub { height: 64px; padding: 0 28px; background: #fff; border-bottom: 1px solid var(--rr-parchment); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10; font-family: var(--font-ui); }
+  .topbar-clinic { font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: .9rem; color: var(--rr-navy-800); letter-spacing: -.01em; }
+  .topbar-crumb { display: inline-flex; align-items: center; gap: 8px; font-size: .82rem; color: var(--rr-slate-dark); }
+  .topbar-crumb .sep { color: #C8CCCC; }
+  .topbar-crumb .last { color: var(--rr-ink); font-weight: 500; }
+  .topbar-pill { font-family: var(--font-mono); font-size: .68rem; color: var(--rr-slate-dark); padding: 3px 10px; border-radius: 999px; background: var(--rr-off-white); border: 1px solid var(--rr-parchment); letter-spacing: .04em; }
+  .topbar-right { display: flex; align-items: center; gap: 10px; }
+  .topbar-avatar { width: 32px; height: 32px; border-radius: 999px; background: hsl(var(--primary)); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-weight: 600; font-size: .72rem; }
+
+  /* Page header */
+  .page-title { font-family: var(--font-display); font-weight: 800; font-size: 1.8rem; color: var(--rr-navy-800); letter-spacing: -.025em; margin: 0 0 4px; }
+  .page-sub { font-family: var(--font-ui); font-size: .9rem; color: var(--rr-slate-dark); max-width: 64ch; line-height: 1.5; margin: 0; }
+  .overline { font-family: var(--font-ui); font-size: .68rem; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; color: var(--rr-slate-dark); margin: 0 0 4px; }
+
+  /* KPI grid */
+  .kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  @media (max-width: 1024px) { .kpi-grid { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); } }
+
+  .kpi-tile { background: #fff; border: 1px solid var(--rr-parchment); border-radius: 6px; padding: 20px 22px 18px; box-shadow: var(--shadow-xs); display: flex; flex-direction: column; gap: 6px; }
+  .kpi-overline { font-family: var(--font-ui); font-size: .62rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--rr-slate-dark); }
+  .kpi-number-row { display: flex; align-items: baseline; gap: 8px; }
+  .kpi-number { font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: 2rem; color: var(--rr-navy-800); letter-spacing: -.03em; line-height: 1; }
+  .kpi-delta { font-family: var(--font-ui); font-size: .72rem; font-weight: 600; display: inline-flex; align-items: center; gap: 2px; }
+  .kpi-delta.up { color: #2A7D4F; }
+  .kpi-delta.down { color: #9B2335; }
+  .kpi-delta.flat { color: var(--rr-slate-dark); }
+  .kpi-caption { font-family: var(--font-ui); font-size: .78rem; color: var(--rr-slate-dark); line-height: 1.4; }
+
+  /* Panels */
+  .panel { background: #fff; border: 1px solid var(--rr-parchment); border-radius: 6px; padding: 22px 24px; box-shadow: var(--shadow-xs); }
+  .panel-title { font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; color: var(--rr-navy-800); margin: 0 0 16px; }
+
+  /* Trend chart */
+  .trend-empty { font-family: var(--font-ui); font-size: .85rem; color: var(--rr-slate-dark); font-style: italic; padding: 24px 0; text-align: center; }
+
+  /* Quick links */
+  .quick-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 700px) { .quick-grid { grid-template-columns: 1fr; } }
+  .quick-card { background: #fff; border: 1px solid var(--rr-parchment); border-radius: 6px; padding: 18px 20px; text-decoration: none; color: inherit; transition: border-color 200ms ease; display: block; }
+  .quick-card:hover { border-color: hsl(var(--primary)); }
+  .quick-card-title { font-family: var(--font-display); font-weight: 700; font-size: .95rem; color: var(--rr-navy-800); margin: 0 0 4px; }
+  .quick-card-desc { font-family: var(--font-ui); font-size: .82rem; color: var(--rr-slate-dark); margin: 0; line-height: 1.4; }
+
+  /* Recent calls table */
+  .calls-table { width: 100%; border-collapse: collapse; font-family: var(--font-ui); font-size: .85rem; }
+  .calls-table th { text-align: left; font-size: .72rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--rr-slate-dark); padding: 8px 10px; border-bottom: 1px solid var(--rr-parchment); }
+  .calls-table td { padding: 10px 10px; border-bottom: 1px solid var(--rr-parchment); color: var(--rr-ink); vertical-align: middle; }
+  .calls-table tr:last-child td { border-bottom: none; }
+  .calls-empty { font-family: var(--font-ui); font-size: .85rem; color: var(--rr-slate-dark); font-style: italic; padding: 24px 0; text-align: center; }
+  .calls-footer { padding-top: 12px; text-align: right; }
+  .calls-footer a { font-family: var(--font-ui); font-size: .85rem; color: hsl(var(--primary)); text-decoration: none; font-weight: 500; }
+  .calls-footer a:hover { text-decoration: underline; }
+
+  /* Status pills */
+  .pill { display: inline-block; font-family: var(--font-ui); font-size: .72rem; font-weight: 600; padding: 3px 10px; border-radius: 999px; letter-spacing: .02em; }
+  .pill-booked { background: #DCFCE7; color: #166534; }
+  .pill-transferred { background: #E0EDFB; color: var(--rr-navy-800); }
+  .pill-voicemail { background: #F1F5F9; color: #475569; }
+  .pill-missed { background: #FEF3C7; color: #92400E; }
+  .pill-agent_handled { background: #ECFDF5; color: #166534; }
+  .pill-routing_gate { background: #FEF3C7; color: #92400E; }
+  .pill-error { background: #FEE2E2; color: #991B1B; }
+
+  .mono { font-family: var(--font-mono); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="../../../data/clinics.js"></script>
+<script src="../../../data/admin_mock.js"></script>
+<script src="../../../data/ai_config.js"></script>
+<script src="../../../lib/query.js"></script>
+<script src="../../../lib/auth.js"></script>
+<script type="text/babel" src="AdminSidebar.jsx"></script>
+<script type="text/babel" src="../TopBar.jsx"></script>
+<script type="text/babel">
+window.RRD?.requireSession?.();
+
+const { CLINIC, KPIS, CALLS } = window.ADMIN_MOCK;
+
+/* ── helpers ── */
+function fmtMoney(cents) {
+  return '$' + (cents / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+function fmtHours(h) { return h.toFixed(1); }
+function fmtPct(p) { return p + '%'; }
+function fmtDuration(sec) {
+  var m = Math.floor(sec / 60), s = sec % 60;
+  return m + 'm ' + (s < 10 ? '0' : '') + s + 's';
+}
+function fmtTime(iso) {
+  var d = new Date(iso);
+  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
+
+/* ── OwnerPill ── */
+const OwnerPill = () => {
+  const session = (window.RRD && window.RRD.getSession && window.RRD.getSession()) || {};
+  const userName = session.full_name || 'Demo User';
+  const userEmail = session.email || '';
+  const role = session.role || 'Demo';
+  const initials = userName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+  const [menuOpen, setMenuOpen] = React.useState(false);
+  React.useEffect(() => {
+    if (!menuOpen) return undefined;
+    const handler = (e) => {
+      const pill = document.getElementById('rrd-profile-pill');
+      const menu = document.getElementById('rrd-profile-menu');
+      if (pill && pill.contains(e.target)) return;
+      if (menu && menu.contains(e.target)) return;
+      setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [menuOpen]);
+  const handleSignOut = () => {
+    try { if (window.RRD && window.RRD.logout) window.RRD.logout(); } catch (_) {}
+    window.location.href = '/ui_kits/website/login.html?logout=1';
+  };
+  return (
+    <div style={{ position: 'relative' }}>
+      <button id="rrd-profile-pill" type="button" title={userEmail} aria-expanded={menuOpen} aria-controls="rrd-profile-menu" onClick={() => setMenuOpen(o => !o)} style={{ width: 32, height: 32, borderRadius: 999, background: '#3A7FBD', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: '0.72rem' }}>{initials}</button>
+      {menuOpen && (
+        <div id="rrd-profile-menu" role="menu" style={{ position: 'absolute', top: '100%', right: 0, marginTop: 6, width: 240, background: '#fff', border: '1px solid #EDE9E0', borderRadius: 6, boxShadow: '0 8px 24px rgba(10,25,47,0.18)', zIndex: 30, padding: 4 }}>
+          <div style={{ padding: '12px 14px 8px' }}>
+            <div style={{ fontFamily: "'Inter', sans-serif", fontWeight: 600, fontSize: '0.95rem', color: '#1C2333' }}>{userName}</div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '0.74rem', color: '#4A5568', marginTop: 2 }}>{userEmail}</div>
+            <span style={{ display: 'inline-block', marginTop: 8, background: role === 'Owner' ? '#D9EAF5' : '#F5F2EC', color: role === 'Owner' ? '#2E6494' : '#4A5568', padding: '3px 10px', borderRadius: 999, fontSize: '0.66rem', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{role}</span>
+          </div>
+          <div style={{ height: 1, background: '#EDE9E0', margin: '4px 0' }} />
+          <a role="menuitem" href="#" onClick={(e) => e.preventDefault()} style={{ display: 'block', padding: '10px 14px', color: '#1C2333', fontFamily: "'Inter', sans-serif", fontSize: '0.85rem', textDecoration: 'none', borderRadius: 4 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F2EC'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>Account</a>
+          <a role="menuitem" href="/ui_kits/website/login.html?logout=1" onClick={(e) => { e.preventDefault(); handleSignOut(); }} style={{ display: 'block', padding: '10px 14px', color: '#9B2335', fontFamily: "'Inter', sans-serif", fontSize: '0.85rem', textDecoration: 'none', borderRadius: 4 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F2EC'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>Sign out</a>
+        </div>
+      )}
+    </div>
+  );
+};
+
+/* ── AdminTopBar ── */
+function AdminTopBar({ breadcrumb }) {
+  return (
+    <TopBar breadcrumb={breadcrumb} clinicName={CLINIC.name} homeHref="../dashboard.html" mode="AI Receptionist" />
+  );
+}
+
+/* ── Sparkline (inline SVG) ── */
+function Sparkline({ data, width, height, color }) {
+  width = width || 80;
+  height = height || 28;
+  color = color || 'hsl(var(--primary))';
+  if (!data || data.length < 2) return <svg width={width} height={height} />;
+  var max = Math.max.apply(null, data) || 1;
+  var pts = data.map(function(v, i) {
+    var x = (i / (data.length - 1)) * width;
+    var y = height - (v / max) * (height - 4) - 2;
+    return x + ',' + y;
+  }).join(' ');
+  return (
+    <svg width={width} height={height} style={{ display: 'block' }}>
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/* ── Delta chevron ── */
+function Delta({ value }) {
+  if (value === 0 || value === undefined || value === null) {
+    return <span className="kpi-delta flat">{'\u2014'}</span>;
+  }
+  var cls = value > 0 ? 'up' : 'down';
+  var arrow = value > 0 ? '\u25B2' : '\u25BC';
+  return <span className={'kpi-delta ' + cls}>{arrow} {Math.abs(value)}%</span>;
+}
+
+/* ── Status pill ── */
+function StatusPill({ outcome }) {
+  var cls = 'pill ';
+  if (outcome === 'booked') cls += 'pill-booked';
+  else if (outcome === 'transferred') cls += 'pill-transferred';
+  else if (outcome === 'voicemail') cls += 'pill-voicemail';
+  else if (outcome === 'missed') cls += 'pill-missed';
+  else if (outcome === 'agent_handled') cls += 'pill-agent_handled';
+  else if (outcome && outcome.indexOf('routing_gate') === 0) cls += 'pill-routing_gate';
+  else if (outcome === 'error') cls += 'pill-error';
+  else cls += 'pill-voicemail';
+  return <span className={cls}>{outcome}</span>;
+}
+
+/* ── Trend chart (SVG, 14-day) ── */
+function TrendChart({ data }) {
+  if (!data || data.length === 0) {
+    return <div className="trend-empty">Trend renders as soon as 14 days of calls land in the log.</div>;
+  }
+  var W = 700, H = 200, PX = 40, PY = 20;
+  var maxCalls = Math.max.apply(null, data.map(function(d) { return d.calls; })) || 1;
+  var maxBooked = Math.max.apply(null, data.map(function(d) { return d.booked; })) || 1;
+  var maxVal = Math.max(maxCalls, maxBooked);
+  var gridLines = [0.25, 0.5, 0.75, 1].map(function(f) { return Math.round(maxVal * f); });
+
+  function x(i) { return PX + (i / (data.length - 1)) * (W - PX * 2); }
+  function y(v) { return PY + (1 - v / maxVal) * (H - PY * 2); }
+
+  var callsPath = data.map(function(d, i) { return (i === 0 ? 'M' : 'L') + x(i) + ',' + y(d.calls); }).join(' ');
+  var bookedPath = data.map(function(d, i) { return (i === 0 ? 'M' : 'L') + x(i) + ',' + y(d.booked); }).join(' ');
+
+  return (
+    <svg viewBox={'0 0 ' + W + ' ' + H} style={{ width: '100%', height: 'auto', maxHeight: 240 }}>
+      {gridLines.map(function(gv) {
+        return (
+          <React.Fragment key={gv}>
+            <line x1={PX} y1={y(gv)} x2={W - PX} y2={y(gv)} stroke="var(--rr-parchment)" strokeWidth="1" />
+            <text x={PX - 6} y={y(gv) + 3} textAnchor="end" fontSize="10" fill="var(--rr-slate-dark)" fontFamily="var(--font-ui)">{gv}</text>
+          </React.Fragment>
+        );
+      })}
+      {data.map(function(d, i) {
+        return <text key={i} x={x(i)} y={H - 4} textAnchor="middle" fontSize="9" fill="var(--rr-slate-dark)" fontFamily="var(--font-mono)">{d.date.slice(5)}</text>;
+      })}
+      <path d={callsPath} fill="none" stroke="#3A7FBD" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d={bookedPath} fill="none" stroke="#0A192F" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <text x={W - PX} y={PY - 6} textAnchor="end" fontSize="10" fill="#3A7FBD" fontFamily="var(--font-ui)" fontWeight="600">Calls</text>
+      <text x={W - PX - 50} y={PY - 6} textAnchor="end" fontSize="10" fill="#0A192F" fontFamily="var(--font-ui)" fontWeight="600">Booked</text>
+    </svg>
+  );
+}
+
+/* ── KPI tile ── */
+function KpiTile({ label, value, delta, caption, sparkData, sparkColor }) {
+  return (
+    <div className="kpi-tile">
+      <div className="kpi-overline">{label}</div>
+      <div className="kpi-number-row">
+        <span className="kpi-number">{value}</span>
+        <Delta value={delta} />
+      </div>
+      <Sparkline data={sparkData} color={sparkColor} />
+      <div className="kpi-caption">{caption}</div>
+    </div>
+  );
+}
+
+/* ── Body ── */
+function Body() {
+  var K = KPIS;
+
+  /* Compute KPI display values */
+  var revenueCents = K.revenue_captured_cents.value || (K.bookings.value * CLINIC.avg_case_value_cents);
+  var afterHoursCents = K.after_hours_revenue_cents.value;
+  var hoursSaved = K.front_desk_hours_saved.value;
+  var hoursSavedDollars = (hoursSaved * CLINIC.front_desk_hourly_cost_cents) / 100;
+
+  /* Recent calls: last 5 sorted desc */
+  var recentCalls = CALLS.slice().sort(function(a, b) {
+    return new Date(b.started_at) - new Date(a.started_at);
+  }).slice(0, 5);
+
+  return (
+    <div className="shell">
+      <AdminSidebar active="dashboard" clinicName={CLINIC.name} clinicSlug={CLINIC.slug} />
+      <div className="stage">
+        <TopBar breadcrumb={['Reception', 'Dashboard']} clinicName={CLINIC.name} homeHref="../dashboard.html" mode="AI Receptionist" />
+        <div className="body">
+
+          {/* 1. Page header */}
+          <div>
+            <div className="overline">Reception</div>
+            <h1 className="page-title">Dental AI</h1>
+            <p className="page-sub">Calls AI handled this period, the outcomes, and the front-desk time recovered.</p>
+          </div>
+
+          {/* 2. KPI grid */}
+          <div className="kpi-grid">
+            <KpiTile
+              label="Estimated Revenue Captured"
+              value={fmtMoney(revenueCents)}
+              delta={K.revenue_captured_cents.delta_pct}
+              caption={'From ' + K.bookings.value + ' bookings this period.'}
+              sparkData={K.sparklines.revenue_captured_cents}
+              sparkColor="#3A7FBD"
+            />
+            <KpiTile
+              label="After-Hours Revenue Captured"
+              value={fmtMoney(afterHoursCents)}
+              delta={K.after_hours_revenue_cents.delta_pct}
+              caption="Revenue you'd have lost without overnight coverage."
+              sparkData={K.sparklines.after_hours_revenue_cents}
+              sparkColor="#3A7FBD"
+            />
+            <KpiTile
+              label="Front-Desk Hours Saved"
+              value={fmtHours(hoursSaved) + ' h'}
+              delta={K.front_desk_hours_saved.delta_pct}
+              caption={fmtMoney(hoursSavedDollars) + ' equivalent at $' + (CLINIC.front_desk_hourly_cost_cents / 100) + '/hr.'}
+              sparkData={K.sparklines.front_desk_hours_saved}
+              sparkColor="#3A7FBD"
+            />
+            <KpiTile
+              label="Bookings"
+              value={K.bookings.value}
+              delta={K.bookings.delta_pct}
+              caption="Appointments booked by Dental AI this period."
+              sparkData={K.sparklines.bookings}
+              sparkColor="#0A192F"
+            />
+            <KpiTile
+              label="Resolution Rate"
+              value={fmtPct(K.resolution_rate_pct.value)}
+              delta={K.resolution_rate_pct.delta_pct}
+              caption="Calls resolved without front-desk transfer."
+              sparkData={K.sparklines.resolution_rate_pct}
+              sparkColor="#0A192F"
+            />
+            <KpiTile
+              label="Missed-Call Recovery"
+              value={fmtPct(K.missed_call_recovery_pct.value)}
+              delta={K.missed_call_recovery_pct.delta_pct}
+              caption="Inbound calls answered that would have gone to voicemail."
+              sparkData={K.sparklines.missed_call_recovery_pct}
+              sparkColor="#0A192F"
+            />
+          </div>
+
+          {/* 3. Trend chart */}
+          <div className="panel">
+            <div className="panel-title">14-Day Trend</div>
+            <TrendChart data={K.trend_14d} />
+          </div>
+
+          {/* 4. Quick links */}
+          <div className="panel" style={{ padding: '22px 24px 18px' }}>
+            <div className="panel-title">Quick Links</div>
+            <div className="quick-grid">
+              <a className="quick-card" href="admin-calls.html">
+                <div className="quick-card-title">Calls</div>
+                <p className="quick-card-desc">Recent calls and transcripts.</p>
+              </a>
+              <a className="quick-card" href="admin-patients.html">
+                <div className="quick-card-title">Patients</div>
+                <p className="quick-card-desc">CRM rollup from agent calls.</p>
+              </a>
+              <a className="quick-card" href="admin-schedule.html">
+                <div className="quick-card-title">Schedule</div>
+                <p className="quick-card-desc">Today's appointments (read-only).</p>
+              </a>
+              <a className="quick-card" href="admin-routing.html">
+                <div className="quick-card-title">Routing</div>
+                <p className="quick-card-desc">Hours, holidays, transfer rules.</p>
+              </a>
+              <a className="quick-card" href="admin-greeting.html">
+                <div className="quick-card-title">Greeting</div>
+                <p className="quick-card-desc">Edit the AI greeting message.</p>
+              </a>
+            </div>
+          </div>
+
+          {/* 5. Recent calls */}
+          <div className="panel">
+            <div className="panel-title">Recent Calls</div>
+            {recentCalls.length === 0 ? (
+              <div className="calls-empty">The first call AI takes will land here. No setup required.</div>
+            ) : (
+              <React.Fragment>
+                <table className="calls-table">
+                  <thead>
+                    <tr>
+                      <th>Time</th>
+                      <th>Caller</th>
+                      <th>Duration</th>
+                      <th>Outcome</th>
+                      <th>Booked?</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentCalls.map(function(c) {
+                      return (
+                        <tr key={c.call_id}>
+                          <td className="mono" style={{ fontSize: '.82rem' }}>{fmtTime(c.started_at)}</td>
+                          <td>{c.caller_name || c.caller_e164}</td>
+                          <td className="mono" style={{ fontSize: '.82rem' }}>{fmtDuration(c.duration_seconds)}</td>
+                          <td><StatusPill outcome={c.outcome} /></td>
+                          <td>
+                            {c.outcome === 'booked'
+                              ? <a href={'admin-call-detail.html?call_id=' + c.call_id} style={{ color: 'hsl(var(--primary))', textDecoration: 'none', fontWeight: 500 }}>View</a>
+                              : <span style={{ color: 'var(--rr-slate-dark)' }}>{'\u2014'}</span>
+                            }
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                <div className="calls-footer">
+                  <a href="admin-calls.html">See all calls {'\u2192'}</a>
+                </div>
+              </React.Fragment>
+            )}
+          </div>
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<Body />);
+
+// console-tap render beacon — deferred so React 18 mount completes
+setTimeout(function () {
+  try {
+    var root = document.getElementById('root');
+    var rootChildren = root ? root.children.length : -1;
+    var firstTag = (root && root.firstElementChild) ? root.firstElementChild.tagName : null;
+    var bodyBg = getComputedStyle(document.body).backgroundColor;
+    fetch('/__log__', { method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ kind: 'render-reached', url: location.pathname,
+        rootChildren: rootChildren, firstTag: firstTag, bodyBg: bodyBg,
+        title: document.title, readyState: document.readyState }) });
+  } catch(_){}
+}, 250);
+
+</script>
+</body>
+</html>

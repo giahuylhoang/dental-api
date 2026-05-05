@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en" class="">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Appointment Detail · Rockyridge Dental AI</title>
+<link rel="stylesheet" href="../../colors_and_type.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin></script>
+<script src="../../lib/console-tap.js"></script>
+<style>
+  html, body { margin: 0; }
+  body { background: var(--rr-warm-white); min-height: 100vh; }
+  .shell { display: flex; min-height: 100vh; }
+  .stage { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .stage > .body { padding: 28px 32px; display: flex; flex-direction: column; gap: 24px; max-width: 1280px; margin: 0 auto; width: 100%; box-sizing: border-box; }
+  .panel { background: #fff; border: 1px solid var(--rr-parchment); border-radius: 6px; padding: 22px 24px; box-shadow: var(--shadow-xs); }
+  .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .panel-h-title { font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; color: var(--rr-navy-800); }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  table.list { width: 100%; border-collapse: collapse; font-family: var(--font-ui); font-size: .85rem; }
+  table.list th { text-align: left; padding: 10px 12px; color: var(--rr-slate-dark); font-size: .68rem; letter-spacing: .08em; text-transform: uppercase; border-bottom: 1px solid var(--rr-parchment); font-weight: 600; }
+  table.list td { padding: 12px; border-bottom: 1px solid var(--rr-parchment); vertical-align: middle; }
+  table.list tr:last-child td { border-bottom: none; }
+  .id-cell { font-family: var(--font-mono); font-size: .76rem; color: var(--rr-slate-dark); }
+  .num { font-family: var(--font-mono); font-size: .82rem; }
+  .pill { font-size: .66rem; font-weight: 600; padding: 3px 10px; border-radius: 999px; letter-spacing: .06em; text-transform: uppercase; display: inline-block; }
+  .pill-SCHEDULED      { background: #D9EAF5; color: #2E6494; }
+  .pill-CONFIRMED      { background: #E8F5EE; color: #2A7D4F; }
+  .pill-COMPLETED      { background: #E8F5EE; color: #2A7D4F; }
+  .pill-NO_SHOW        { background: #F8E5E8; color: #9B2335; }
+  .pill-PENDING        { background: #FDF3E5; color: #B45309; }
+  .pill-PENDING_SYNC   { background: #FDF3E5; color: #B45309; }
+  .pill-RESCHEDULED    { background: #F5F2EC; color: #4A5568; }
+  .pill-REMINDER_SENT  { background: #D9EAF5; color: #2E6494; }
+  .pill-CANCELLED      { background: #F8E5E8; color: #9B2335; }
+  .detail-row { display: grid; grid-template-columns: 130px 1fr; gap: 14px; padding: 10px 0; border-bottom: 1px solid var(--rr-parchment); }
+  .detail-row:last-child { border-bottom: none; }
+  .detail-k { font-family: var(--font-ui); font-size: .72rem; font-weight: 600; color: var(--rr-slate-dark); letter-spacing: .04em; text-transform: uppercase; padding-top: 2px; }
+  .detail-v { font-family: var(--font-ui); font-size: .9rem; color: var(--rr-ink); }
+  .toast-ctr { position: fixed; bottom: 24px; right: 24px; z-index: 100; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+  .toast-msg { background: var(--rr-navy-800); color: var(--rr-warm-white); padding: 12px 18px; border-radius: 6px; font-family: var(--font-ui); font-size: .85rem; box-shadow: 0 4px 16px rgba(10,25,47,0.22); pointer-events: auto; animation: toast-in 240ms cubic-bezier(0.16,1,0.3,1); max-width: 380px; }
+  @keyframes toast-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="../../data/appointments.js"></script>
+<script src="../../lib/query.js"></script>
+<script src="../../lib/auth.js"></script>
+<script src="../../data/clinics.js"></script>
+<script type="text/babel" src="Sidebar.jsx"></script>
+<script type="text/babel" src="TopBar.jsx"></script>
+<script type="text/babel" src="EmptyState.jsx"></script>
+<script type="text/babel">
+window.RRD.requireSession?.();
+
+const fmt = new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' });
+
+const FALLBACK_APPTS = [
+  { id: 'A-0101', start_time: '2026-05-05 09:00', end_time: '2026-05-05 10:00', duration: 60, chief_complaint: 'Denture adjustment', status: 'CONFIRMED',
+    patient: { id: 'P-1001', name: 'Alice Stevens', dob: '1978-03-14', insurance: 'Alberta Blue Cross' },
+    provider: { name: 'Dr. Hau Le', title: 'Denturist' },
+    service: { name: 'Denture adjustment', code: '52401' },
+    reminders: [{ sent_at: '2026-05-03 09:00', channel: 'SMS', status: 'delivered' }],
+    invoices: [{ id: 'INV-2026-0418', total: 609.00, status: 'paid' }],
+  },
+];
+
+const ApptDetailPage = () => {
+  const id = window.RRD.query('id');
+  const patientId = window.RRD.query('patient');
+  const collection = (typeof window.APPOINTMENTS !== 'undefined' && window.APPOINTMENTS) || FALLBACK_APPTS;
+  const appt = id ? window.RRD.findById(collection, id) : patientId ? collection.find(a => a.patient?.id === patientId) : collection[0];
+
+  if (!appt) return (
+    <div className="shell">
+      <Sidebar active="schedule" />
+      <div className="stage">
+        <TopBar breadcrumb={['Schedule','Not found']} />
+        <div className="body"><EmptyState icon="calendar" title="Appointment not found" sub="No appointment matches this ID." /></div>
+      </div>
+    </div>
+  );
+
+  const initials = appt.patient?.name?.split(' ').map(s => s[0]).slice(0,2).join('') || '?';
+
+  return (
+    <>
+      return (
+    <div className="shell">
+      <Sidebar active="schedule" />
+      <div className="stage">
+        <TopBar breadcrumb={['Schedule', appt.id]} />
+        <div className="body">
+          {/* Header */}
+          <div className="panel" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: '.76rem', color: 'var(--rr-slate-dark)', marginBottom: 4 }}>{appt.id}</div>
+              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.5rem', color: 'var(--rr-navy-800)', letterSpacing: '-.025em' }}>{appt.chief_complaint}</div>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 6, flexWrap: 'wrap' }}>
+                <span className={`pill pill-${appt.status}`}>{appt.status.replace(/_/g, ' ')}</span>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '.82rem', color: 'var(--rr-slate-dark)' }}>{appt.start_time} – {appt.end_time?.split(' ')[1]}</span>
+                <span style={{ fontFamily: 'var(--font-ui)', fontSize: '.82rem', color: 'var(--rr-slate-dark)' }}>{appt.duration} min</span>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button className="btn btn-ghost btn-sm">Confirm</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => addToast('Reschedule dialog would open here.')}>Reschedule</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => addToast('Appointment cancelled.')}>Cancel</button>
+              <button className="btn btn-ghost btn-sm">Mark complete</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => addToast('Appointment marked no-show.')}>Mark no-show</button>
+            </div>
+          </div>
+
+          <div className="grid-3">
+            {/* Patient card */}
+            <div className="panel">
+              <div className="panel-header"><div className="panel-h-title">Patient</div></div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 999, background: 'hsl(var(--primary))', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '.88rem', flexShrink: 0 }}>{initials}</div>
+                <div>
+                  <a href={`patient-detail.html?id=${appt.patient?.id}`} style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1rem', color: 'hsl(var(--primary))', textDecoration: 'none' }}>{appt.patient?.name}</a>
+                  <div style={{ fontFamily: 'var(--font-ui)', fontSize: '.76rem', color: 'var(--rr-slate-dark)' }}>DOB {appt.patient?.dob}</div>
+                </div>
+              </div>
+              <span className="pill" style={{ background: '#D9EAF5', color: '#2E6494' }}>{appt.patient?.insurance}</span>
+            </div>
+
+            {/* Provider card */}
+            <div className="panel">
+              <div className="panel-header"><div className="panel-h-title">Provider</div></div>
+              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1rem', color: 'var(--rr-navy-800)' }}>{appt.provider?.name}</div>
+              <div style={{ fontFamily: 'var(--font-ui)', fontSize: '.82rem', color: 'var(--rr-slate-dark)', marginTop: 4 }}>{appt.provider?.title}</div>
+            </div>
+
+            {/* Service card */}
+            <div className="panel">
+              <div className="panel-header"><div className="panel-h-title">Service</div></div>
+              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1rem', color: 'var(--rr-navy-800)' }}>{appt.service?.name}</div>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: '.76rem', color: 'var(--rr-slate-dark)', marginTop: 4 }}>{appt.service?.code}</div>
+            </div>
+          </div>
+
+          {/* Reminders */}
+          <div className="panel">
+            <div className="panel-header"><div className="panel-h-title">Reminders log</div></div>
+            <table className="list">
+              <thead><tr><th>Sent at</th><th>Channel</th><th>Status</th></tr></thead>
+              <tbody>
+                {(appt.reminders || []).map((r, i) => (
+                  <tr key={i}>
+                    <td className="id-cell">{r.sent_at}</td>
+                    <td>{r.channel}</td>
+                    <td><span className="pill" style={{ background: '#E8F5EE', color: '#2A7D4F' }}>{r.status}</span></td>
+                  </tr>
+                ))}
+                {!(appt.reminders?.length) && <tr><td colSpan={3} style={{ textAlign: 'center', color: 'var(--rr-slate-dark)', padding: 20 }}>No reminders sent.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Related invoices */}
+          <div className="panel">
+            <div className="panel-header"><div className="panel-h-title">Related invoices</div></div>
+            <table className="list">
+              <thead><tr><th>Invoice</th><th>Total</th><th>Status</th></tr></thead>
+              <tbody>
+                {(appt.invoices || []).map(inv => (
+                  <tr key={inv.id}>
+                    <td><a href={`invoice-detail.html?id=${inv.id}`} className="id-cell" style={{ color: 'hsl(var(--primary))' }}>{inv.id}</a></td>
+                    <td className="num">{fmt.format(inv.total)}</td>
+                    <td><span className="pill" style={{ background: '#E8F5EE', color: '#2A7D4F' }}>{inv.status}</span></td>
+                  </tr>
+                ))}
+                {!(appt.invoices?.length) && <tr><td colSpan={3} style={{ textAlign: 'center', color: 'var(--rr-slate-dark)', padding: 20 }}>No invoices linked.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+
+          <div style={{ textAlign: 'center', padding: '20px 0', fontFamily: "'Inter', sans-serif", fontSize: '.72rem', color: 'var(--rr-slate)', letterSpacing: '.06em' }}>
+            ROCKYRIDGE · DENTAL AI · v1
+          </div>
+        </div>
+        {toasts.length > 0 && (
+      <div className="toast-ctr">
+        {toasts.map(t => <div key={t.id} className="toast-msg">{t.msg}</div>)}
+      </div>
+    )}
+    </>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<ApptDetailPage />);
+
+// console-tap render beacon — deferred so React 18 mount completes
+setTimeout(function () {
+  try {
+    var root = document.getElementById('root');
+    var rootChildren = root ? root.children.length : -1;
+    var firstTag = (root && root.firstElementChild) ? root.firstElementChild.tagName : null;
+    var bodyBg = getComputedStyle(document.body).backgroundColor;
+    fetch('/__log__', { method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ kind: 'render-reached', url: location.pathname,
+        rootChildren: rootChildren, firstTag: firstTag, bodyBg: bodyBg,
+        title: document.title, readyState: document.readyState }) });
+  } catch(_){}
+}, 250);
+
+</script>
+</body>
+</html>

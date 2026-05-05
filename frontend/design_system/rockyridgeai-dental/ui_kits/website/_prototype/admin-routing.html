@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Routing · Rockyridge Dental AI</title>
+<link rel="stylesheet" href="../../../colors_and_type.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin></script>
+<script src="../../../lib/console-tap.js"></script>
+<style>
+  html, body { margin: 0; }
+  body { background: var(--rr-warm-white); min-height: 100vh; }
+  .shell { display: flex; min-height: 100vh; }
+  .stage { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .stage > .body { padding: 28px 32px; display: flex; flex-direction: column; gap: 20px; max-width: 1280px; margin: 0 auto; width: 100%; box-sizing: border-box; }
+
+  /* Topbar */
+  .topbar-stub { height: 64px; padding: 0 28px; background: #fff; border-bottom: 1px solid var(--rr-parchment); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10; font-family: var(--font-ui); }
+  .topbar-clinic { font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: .9rem; color: var(--rr-navy-800); letter-spacing: -.01em; }
+  .topbar-crumb { display: inline-flex; align-items: center; gap: 8px; font-size: .82rem; color: var(--rr-slate-dark); }
+  .topbar-crumb .sep { color: #C8CCCC; }
+  .topbar-crumb .last { color: var(--rr-ink); font-weight: 500; }
+  .topbar-pill { font-family: var(--font-mono); font-size: .68rem; color: var(--rr-slate-dark); padding: 3px 10px; border-radius: 999px; background: var(--rr-off-white); border: 1px solid var(--rr-parchment); letter-spacing: .04em; }
+  .topbar-right { display: flex; align-items: center; gap: 10px; }
+  .topbar-avatar { width: 32px; height: 32px; border-radius: 999px; background: hsl(var(--primary)); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-weight: 600; font-size: .72rem; }
+
+  /* Page header */
+  .page-title { font-family: var(--font-display); font-weight: 800; font-size: 1.8rem; color: var(--rr-navy-800); letter-spacing: -.025em; margin: 0 0 4px; }
+  .page-sub { font-family: var(--font-ui); font-size: .9rem; color: var(--rr-slate-dark); max-width: 64ch; line-height: 1.5; }
+  .overline { font-family: var(--font-ui); font-size: .68rem; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; color: var(--rr-slate-dark); }
+
+  /* Two-column layout: form (left) + preview (right, sticky) */
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 24px; align-items: start; }
+  @media (max-width: 1024px) { .layout { grid-template-columns: 1fr; } }
+  .preview-rail { position: sticky; top: 84px; }
+  @media (max-width: 1024px) { .preview-rail { position: static; } }
+
+  /* Panels */
+  .panel { background: #fff; border: 1px solid var(--rr-parchment); border-radius: 6px; padding: 22px 24px; box-shadow: var(--shadow-xs); }
+  .panel-h { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; gap: 16px; }
+  .panel-h-title { font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; color: var(--rr-navy-800); margin: 0; }
+  .panel-h-sub { font-family: var(--font-ui); font-size: .82rem; color: var(--rr-slate-dark); margin-top: 4px; line-height: 1.5; }
+  .panel + .panel { margin-top: 16px; }
+
+  /* Forms */
+  .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+  .field:last-child { margin-bottom: 0; }
+  .lbl { font-family: var(--font-ui); font-size: .82rem; font-weight: 600; color: var(--rr-ink); display: flex; align-items: center; gap: 8px; }
+  .lbl-helper { font-family: var(--font-ui); font-size: .76rem; color: var(--rr-slate-dark); margin-top: -2px; }
+  .d-input, .d-textarea, .d-select {
+    font-family: var(--font-ui); font-size: .9rem; padding: 9px 12px;
+    border: 1.5px solid var(--rr-mist); border-radius: 6px;
+    width: 100%; box-sizing: border-box; background: #fff; color: var(--rr-ink);
+  }
+  .d-input.mono, .d-textarea.mono { font-family: var(--font-mono); font-size: .85rem; }
+  .d-input[readonly] { background: var(--rr-off-white); color: var(--rr-slate-dark); cursor: not-allowed; }
+  .d-input:focus, .d-textarea:focus, .d-select:focus { border-color: hsl(var(--ring)); outline: none; box-shadow: 0 0 0 3px hsl(var(--primary) / 0.12); }
+  .d-textarea { min-height: 84px; resize: vertical; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 600px) { .field-row { grid-template-columns: 1fr; } }
+  .ro-chip { font-family: var(--font-ui); font-size: .62rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--rr-slate-dark); padding: 2px 8px; border-radius: 999px; background: var(--rr-off-white); border: 1px solid var(--rr-parchment); }
+
+  /* Hours grid */
+  .hours-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  @media (max-width: 700px) { .hours-grid { grid-template-columns: 1fr; } }
+  .hours-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border: 1px solid var(--rr-parchment); border-radius: 6px; background: #fff; }
+  .hours-row .day { font-family: var(--font-ui); font-size: .76rem; font-weight: 600; color: var(--rr-slate-dark); width: 36px; text-transform: uppercase; letter-spacing: .08em; }
+  .hours-row input[type="time"] { font-family: var(--font-mono); font-size: .82rem; border: 1px solid var(--rr-parchment); border-radius: 4px; padding: 4px 8px; color: var(--rr-ink); background: #fff; }
+  .hours-row .arrow { color: var(--rr-slate); font-size: .9rem; }
+  .closed { color: var(--rr-slate-dark); font-family: var(--font-ui); font-size: .76rem; font-style: italic; }
+
+  /* Toggles */
+  .toggle-row { display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--rr-parchment); gap: 16px; }
+  .toggle-row:last-child { border-bottom: none; }
+  .toggle-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .toggle-label { font-family: var(--font-ui); font-size: .9rem; color: var(--rr-ink); font-weight: 500; }
+  .toggle-sub { font-family: var(--font-ui); font-size: .78rem; color: var(--rr-slate-dark); line-height: 1.4; }
+  .switch { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
+  .switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+  .switch-track { position: absolute; inset: 0; background: var(--rr-mist); border-radius: 999px; cursor: pointer; transition: background-color 200ms ease; }
+  .switch-track::before { content: ''; position: absolute; left: 2px; top: 2px; width: 16px; height: 16px; background: #fff; border-radius: 999px; box-shadow: var(--shadow-xs); transition: transform 200ms ease; }
+  .switch input:checked + .switch-track { background: hsl(var(--primary)); }
+  .switch input:checked + .switch-track::before { transform: translateX(16px); }
+  .switch input:focus + .switch-track { box-shadow: 0 0 0 3px hsl(var(--primary) / 0.18); }
+
+  /* Buttons */
+  .btn-primary { font-family: var(--font-ui); font-size: .88rem; font-weight: 500; padding: 9px 18px; border-radius: 6px; background: var(--rr-navy); color: #fff; border: none; cursor: pointer; transition: background-color 200ms ease; }
+  .btn-primary:hover { background: var(--rr-navy-800); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-ghost { font-family: var(--font-ui); font-size: .85rem; padding: 8px 14px; border-radius: 6px; background: #fff; color: var(--rr-ink); border: 1.5px solid var(--rr-mist); cursor: pointer; transition: border-color 200ms ease; }
+  .btn-ghost:hover { border-color: hsl(var(--primary)); color: hsl(var(--primary)); }
+  .btn-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding-top: 4px; }
+
+  /* Preview */
+  .preview-controls { display: flex; flex-direction: column; gap: 10px; }
+  .preview-card { background: var(--rr-off-white); border: 1px solid var(--rr-parchment); border-radius: 6px; padding: 14px 16px; font-family: var(--font-ui); font-size: .85rem; line-height: 1.55; }
+  .preview-card .row { display: grid; grid-template-columns: 80px 1fr; gap: 8px; padding: 4px 0; }
+  .preview-card .k { color: var(--rr-slate-dark); font-size: .76rem; letter-spacing: .04em; text-transform: lowercase; }
+  .preview-card .v { color: var(--rr-ink); }
+  .preview-card .v.mono { font-family: var(--font-mono); font-size: .82rem; }
+  .preview-card .v.action { font-weight: 600; color: var(--rr-navy-800); }
+  .preview-empty { font-family: var(--font-ui); font-size: .82rem; color: var(--rr-slate-dark); font-style: italic; padding: 6px 0; }
+
+  /* Form error/info */
+  .info-banner { background: #FFF8EC; border: 1px solid #F0E2C8; color: #6B4F1B; font-family: var(--font-ui); font-size: .82rem; padding: 10px 14px; border-radius: 6px; line-height: 1.5; }
+  .info-banner code { font-family: var(--font-mono); font-size: .82rem; background: rgba(180,83,9,0.08); padding: 1px 5px; border-radius: 3px; }
+
+  /* Sticky save bar */
+  .save-bar { background: rgba(255,255,255,0.96); border-top: 1px solid var(--rr-parchment); padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; border-radius: 0 0 6px 6px; }
+  .save-bar .left { font-family: var(--font-ui); font-size: .82rem; color: var(--rr-slate-dark); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="../../../data/clinics.js"></script>
+<script src="../../../data/admin_mock.js"></script>
+<script src="../../../data/ai_config.js"></script>
+<script src="../../../lib/query.js"></script>
+<script src="../../../lib/auth.js"></script>
+<script type="text/babel" src="AdminSidebar.jsx"></script>
+<script type="text/babel" src="../TopBar.jsx"></script>
+<script type="text/babel">
+window.RRD?.requireSession?.();
+
+const { CLINIC, ROUTING } = window.ADMIN_MOCK;
+
+const DAYS = [
+  ['mon', 'Monday'], ['tue', 'Tuesday'], ['wed', 'Wednesday'],
+  ['thu', 'Thursday'], ['fri', 'Friday'], ['sat', 'Saturday'], ['sun', 'Sunday'],
+];
+
+const OwnerPill = () => {
+  const session = (window.RRD && window.RRD.getSession && window.RRD.getSession()) || {};
+  const userName = session.full_name || 'Demo User';
+  const userEmail = session.email || '';
+  const role = session.role || 'Demo';
+  const initials = userName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+  const [menuOpen, setMenuOpen] = React.useState(false);
+  React.useEffect(() => {
+    if (!menuOpen) return undefined;
+    const handler = (e) => {
+      const pill = document.getElementById('rrd-profile-pill');
+      const menu = document.getElementById('rrd-profile-menu');
+      if (pill && pill.contains(e.target)) return;
+      if (menu && menu.contains(e.target)) return;
+      setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [menuOpen]);
+  const handleSignOut = () => {
+    try { if (window.RRD && window.RRD.logout) window.RRD.logout(); } catch (_) {}
+    window.location.href = '/ui_kits/website/login.html?logout=1';
+  };
+  return (
+    <div style={{ position: 'relative' }}>
+      <button id="rrd-profile-pill" type="button" title={userEmail} aria-expanded={menuOpen} aria-controls="rrd-profile-menu" onClick={() => setMenuOpen(o => !o)} style={{ width: 32, height: 32, borderRadius: 999, background: '#3A7FBD', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: '0.72rem' }}>{initials}</button>
+      {menuOpen && (
+        <div id="rrd-profile-menu" role="menu" style={{ position: 'absolute', top: '100%', right: 0, marginTop: 6, width: 240, background: '#fff', border: '1px solid #EDE9E0', borderRadius: 6, boxShadow: '0 8px 24px rgba(10,25,47,0.18)', zIndex: 30, padding: 4 }}>
+          <div style={{ padding: '12px 14px 8px' }}>
+            <div style={{ fontFamily: "'Inter', sans-serif", fontWeight: 600, fontSize: '0.95rem', color: '#1C2333' }}>{userName}</div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '0.74rem', color: '#4A5568', marginTop: 2 }}>{userEmail}</div>
+            <span style={{ display: 'inline-block', marginTop: 8, background: role === 'Owner' ? '#D9EAF5' : '#F5F2EC', color: role === 'Owner' ? '#2E6494' : '#4A5568', padding: '3px 10px', borderRadius: 999, fontSize: '0.66rem', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{role}</span>
+          </div>
+          <div style={{ height: 1, background: '#EDE9E0', margin: '4px 0' }} />
+          <a role="menuitem" href="#" onClick={(e) => e.preventDefault()} style={{ display: 'block', padding: '10px 14px', color: '#1C2333', fontFamily: "'Inter', sans-serif", fontSize: '0.85rem', textDecoration: 'none', borderRadius: 4 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F2EC'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>Account</a>
+          <a role="menuitem" href="/ui_kits/website/login.html?logout=1" onClick={(e) => { e.preventDefault(); handleSignOut(); }} style={{ display: 'block', padding: '10px 14px', color: '#9B2335', fontFamily: "'Inter', sans-serif", fontSize: '0.85rem', textDecoration: 'none', borderRadius: 4 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F2EC'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>Sign out</a>
+        </div>
+      )}
+    </div>
+  );
+};
+
+function AdminTopBar({ breadcrumb }) {
+  return (
+    <TopBar breadcrumb={breadcrumb} clinicName={CLINIC.name} homeHref="../dashboard.html" mode="AI Receptionist" />
+  );
+}
+
+function Switch({ checked, onChange, ariaLabel }) {
+  return (
+    <label className="switch">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        aria-label={ariaLabel}
+      />
+      <span className="switch-track" />
+    </label>
+  );
+}
+
+function HoursRow({ day, label, hours, onChange }) {
+  const isClosed = !hours.open && !hours.close;
+  return (
+    <div className="hours-row">
+      <span className="day">{day}</span>
+      <input
+        type="time"
+        value={hours.open ?? ''}
+        onChange={(e) => onChange({ ...hours, open: e.target.value || null })}
+        aria-label={`${label} open time`}
+      />
+      <span className="arrow">→</span>
+      <input
+        type="time"
+        value={hours.close ?? ''}
+        onChange={(e) => onChange({ ...hours, close: e.target.value || null })}
+        aria-label={`${label} close time`}
+      />
+      {isClosed && <span className="closed">closed</span>}
+    </div>
+  );
+}
+
+// Local clock-rule simulator. Mirrors the spirit of the production
+// /preview endpoint: pick the action the agent would take given the
+// configured hours, holidays, and the AI-healthy flag at a chosen moment.
+function simulatePreview(config, whenLocalISO, aiHealthy) {
+  const when = whenLocalISO ? new Date(whenLocalISO) : new Date();
+  const isoUTC = when.toISOString();
+  const dayKey = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][when.getDay()];
+  const ymd = [
+    when.getFullYear(),
+    String(when.getMonth() + 1).padStart(2, '0'),
+    String(when.getDate()).padStart(2, '0'),
+  ].join('-');
+  const hhmm = `${String(when.getHours()).padStart(2,'0')}:${String(when.getMinutes()).padStart(2,'0')}`;
+
+  const holiday = (config.holidays || []).includes(ymd);
+  const hours = config.hours[dayKey] || { open: null, close: null };
+  const open = hours.open && hours.close && hhmm >= hours.open && hhmm < hours.close;
+  const dayClosed = !hours.open || !hours.close;
+
+  let action, reason;
+  if (!aiHealthy) {
+    action = 'route_to_front_desk';
+    reason = 'AI receptionist is unhealthy. Falling back to the front desk.';
+  } else if (holiday) {
+    action = config.ai_after_hours ? 'route_to_ai' : 'send_to_voicemail';
+    reason = config.ai_after_hours
+      ? `${ymd} is a holiday. Per the after-hours rule, the AI takes the call.`
+      : `${ymd} is a holiday. After-hours AI is off, so callers go to voicemail.`;
+  } else if (dayClosed) {
+    action = config.ai_after_hours ? 'route_to_ai' : 'send_to_voicemail';
+    reason = config.ai_after_hours
+      ? `${dayKey.toUpperCase()} is a closed day. The AI handles after-hours, so it takes the call.`
+      : `${dayKey.toUpperCase()} is a closed day and the AI does not handle after-hours.`;
+  } else if (!open) {
+    action = config.ai_after_hours ? 'route_to_ai' : 'send_to_voicemail';
+    reason = config.ai_after_hours
+      ? `Outside ${hours.open}–${hours.close}. After-hours rule routes to the AI.`
+      : `Outside ${hours.open}–${hours.close}. After-hours AI is off, so callers go to voicemail.`;
+  } else {
+    action = 'route_to_front_desk';
+    reason = `Within open hours (${hours.open}–${hours.close} ${dayKey.toUpperCase()}). Front desk rings first; ` +
+      (config.ai_in_hours_overflow ? 'AI covers overflow.' : 'no AI overflow.');
+  }
+
+  return {
+    now_utc: isoUTC,
+    decision: {
+      action,
+      reason,
+      front_desk_numbers: action === 'route_to_front_desk' ? config.front_desk_numbers : [],
+    },
+  };
+}
+
+function Body() {
+  const [draft, setDraft] = React.useState(() => structuredClone(ROUTING));
+  const [pristine, setPristine] = React.useState(() => structuredClone(ROUTING));
+  const [saving, setSaving] = React.useState(false);
+  const [whenLocal, setWhenLocal] = React.useState('');
+  const [aiHealthy, setAiHealthy] = React.useState(true);
+  const [preview, setPreview] = React.useState(null);
+
+  const dirty = JSON.stringify(draft) !== JSON.stringify(pristine);
+
+  function setHours(dayKey, value) {
+    setDraft({ ...draft, hours: { ...draft.hours, [dayKey]: value } });
+  }
+
+  function save(e) {
+    e?.preventDefault();
+    setSaving(true);
+    setTimeout(() => {
+      setPristine(structuredClone(draft));
+      setSaving(false);
+      setPreview(null); // clearing forces user to re-preview against saved rules
+    }, 400);
+  }
+
+  function runPreview() {
+    const isoLocal = whenLocal ? new Date(whenLocal).toISOString() : null;
+    setPreview(simulatePreview(pristine, isoLocal, aiHealthy));
+  }
+
+  return (
+    <div className="shell">
+      <AdminSidebar
+        active="routing"
+        clinicName={CLINIC.name}
+        clinicSlug={CLINIC.slug}
+      />
+      <div className="stage">
+        <TopBar breadcrumb={['Dental AI', 'Configuration', 'Routing']} clinicName={CLINIC.name} homeHref="../dashboard.html" mode="AI Receptionist" />
+
+        <div className="body">
+          <div>
+            <div className="overline">Configuration</div>
+            <h1 className="page-title">Routing</h1>
+            <p className="page-sub">
+              Hours, holidays, and the rules that decide who picks up.
+              Configure when AI handles a call and when it routes to the front desk.
+            </p>
+          </div>
+
+          <div className="layout">
+            {/* LEFT — form */}
+            <div>
+              <form className="panel" onSubmit={save}>
+                <div className="field-row">
+                  <label className="field">
+                    <span className="lbl">Timezone</span>
+                    <input
+                      className="d-input mono"
+                      value={draft.timezone}
+                      onChange={(e) => setDraft({ ...draft, timezone: e.target.value })}
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="lbl">Ring timeout (seconds)</span>
+                    <input
+                      className="d-input"
+                      type="number" min={0} max={120}
+                      value={draft.ring_timeout_seconds}
+                      onChange={(e) => setDraft({ ...draft, ring_timeout_seconds: Number(e.target.value) || 0 })}
+                    />
+                    <span className="lbl-helper">Set how long the front desk rings before AI can step in.</span>
+                  </label>
+                </div>
+
+                <label className="field">
+                  <span className="lbl">Front desk numbers (comma-separated, E.164)</span>
+                  <input
+                    className="d-input mono"
+                    value={draft.front_desk_numbers.join(', ')}
+                    onChange={(e) => setDraft({
+                      ...draft,
+                      front_desk_numbers: e.target.value.split(',').map(s => s.trim()).filter(Boolean),
+                    })}
+                  />
+                  <span className="lbl-helper">Example: <code style={{ fontFamily: 'var(--font-mono)' }}>+15879738089</code></span>
+                </label>
+
+                <label className="field">
+                  <span className="lbl">Backup number (optional)</span>
+                  <input
+                    className="d-input mono"
+                    value={draft.backup_number ?? ''}
+                    onChange={(e) => setDraft({ ...draft, backup_number: e.target.value || null })}
+                  />
+                  <span className="lbl-helper">Enter a fallback for when the front desk numbers don't answer.</span>
+                </label>
+
+                <label className="field">
+                  <span className="lbl">
+                    AI SIP URI (read-only here; engineer-managed)
+                    <span className="ro-chip">Engineer-managed</span>
+                  </span>
+                  <input
+                    className="d-input mono"
+                    readOnly
+                    value={draft.ai_sip_uri ?? ''}
+                  />
+                  <span className="lbl-helper">Your engineering partner sets this up. You can copy it; only they can change it.</span>
+                </label>
+
+                <div className="field" style={{ marginTop: 8 }}>
+                  <span className="lbl">Hours per weekday</span>
+                  <div className="hours-grid">
+                    {DAYS.map(([key, label]) => (
+                      <HoursRow
+                        key={key}
+                        day={key}
+                        label={label}
+                        hours={draft.hours[key] ?? { open: null, close: null }}
+                        onChange={(v) => setHours(key, v)}
+                      />
+                    ))}
+                  </div>
+                  <span className="lbl-helper">Both blank means closed that day.</span>
+                </div>
+
+                <label className="field">
+                  <span className="lbl">Holidays (YYYY-MM-DD, one per line)</span>
+                  <textarea
+                    className="d-textarea mono"
+                    rows={3}
+                    value={draft.holidays.join('\n')}
+                    onChange={(e) => setDraft({
+                      ...draft,
+                      holidays: e.target.value.split('\n').map(s => s.trim()).filter(Boolean),
+                    })}
+                  />
+                  <span className="lbl-helper">Add days you're closed beyond regular hours. AI follows the after-hours rule on these days.</span>
+                </label>
+
+                <div className="field" style={{ marginBottom: 0 }}>
+                  <span className="lbl">Coverage rules</span>
+                  <div className="toggle-row">
+                    <div className="toggle-text">
+                      <span className="toggle-label">AI handles after-hours calls</span>
+                      <span className="toggle-sub">When you're closed, AI takes the call instead of voicemail.</span>
+                    </div>
+                    <Switch
+                      checked={draft.ai_after_hours}
+                      onChange={(v) => setDraft({ ...draft, ai_after_hours: v })}
+                      ariaLabel="AI handles after-hours calls"
+                    />
+                  </div>
+                  <div className="toggle-row">
+                    <div className="toggle-text">
+                      <span className="toggle-label">AI handles in-hours overflow</span>
+                      <span className="toggle-sub">If the front desk can't pick up in time, AI steps in.</span>
+                    </div>
+                    <Switch
+                      checked={draft.ai_in_hours_overflow}
+                      onChange={(v) => setDraft({ ...draft, ai_in_hours_overflow: v })}
+                      ariaLabel="AI handles in-hours overflow"
+                    />
+                  </div>
+                </div>
+
+                <div className="save-bar">
+                  <span className="left">{dirty ? 'Unsaved changes.' : 'All changes saved.'}</span>
+                  <div className="btn-row">
+                    {dirty && (
+                      <button
+                        type="button"
+                        className="btn-ghost"
+                        onClick={() => setDraft(structuredClone(pristine))}
+                      >Discard</button>
+                    )}
+                    <button
+                      type="submit"
+                      className="btn-primary"
+                      disabled={saving || !dirty}
+                    >{saving ? 'Saving…' : 'Save routing'}</button>
+                  </div>
+                </div>
+              </form>
+            </div>
+
+            {/* RIGHT — preview */}
+            <aside className="preview-rail">
+              <div className="panel">
+                <div className="panel-h">
+                  <div>
+                    <div className="overline">Simulator</div>
+                    <h2 className="panel-h-title" style={{ marginTop: 4 }}>Preview</h2>
+                    <p className="panel-h-sub">
+                      What would the agent do at a given moment, against the
+                      <em> currently saved </em> rules? (Save first if you want to
+                      preview a draft.)
+                    </p>
+                  </div>
+                </div>
+
+                {dirty && (
+                  <div className="info-banner" style={{ marginBottom: 14 }}>
+                    Draft has unsaved edits. The preview runs against the saved configuration.
+                  </div>
+                )}
+
+                <div className="preview-controls">
+                  <label className="field" style={{ marginBottom: 0 }}>
+                    <span className="lbl">When (your local TZ)</span>
+                    <input
+                      className="d-input"
+                      type="datetime-local"
+                      value={whenLocal}
+                      onChange={(e) => setWhenLocal(e.target.value)}
+                    />
+                  </label>
+                  <div className="toggle-row" style={{ padding: '6px 0', borderBottom: 'none' }}>
+                    <div className="toggle-text">
+                      <span className="toggle-label">Assume AI healthy</span>
+                      <span className="toggle-sub">Off simulates a degraded AI; calls fall back to the front desk.</span>
+                    </div>
+                    <Switch
+                      checked={aiHealthy}
+                      onChange={setAiHealthy}
+                      ariaLabel="Assume AI healthy"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-ghost"
+                    onClick={runPreview}
+                    style={{ alignSelf: 'flex-start' }}
+                  >Preview</button>
+                </div>
+
+                <div style={{ marginTop: 14 }}>
+                  {preview ? (
+                    <div className="preview-card" role="status">
+                      <div className="row">
+                        <span className="k">at:</span>
+                        <span className="v mono">{preview.now_utc}</span>
+                      </div>
+                      <div className="row">
+                        <span className="k">action:</span>
+                        <span className="v action">{preview.decision.action}</span>
+                      </div>
+                      <div className="row">
+                        <span className="k">reason:</span>
+                        <span className="v">{preview.decision.reason}</span>
+                      </div>
+                      {preview.decision.front_desk_numbers.length > 0 && (
+                        <div className="row">
+                          <span className="k">front desk:</span>
+                          <span className="v mono">{preview.decision.front_desk_numbers.join(', ')}</span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="preview-empty">Pick a moment and press Preview to see what the agent would do.</p>
+                  )}
+                </div>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<Body />);
+
+// console-tap render beacon — deferred so React 18 mount completes
+setTimeout(function () {
+  try {
+    var root = document.getElementById('root');
+    var rootChildren = root ? root.children.length : -1;
+    var firstTag = (root && root.firstElementChild) ? root.firstElementChild.tagName : null;
+    var bodyBg = getComputedStyle(document.body).backgroundColor;
+    fetch('/__log__', { method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ kind: 'render-reached', url: location.pathname,
+        rootChildren: rootChildren, firstTag: firstTag, bodyBg: bodyBg,
+        title: document.title, readyState: document.readyState }) });
+  } catch(_){}
+}, 250);
+
+</script>
+</body>
+</html>

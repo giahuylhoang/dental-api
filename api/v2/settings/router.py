@@ -2,15 +2,23 @@
 import os
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from database.connection import get_db
 from database.models import Clinic
 from api.main import get_clinic
+from api.caching import add_cache_headers, check_etag
 
 router = APIRouter(prefix="/api/v2/settings", tags=["v2-settings"])
+
+# Mount the AI sub-router so /api/v2/settings/ai/* lives alongside the clinic config.
+try:
+    from api.v2.settings.ai.router import router as _ai_router
+    router.include_router(_ai_router)
+except ImportError:
+    pass
 
 
 class ClinicConfigOut(BaseModel):
@@ -46,8 +54,12 @@ def _clinic_to_config(clinic: Clinic) -> dict:
 
 
 @router.get("/clinic", response_model=ClinicConfigOut)
-def get_clinic_config(clinic: Clinic = Depends(get_clinic)):
-    return _clinic_to_config(clinic)
+def get_clinic_config(request: Request, response: Response, clinic: Clinic = Depends(get_clinic)):
+    data = _clinic_to_config(clinic)
+    etag = add_cache_headers(response, data)
+    if check_etag(request, etag):
+        return Response(status_code=304)
+    return data
 
 
 @router.put("/clinic", response_model=ClinicConfigOut)
@@ -64,9 +76,15 @@ def update_clinic_config(
 
 
 @router.get("/integrations")
-def get_integrations():
-    return {
+def get_integrations(request: Request, response: Response, clinic: Clinic = Depends(get_clinic)):
+    # Per-clinic flags could be stored in clinic row or a separate table.
+    # For now, fall back to env defaults for all clinics.
+    data = {
         "sms": {"enabled": bool(os.getenv("TWILIO_ACCOUNT_SID"))},
         "email": {"enabled": bool(os.getenv("SMTP_HOST"))},
         "whatsapp": {"enabled": bool(os.getenv("TWILIO_WHATSAPP_FROM"))},
     }
+    etag = add_cache_headers(response, data)
+    if check_etag(request, etag):
+        return Response(status_code=304)
+    return data

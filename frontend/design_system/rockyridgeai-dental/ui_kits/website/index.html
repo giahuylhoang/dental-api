@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rockyridge Dental AI — Architecting Sovereign Schedules</title>
+<link rel="stylesheet" href="../../colors_and_type.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin></script>
+<script src="../../lib/console-tap.js"></script>
+<style>
+  body { background: #0A192F; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="Nav.jsx"></script>
+<script type="text/babel" src="Hero.jsx"></script>
+<script type="text/babel" src="Pillars.jsx"></script>
+<script type="text/babel" src="Philosophy.jsx"></script>
+<script type="text/babel" src="CTA.jsx"></script>
+
+<script type="text/babel">
+const App = () => {
+  const [section, setSection] = React.useState('hero');
+  const handleNav = (target) => {
+    setSection(target);
+    const el = document.getElementById(target);
+    if (el) {
+      const y = el.getBoundingClientRect().top + window.scrollY - 72;
+      window.scrollTo({ top: y, behavior: 'smooth' });
+    }
+  };
+  return (
+    <div>
+      <Nav currentSection={section} onNav={handleNav} dark={true} />
+      <div id="hero" data-screen-label="01 Hero"><Hero onNav={handleNav} /></div>
+      <div id="services" data-screen-label="02 Pillars"><Pillars /></div>
+      <div id="intelligence" data-screen-label="03 Philosophy"><Philosophy /></div>
+      <div id="contact" data-screen-label="04 Contact"><CTA onNav={handleNav} /></div>
+      <Footer />
+    </div>
+  );
+};
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+
+// console-tap render beacon — deferred so React 18 mount completes
+setTimeout(function () {
+  try {
+    var root = document.getElementById('root');
+    var rootChildren = root ? root.children.length : -1;
+    var firstTag = (root && root.firstElementChild) ? root.firstElementChild.tagName : null;
+    var bodyBg = getComputedStyle(document.body).backgroundColor;
+    fetch('/__log__', { method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ kind: 'render-reached', url: location.pathname,
+        rootChildren: rootChildren, firstTag: firstTag, bodyBg: bodyBg,
+        title: document.title, readyState: document.readyState }) });
+  } catch(_){}
+}, 250);
+
+</script>
+</body>
+</html>

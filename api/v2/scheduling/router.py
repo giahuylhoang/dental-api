@@ -77,6 +77,11 @@ def _check_operatory_conflict(db: Session, operatory_id: str,
 # Operatories
 # ---------------------------------------------------------------------------
 
+class RescheduleRequest(BaseModel):
+    start_time: datetime
+    end_time: datetime
+
+
 class OperatoryIn(BaseModel):
     name: str
     equipment_tags: Optional[list] = None
@@ -293,7 +298,7 @@ def cancel_v2_appointment(
 @router.post("/appointments/{apt_id}/reschedule", status_code=200)
 def reschedule_v2_appointment(
     apt_id: str,
-    body: dict,
+    body: RescheduleRequest,
     clinic: Clinic = Depends(get_clinic),
     db: Session = Depends(get_db),
 ):
@@ -301,8 +306,8 @@ def reschedule_v2_appointment(
     if not apt:
         raise HTTPException(404, "Appointment not found")
 
-    new_start = _parse_dt(body["start_time"])
-    new_end = _parse_dt(body["end_time"])
+    new_start = body.start_time
+    new_end = body.end_time
 
     if _check_provider_conflict(db, clinic.id, apt.provider_id, new_start, new_end, exclude_id=apt_id):
         raise HTTPException(409, "Provider conflict at new time")
