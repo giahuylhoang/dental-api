@@ -264,6 +264,17 @@ export interface KnowledgeDocDTO extends KnowledgeListItemDTO {
   body: string;
 }
 
+export interface BusyBlockDTO {
+  id: number;
+  provider_id: number;
+  weekday: number;       // 0=Mon..6=Sun (matches backend)
+  start_hour: number;
+  start_minute: number;
+  end_hour: number;
+  end_minute: number;
+  label: string | null;
+}
+
 // ---------------------------------------------------------------------------
 // API surface
 // ---------------------------------------------------------------------------
@@ -423,6 +434,16 @@ export const api = {
           apiFetch<void>(`/api/v2/scheduling/recall-rules/${id}`, { method: 'DELETE' }),
       },
       recalls: () => apiFetch<unknown[]>('/api/v2/scheduling/recalls'),
+      busyBlocks: {
+        list: (params?: { provider_id?: number }) =>
+          apiFetch<BusyBlockDTO[]>('/api/v2/scheduling/busy-blocks', { query: params }),
+        create: (data: Omit<BusyBlockDTO, 'id'>) =>
+          apiFetch<BusyBlockDTO>('/api/v2/scheduling/busy-blocks', { method: 'POST', body: data }),
+        update: (id: number, data: Partial<Omit<BusyBlockDTO, 'id'>>) =>
+          apiFetch<BusyBlockDTO>(`/api/v2/scheduling/busy-blocks/${id}`, { method: 'PUT', body: data }),
+        delete: (id: number) =>
+          apiFetch<void>(`/api/v2/scheduling/busy-blocks/${id}`, { method: 'DELETE' }),
+      },
     },
 
     treatmentPlans: {

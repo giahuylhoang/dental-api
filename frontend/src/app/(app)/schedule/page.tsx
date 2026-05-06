@@ -8,8 +8,9 @@ import { Drawer } from '@/components/overlays/Drawer';
 import { CenterModal } from '@/components/overlays/CenterModal';
 import { useToast } from '@/components/overlays/ToastContext';
 import { ArrowLeft } from 'lucide-react';
-import { api, type PatientDTO } from '@/lib/api';
+import { api, ApiError, type PatientDTO, type BusyBlockDTO } from '@/lib/api';
 import type { ScheduleEvent, BusyBlockBg } from '@/components/domain/ScheduleCalendar';
+import { BusyBlocksDrawer } from '@/components/domain/BusyBlocksDrawer';
 
 // Calendar uses DOM APIs — load client-only.
 const ScheduleCalendar = dynamic(() => import('@/components/domain/ScheduleCalendar'), { ssr: false });
@@ -74,17 +75,50 @@ function diffMinutes(start: Date, end: Date): number {
   return Math.round((end.getTime() - start.getTime()) / 60000);
 }
 
-// Map BUSY_BLOCKS (weekday 0=Mon..6=Sun per database/models.py) to FullCalendar daysOfWeek (0=Sun..6=Sat).
-function busyToBg(): BusyBlockBg[] {
+// Surface backend conflict messages — the create/reschedule endpoints return a
+// 409 with a structured `detail` envelope ({ error, message, ... }). For the
+// busy-block case the envelope also includes `busy_block.label` which we show
+// inline so the user knows *why* it failed.
+function reasonFromError(e: unknown, fallback: string): string {
+  if (e && typeof e === 'object' && 'status' in e && 'body' in e) {
+    const status = (e as { status: number }).status;
+    const body = (e as { body: unknown }).body;
+    if (status === 409 && body && typeof body === 'object') {
+      const d = (body as { detail?: { error?: string; message?: string; busy_block?: { label?: string | null } } }).detail;
+      if (d?.error === 'Provider busy') {
+        const lbl = d.busy_block?.label;
+        return lbl ? `Provider busy (${lbl}).` : 'Provider is on a busy block during that time.';
+      }
+      if (d?.error === 'Appointment conflict') return 'That slot already has an appointment.';
+      if (d?.message) return d.message;
+    }
+  }
+  return fallback;
+}
+
+// Map busy blocks (weekday 0=Mon..6=Sun per database/models.py) to FullCalendar
+// background events (daysOfWeek uses 0=Sun..6=Sat). Accepts the live API rows or
+// the local mock — both share the same numeric field shape.
+type BusyBlockLike = {
+  id: number;
+  weekday: number;
+  start_hour: number;
+  start_minute: number;
+  end_hour: number;
+  end_minute: number;
+  label?: string | null;
+};
+function busyToBg(blocks: BusyBlockLike[]): BusyBlockBg[] {
   const grouped = new Map<string, BusyBlockBg>();
-  for (const b of BUSY_BLOCKS) {
+  for (const b of blocks) {
     const fcDay = (b.weekday + 1) % 7;
     const startTime = `${b.start_hour.toString().padStart(2, '0')}:${b.start_minute.toString().padStart(2, '0')}:00`;
     const endTime = `${b.end_hour.toString().padStart(2, '0')}:${b.end_minute.toString().padStart(2, '0')}:00`;
-    const key = `${startTime}-${endTime}-${b.label ?? ''}`;
+    const label = b.label ?? undefined;
+    const key = `${startTime}-${endTime}-${label ?? ''}`;
     const existing = grouped.get(key);
     if (existing) existing.daysOfWeek.push(fcDay);
-    else grouped.set(key, { id: `bb-${b.id}`, daysOfWeek: [fcDay], startTime, endTime, label: b.label });
+    else grouped.set(key, { id: `bb-${b.id}`, daysOfWeek: [fcDay], startTime, endTime, label });
   }
   return Array.from(grouped.values());
 }
@@ -112,6 +146,17 @@ export default function SchedulePage() {
       .catch(() => { /* leave empty; createAppointment will toast a useful error */ });
   }, []);
 
+  // Live busy blocks (replaces the BUSY_BLOCKS mock at runtime; mock stays as a
+  // typings/fallback reference). Reloaded by the BusyBlocksDrawer on every change.
+  const [busyBlocks, setBusyBlocks] = React.useState<BusyBlockDTO[]>([]);
+  const reloadBusyBlocks = React.useCallback(async () => {
+    try { setBusyBlocks(await api.v2.scheduling.busyBlocks.list()); }
+    catch { /* leave empty; the calendar just shows no tinted bands */ }
+  }, []);
+  React.useEffect(() => { void reloadBusyBlocks(); }, [reloadBusyBlocks]);
+
+  const [busyDrawerOpen, setBusyDrawerOpen] = React.useState(false);
+
   const draftPatientName = (() => {
     const p = patientOptions.find(x => x.id === draftPatientId);
     return p ? `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() : '';
@@ -131,7 +176,7 @@ export default function SchedulePage() {
     kind: a.kind,
   }));
 
-  const busy = busyToBg();
+  const busy = busyToBg(busyBlocks);
 
   const openNewDrawer = (date?: string, time?: string, duration?: number) => {
     setDraftDate(date ?? ANCHOR_DATE);
@@ -171,7 +216,9 @@ export default function SchedulePage() {
       });
       setAppts(prev => prev.map(a => (a.id === id ? { ...a, date, time } : a)));
       addToast(`Rescheduled to ${date} ${time}`, id);
-    } catch { addToast('Failed to reschedule.'); }
+    } catch (e) {
+      addToast(reasonFromError(e, 'Failed to reschedule.'));
+    }
   };
 
   const onCalendarEventResize = (id: string, start: Date, end: Date) => {
@@ -209,7 +256,9 @@ export default function SchedulePage() {
       }]);
       setDrawerOpen(false);
       addToast('Appointment booked.', `${draftDate} · ${draftTime}`);
-    } catch { addToast('Failed to book appointment.'); }
+    } catch (e) {
+      addToast(reasonFromError(e, 'Failed to book appointment.'));
+    }
   };
 
   const updateStatus = async (status: ApptStatus) => {
@@ -240,6 +289,7 @@ export default function SchedulePage() {
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn btn-ghost btn-md" onClick={() => addToast('Schedule exported.')}>Export</button>
+          <button className="btn btn-ghost btn-md" onClick={() => setBusyDrawerOpen(true)}>Manage busy blocks</button>
           <button className="btn btn-primary btn-md" onClick={() => openNewDrawer()}>+ New appointment</button>
         </div>
       </div>
@@ -364,6 +414,12 @@ export default function SchedulePage() {
           </div>
         </CenterModal>
       )}
+
+      <BusyBlocksDrawer
+        open={busyDrawerOpen}
+        onClose={() => setBusyDrawerOpen(false)}
+        onChanged={reloadBusyBlocks}
+      />
     </>
   );
 }

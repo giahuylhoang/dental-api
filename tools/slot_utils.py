@@ -204,3 +204,52 @@ def get_available_slots(
         return {"provider": {"provider_id": single["provider_id"], "title": single["title"]}, "slots": single["slots"]}
 
     return {"providers": results}
+
+
+def find_busy_block_overlap(
+    db: Session,
+    clinic_id: str,
+    provider_id: int,
+    start_dt: datetime.datetime,
+    end_dt: datetime.datetime,
+    tz: pytz.tzinfo.BaseTzInfo,
+) -> Optional[ProviderBusyBlock]:
+    """Return the first ProviderBusyBlock that overlaps [start_dt, end_dt) for
+    this provider in this clinic, or None if the window is free of busy blocks.
+
+    `start_dt` / `end_dt` may be naive or tz-aware; if naive they are interpreted
+    in `tz`. Compares against blocks for `start_dt.weekday()` (0=Mon..6=Sun);
+    cross-midnight requests are not supported by the schema.
+    """
+    if start_dt.tzinfo is None:
+        start_dt = tz.localize(start_dt)
+    else:
+        start_dt = start_dt.astimezone(tz)
+    if end_dt.tzinfo is None:
+        end_dt = tz.localize(end_dt)
+    else:
+        end_dt = end_dt.astimezone(tz)
+
+    weekday = int(start_dt.weekday())
+    blocks = (
+        db.query(ProviderBusyBlock)
+        .filter(
+            ProviderBusyBlock.clinic_id == clinic_id,
+            ProviderBusyBlock.provider_id == provider_id,
+            ProviderBusyBlock.weekday == weekday,
+        )
+        .all()
+    )
+    if not blocks:
+        return None
+    day = start_dt.date()
+    for b in blocks:
+        b_start = tz.localize(
+            datetime.datetime.combine(day, datetime.time(int(b.start_hour), int(b.start_minute), 0))
+        )
+        b_end = tz.localize(
+            datetime.datetime.combine(day, datetime.time(int(b.end_hour), int(b.end_minute), 0))
+        )
+        if max(start_dt, b_start) < min(end_dt, b_end):
+            return b
+    return None

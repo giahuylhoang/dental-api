@@ -130,6 +130,7 @@ class ProviderBusyBlock(Base):
     start_minute = Column(Integer, nullable=False, default=0)
     end_hour = Column(Integer, nullable=False)
     end_minute = Column(Integer, nullable=False, default=0)
+    label = Column(String, nullable=True)
 
     provider = relationship("Provider")
 

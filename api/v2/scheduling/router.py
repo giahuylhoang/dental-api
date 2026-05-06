@@ -5,12 +5,13 @@ from datetime import datetime, timedelta
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.orm import Session
 
 from database.connection import get_db
 from database.models import (
-    Appointment, AppointmentStatus, Patient, Provider, Service, Clinic, DEFAULT_CLINIC_ID
+    Appointment, AppointmentStatus, Patient, Provider, Service, Clinic,
+    ProviderBusyBlock, DEFAULT_CLINIC_ID,
 )
 from database.ops.models import (
     Operatory, AppointmentResource, AppointmentRecurrence,
@@ -131,6 +132,122 @@ def delete_operatory(op_id: str, clinic: Clinic = Depends(get_clinic), db: Sessi
     if not op:
         raise HTTPException(404, "Operatory not found")
     db.delete(op)
+    db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Provider busy blocks (recurring weekly windows when a provider is unavailable)
+# ---------------------------------------------------------------------------
+
+class BusyBlockIn(BaseModel):
+    provider_id: int
+    weekday: int = Field(ge=0, le=6, description="0=Mon..6=Sun")
+    start_hour: int = Field(ge=0, le=23)
+    start_minute: int = Field(ge=0, le=59, default=0)
+    end_hour: int = Field(ge=0, le=23)
+    end_minute: int = Field(ge=0, le=59, default=0)
+    label: Optional[str] = Field(default=None, max_length=64)
+
+    @model_validator(mode="after")
+    def _start_before_end(self):
+        if (self.start_hour, self.start_minute) >= (self.end_hour, self.end_minute):
+            raise ValueError("start time must be before end time")
+        return self
+
+
+class BusyBlockUpdate(BaseModel):
+    weekday: Optional[int] = Field(default=None, ge=0, le=6)
+    start_hour: Optional[int] = Field(default=None, ge=0, le=23)
+    start_minute: Optional[int] = Field(default=None, ge=0, le=59)
+    end_hour: Optional[int] = Field(default=None, ge=0, le=23)
+    end_minute: Optional[int] = Field(default=None, ge=0, le=59)
+    label: Optional[str] = Field(default=None, max_length=64)
+
+
+class BusyBlockOut(BaseModel):
+    id: int
+    provider_id: int
+    weekday: int
+    start_hour: int
+    start_minute: int
+    end_hour: int
+    end_minute: int
+    label: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+@router.get("/busy-blocks", response_model=List[BusyBlockOut])
+def list_busy_blocks(
+    provider_id: Optional[int] = Query(default=None),
+    clinic: Clinic = Depends(get_clinic),
+    db: Session = Depends(get_db),
+):
+    q = db.query(ProviderBusyBlock).filter(ProviderBusyBlock.clinic_id == clinic.id)
+    if provider_id is not None:
+        q = q.filter(ProviderBusyBlock.provider_id == provider_id)
+    return q.order_by(
+        ProviderBusyBlock.provider_id,
+        ProviderBusyBlock.weekday,
+        ProviderBusyBlock.start_hour,
+        ProviderBusyBlock.start_minute,
+    ).all()
+
+
+@router.post("/busy-blocks", response_model=BusyBlockOut, status_code=201)
+def create_busy_block(
+    body: BusyBlockIn,
+    clinic: Clinic = Depends(get_clinic),
+    db: Session = Depends(get_db),
+):
+    provider = db.query(Provider).filter(
+        Provider.id == body.provider_id, Provider.clinic_id == clinic.id
+    ).first()
+    if provider is None:
+        raise HTTPException(404, "Provider not found")
+    block = ProviderBusyBlock(clinic_id=clinic.id, **body.model_dump())
+    db.add(block)
+    db.commit()
+    db.refresh(block)
+    return block
+
+
+@router.put("/busy-blocks/{block_id}", response_model=BusyBlockOut)
+def update_busy_block(
+    block_id: int,
+    body: BusyBlockUpdate,
+    clinic: Clinic = Depends(get_clinic),
+    db: Session = Depends(get_db),
+):
+    block = db.query(ProviderBusyBlock).filter(
+        ProviderBusyBlock.id == block_id, ProviderBusyBlock.clinic_id == clinic.id
+    ).first()
+    if block is None:
+        raise HTTPException(404, "Busy block not found")
+    patch = body.model_dump(exclude_unset=True)
+    for k, v in patch.items():
+        setattr(block, k, v)
+    # Re-validate the resulting window after the patch.
+    if (block.start_hour, block.start_minute) >= (block.end_hour, block.end_minute):
+        raise HTTPException(422, "start time must be before end time")
+    db.commit()
+    db.refresh(block)
+    return block
+
+
+@router.delete("/busy-blocks/{block_id}", status_code=204)
+def delete_busy_block(
+    block_id: int,
+    clinic: Clinic = Depends(get_clinic),
+    db: Session = Depends(get_db),
+):
+    block = db.query(ProviderBusyBlock).filter(
+        ProviderBusyBlock.id == block_id, ProviderBusyBlock.clinic_id == clinic.id
+    ).first()
+    if block is None:
+        raise HTTPException(404, "Busy block not found")
+    db.delete(block)
     db.commit()
 
 

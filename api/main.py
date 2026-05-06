@@ -429,7 +429,35 @@ async def create_calendar_event(
                 "conflicting_appointments": conflict_details
             }
         )
-    
+
+    # Reject overlap with the provider's recurring busy blocks (lunch, hospital
+    # rounds, admin time, etc.). Slot listing already hides these — this guard
+    # closes the loop for direct API calls / stale UI tabs.
+    from tools.slot_utils import find_busy_block_overlap as _find_busy_overlap
+    _busy_tz = pytz.timezone(clinic.timezone or "America/Edmonton")
+    _busy_block = _find_busy_overlap(db, clinic.id, request.provider_id, start_time_dt, end_time_dt, _busy_tz)
+    if _busy_block is not None:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error": "Provider busy",
+                "message": "Provider is on a busy block during this time slot.",
+                "requested_time": {
+                    "start_time": start_time_dt.isoformat(),
+                    "end_time": end_time_dt.isoformat(),
+                },
+                "busy_block": {
+                    "id": _busy_block.id,
+                    "weekday": _busy_block.weekday,
+                    "start_hour": _busy_block.start_hour,
+                    "start_minute": _busy_block.start_minute,
+                    "end_hour": _busy_block.end_hour,
+                    "end_minute": _busy_block.end_minute,
+                    "label": _busy_block.label,
+                },
+            },
+        )
+
     # 1. Create appointment in database
     appointment = Appointment(
         clinic_id=clinic.id,
@@ -1017,6 +1045,32 @@ async def reschedule_appointment(
                         "end_time": new_end_time.isoformat(),
                     },
                     "conflicting_appointments": conflict_details,
+                },
+            )
+
+        # Reject reschedule into a provider busy block.
+        from tools.slot_utils import find_busy_block_overlap as _find_busy_overlap
+        _busy_tz = pytz.timezone(clinic.timezone or "America/Edmonton")
+        _busy_block = _find_busy_overlap(db, clinic.id, request.provider_id, new_start_time, new_end_time, _busy_tz)
+        if _busy_block is not None:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "error": "Provider busy",
+                    "message": "Provider is on a busy block during the requested time slot.",
+                    "requested_time": {
+                        "start_time": new_start_time.isoformat(),
+                        "end_time": new_end_time.isoformat(),
+                    },
+                    "busy_block": {
+                        "id": _busy_block.id,
+                        "weekday": _busy_block.weekday,
+                        "start_hour": _busy_block.start_hour,
+                        "start_minute": _busy_block.start_minute,
+                        "end_hour": _busy_block.end_hour,
+                        "end_minute": _busy_block.end_minute,
+                        "label": _busy_block.label,
+                    },
                 },
             )
 
