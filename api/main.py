@@ -544,6 +544,28 @@ async def create_calendar_event(
         except Exception as e:
             logger.warning("Clinic booking email skipped: %s", e)
 
+    # SSE: notify any subscribed CRM clients (in-process; no-op if no
+    # subscribers). Wrapped in try/except so a bus failure can NEVER
+    # poison the booking response — the appointment is already committed
+    # by this point.
+    try:
+        from api.v2.events import publish_appointment_created
+        publish_appointment_created(clinic.id, {
+            "appointment_id": appointment.id,
+            "patient_id": appointment.patient_id,
+            "patient_name": patient_name,
+            "provider_id": appointment.provider_id,
+            "provider_name": provider_display_name,
+            "service_id": appointment.service_id,
+            "service_name": service_name,
+            "start_time": appointment.start_time.isoformat(),
+            "end_time": appointment.end_time.isoformat(),
+            "start_time_local": f"{date_str} {time_str}",
+            "status": appointment.status.value,
+        })
+    except Exception as e:
+        logger.warning("SSE publish_appointment_created failed: %s", e)
+
     return AppointmentResponse(
         appointment_id=appointment.id,
         calendar_event_id=None,
@@ -1638,5 +1660,12 @@ except ImportError:
 try:
     from api.v2.reporting.router import router as _reporting_router
     app.include_router(_reporting_router)
+except ImportError:
+    pass
+
+# v2 routers (Events — Server-Sent Events for CRM live updates)
+try:
+    from api.v2.events import router as _events_router
+    app.include_router(_events_router)
 except ImportError:
     pass

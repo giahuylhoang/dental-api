@@ -6,12 +6,19 @@ import { TopBar } from './TopBar';
 import { CommandPalette } from '../overlays/CommandPalette';
 import { NotificationsDropdown } from '../overlays/NotificationsDropdown';
 import { ToastProvider } from '../overlays/ToastContext';
+import { useBookingEvents } from '@/lib/use-booking-events';
 import { usePathname } from 'next/navigation';
 
 function AppShellInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [cmdOpen, setCmdOpen] = React.useState(false);
   const [notifOpen, setNotifOpen] = React.useState(false);
+
+  // Open the SSE stream for live "appointment.created" popups. Mount
+  // here so it lives inside ToastProvider (the hook calls useToast())
+  // and runs on every authenticated page — one connection per browser
+  // tab, regardless of which route the user is on.
+  useBookingEvents();
 
   React.useEffect(() => {
     const h = (e: KeyboardEvent) => {
