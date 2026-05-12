@@ -19,7 +19,38 @@ from sqlalchemy.orm import Session, joinedload
 
 from database.connection import get_db, init_db
 from database.models import Patient, Appointment, Provider, Service, AppointmentStatus, Lead, LeadStatus, Clinic, DEFAULT_CLINIC_ID
+import json as _json
 from tools.slot_utils import get_available_slots
+
+
+def _busy_block_envelope(block) -> dict:
+    """Build the 409 'Provider busy' detail.busy_block payload.
+
+    Surfaces both the legacy single-day fields (`weekday`) and the v2 fields
+    (`weekdays`, `specific_date`, `recurrence_until`) so consumers can pattern
+    on either shape.
+    """
+    weekdays_list = None
+    raw = getattr(block, "weekdays", None)
+    if raw:
+        try:
+            parsed = _json.loads(raw)
+            if isinstance(parsed, list):
+                weekdays_list = [int(x) for x in parsed]
+        except (ValueError, TypeError):
+            weekdays_list = None
+    return {
+        "id": block.id,
+        "weekday": block.weekday,
+        "weekdays": weekdays_list,
+        "specific_date": block.specific_date.isoformat() if getattr(block, "specific_date", None) else None,
+        "recurrence_until": block.recurrence_until.isoformat() if getattr(block, "recurrence_until", None) else None,
+        "start_hour": block.start_hour,
+        "start_minute": block.start_minute,
+        "end_hour": block.end_hour,
+        "end_minute": block.end_minute,
+        "label": block.label,
+    }
 from clients.sms_client import (
     send_booking_sms_delayed,
     send_cancellation_sms_delayed,
@@ -446,15 +477,7 @@ async def create_calendar_event(
                     "start_time": start_time_dt.isoformat(),
                     "end_time": end_time_dt.isoformat(),
                 },
-                "busy_block": {
-                    "id": _busy_block.id,
-                    "weekday": _busy_block.weekday,
-                    "start_hour": _busy_block.start_hour,
-                    "start_minute": _busy_block.start_minute,
-                    "end_hour": _busy_block.end_hour,
-                    "end_minute": _busy_block.end_minute,
-                    "label": _busy_block.label,
-                },
+                "busy_block": _busy_block_envelope(_busy_block),
             },
         )
 
@@ -1062,15 +1085,7 @@ async def reschedule_appointment(
                         "start_time": new_start_time.isoformat(),
                         "end_time": new_end_time.isoformat(),
                     },
-                    "busy_block": {
-                        "id": _busy_block.id,
-                        "weekday": _busy_block.weekday,
-                        "start_hour": _busy_block.start_hour,
-                        "start_minute": _busy_block.start_minute,
-                        "end_hour": _busy_block.end_hour,
-                        "end_minute": _busy_block.end_minute,
-                        "label": _busy_block.label,
-                    },
+                    "busy_block": _busy_block_envelope(_busy_block),
                 },
             )
 
