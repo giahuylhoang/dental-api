@@ -6,4 +6,9 @@ pydantic>=2.12.5
 httpx>=0.25.0
 pytz>=2025.2
 python-dotenv>=1.0.0
+# Required by FastAPI to parse Form() params (e.g. file uploads in
+# api/v2/clinical/router.py). Was previously installed transitively in
+# local venvs but missing from clean Cloud Run builds — broke production
+# load (run_api.py fell back to /health-only stub).
+python-multipart>=0.0.20
 twilio>=9.0.0
