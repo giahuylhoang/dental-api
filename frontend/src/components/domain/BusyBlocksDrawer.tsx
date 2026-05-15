@@ -11,12 +11,20 @@ interface BusyBlocksDrawerProps {
   onChanged: () => void;
 }
 
-const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+type Mode = 'weekdays' | 'date';
+type Recurrence = 'forever' | 'range';
+
+const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const DAY_LABELS_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 type Draft = {
   id?: number;
   provider_id: number | null;
-  weekday: number;
+  mode: Mode;
+  weekdays: Set<number>;
+  recurrence: Recurrence;
+  recurrence_until: string;   // YYYY-MM-DD
+  specific_date: string;      // YYYY-MM-DD
   start_hour: number;
   start_minute: number;
   end_hour: number;
@@ -24,21 +32,46 @@ type Draft = {
   label: string;
 };
 
-const EMPTY_DRAFT: Draft = {
-  provider_id: null,
-  weekday: 0,
-  start_hour: 12,
-  start_minute: 0,
-  end_hour: 13,
-  end_minute: 0,
-  label: '',
-};
+function makeEmptyDraft(provider_id: number | null): Draft {
+  return {
+    provider_id,
+    mode: 'weekdays',
+    weekdays: new Set<number>(),
+    recurrence: 'forever',
+    recurrence_until: '',
+    specific_date: '',
+    start_hour: 12,
+    start_minute: 0,
+    end_hour: 13,
+    end_minute: 0,
+    label: '',
+  };
+}
 
 function pad2(n: number) { return n.toString().padStart(2, '0'); }
 function fmtTime(h: number, m: number) { return `${pad2(h)}:${pad2(m)}`; }
 function parseTime(s: string): { h: number; m: number } {
   const [h, m] = s.split(':').map(x => parseInt(x, 10));
   return { h: Number.isFinite(h) ? h : 0, m: Number.isFinite(m) ? m : 0 };
+}
+function fmtDate(d: string): string {
+  if (!d) return '';
+  // ISO YYYY-MM-DD — format as "Sat 2026-05-23"
+  const parts = d.split('-');
+  if (parts.length !== 3) return d;
+  const day = new Date(d + 'T00:00:00');
+  return `${DAY_LABELS[(day.getDay() + 6) % 7]} ${d}`;
+}
+function summarizeBlock(b: BusyBlockDTO): string {
+  if (b.specific_date) {
+    return fmtDate(b.specific_date);
+  }
+  if (b.weekdays && b.weekdays.length) {
+    const days = b.weekdays.map(d => DAY_LABELS[d]).join(', ');
+    if (b.recurrence_until) return `${days} (until ${b.recurrence_until})`;
+    return days;
+  }
+  return '—';
 }
 
 export function BusyBlocksDrawer({ open, onClose, onChanged }: BusyBlocksDrawerProps) {
@@ -70,14 +103,18 @@ export function BusyBlocksDrawer({ open, onClose, onChanged }: BusyBlocksDrawerP
   }, [providers]);
 
   const startNew = () => {
-    setEditing({ ...EMPTY_DRAFT, provider_id: providers[0]?.id ?? null });
+    setEditing(makeEmptyDraft(providers[0]?.id ?? null));
   };
 
   const startEdit = (b: BusyBlockDTO) => {
     setEditing({
       id: b.id,
       provider_id: b.provider_id,
-      weekday: b.weekday,
+      mode: b.specific_date ? 'date' : 'weekdays',
+      weekdays: new Set(b.weekdays ?? []),
+      recurrence: b.recurrence_until ? 'range' : 'forever',
+      recurrence_until: b.recurrence_until ?? '',
+      specific_date: b.specific_date ?? '',
       start_hour: b.start_hour,
       start_minute: b.start_minute,
       end_hour: b.end_hour,
@@ -88,26 +125,65 @@ export function BusyBlocksDrawer({ open, onClose, onChanged }: BusyBlocksDrawerP
 
   const cancelEdit = () => setEditing(null);
 
+  const toggleWeekday = (idx: number) => {
+    if (!editing) return;
+    const next = new Set(editing.weekdays);
+    if (next.has(idx)) next.delete(idx);
+    else next.add(idx);
+    setEditing({ ...editing, weekdays: next });
+  };
+
   const save = async () => {
     if (!editing) return;
     if (editing.provider_id == null) { addToast('Pick a provider.'); return; }
-    if ((editing.start_hour, editing.start_minute) >= (editing.end_hour, editing.end_minute)
-        && !(editing.start_hour < editing.end_hour
-             || (editing.start_hour === editing.end_hour && editing.start_minute < editing.end_minute))) {
+    // Time order
+    if (editing.start_hour > editing.end_hour
+        || (editing.start_hour === editing.end_hour && editing.start_minute >= editing.end_minute)) {
       addToast('Start time must be before end time.');
       return;
     }
+    // Mode-specific shape
+    if (editing.mode === 'weekdays') {
+      if (editing.weekdays.size === 0) {
+        addToast('Pick at least one weekday.');
+        return;
+      }
+      if (editing.recurrence === 'range' && !editing.recurrence_until) {
+        addToast('Pick an "until" date for the date range.');
+        return;
+      }
+    } else {
+      if (!editing.specific_date) {
+        addToast('Pick a date.');
+        return;
+      }
+    }
+
     setSaving(true);
     try {
-      const payload = {
-        provider_id: editing.provider_id,
-        weekday: editing.weekday,
-        start_hour: editing.start_hour,
-        start_minute: editing.start_minute,
-        end_hour: editing.end_hour,
-        end_minute: editing.end_minute,
-        label: editing.label.trim() || null,
-      };
+      const payload = editing.mode === 'weekdays'
+        ? {
+            provider_id: editing.provider_id,
+            weekdays: [...editing.weekdays].sort((a, b) => a - b),
+            recurrence_until: editing.recurrence === 'range' ? editing.recurrence_until : null,
+            specific_date: null,
+            start_hour: editing.start_hour,
+            start_minute: editing.start_minute,
+            end_hour: editing.end_hour,
+            end_minute: editing.end_minute,
+            label: editing.label.trim() || null,
+          }
+        : {
+            provider_id: editing.provider_id,
+            weekdays: null,
+            recurrence_until: null,
+            specific_date: editing.specific_date,
+            start_hour: editing.start_hour,
+            start_minute: editing.start_minute,
+            end_hour: editing.end_hour,
+            end_minute: editing.end_minute,
+            label: editing.label.trim() || null,
+          };
       if (editing.id != null) {
         await api.v2.scheduling.busyBlocks.update(editing.id, payload);
         addToast('Busy block updated.');
@@ -145,10 +221,13 @@ export function BusyBlocksDrawer({ open, onClose, onChanged }: BusyBlocksDrawerP
     }
     return Array.from(map.entries()).map(([pid, list]) => ({
       provider_id: pid,
-      list: list.sort((a, c) =>
-        a.weekday - c.weekday
-        || a.start_hour - c.start_hour
-        || a.start_minute - c.start_minute),
+      list: list.sort((a, c) => {
+        // One-offs first (by date), then weekly rules
+        if (a.specific_date && c.specific_date) return a.specific_date.localeCompare(c.specific_date);
+        if (a.specific_date) return -1;
+        if (c.specific_date) return 1;
+        return a.start_hour - c.start_hour || a.start_minute - c.start_minute;
+      }),
     }));
   }, [blocks]);
 
@@ -158,7 +237,7 @@ export function BusyBlocksDrawer({ open, onClose, onChanged }: BusyBlocksDrawerP
       onClose={() => { setEditing(null); onClose(); }}
       meta="Manage"
       title="Busy blocks"
-      sub="Recurring weekly windows when a provider is unavailable."
+      sub="Block out time when a provider is unavailable — recurring weekdays or one-off dates."
       footer={
         editing ? (
           <>
@@ -186,12 +265,12 @@ export function BusyBlocksDrawer({ open, onClose, onChanged }: BusyBlocksDrawerP
           </div>
           <table className="list">
             <thead>
-              <tr><th>Day</th><th>Window</th><th>Label</th><th></th></tr>
+              <tr><th>When</th><th>Window</th><th>Label</th><th></th></tr>
             </thead>
             <tbody>
               {list.map(b => (
                 <tr key={b.id}>
-                  <td>{WEEKDAYS[b.weekday] ?? b.weekday}</td>
+                  <td>{summarizeBlock(b)}</td>
                   <td className="id-cell">{fmtTime(b.start_hour, b.start_minute)}–{fmtTime(b.end_hour, b.end_minute)}</td>
                   <td>{b.label ?? <span style={{ color: 'var(--rr-slate)' }}>—</span>}</td>
                   <td style={{ textAlign: 'right' }}>
@@ -206,7 +285,7 @@ export function BusyBlocksDrawer({ open, onClose, onChanged }: BusyBlocksDrawerP
       ))}
 
       {editing && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div className="field">
             <label className="lbl">Provider</label>
             <select
@@ -220,18 +299,86 @@ export function BusyBlocksDrawer({ open, onClose, onChanged }: BusyBlocksDrawerP
               ))}
             </select>
           </div>
+
           <div className="field">
-            <label className="lbl">Weekday</label>
-            <select
-              className="d-input"
-              value={editing.weekday}
-              onChange={e => setEditing({ ...editing, weekday: parseInt(e.target.value, 10) })}
-            >
-              {WEEKDAYS.map((name, idx) => (
-                <option key={idx} value={idx}>{['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'][idx]}</option>
-              ))}
-            </select>
+            <label className="lbl">Repeats</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                className={'btn btn-md ' + (editing.mode === 'weekdays' ? 'btn-primary' : 'btn-ghost')}
+                onClick={() => setEditing({ ...editing, mode: 'weekdays' })}
+              >Weekdays</button>
+              <button
+                type="button"
+                className={'btn btn-md ' + (editing.mode === 'date' ? 'btn-primary' : 'btn-ghost')}
+                onClick={() => setEditing({ ...editing, mode: 'date' })}
+              >Specific date</button>
+            </div>
           </div>
+
+          {editing.mode === 'weekdays' && (
+            <>
+              <div className="field">
+                <label className="lbl">Days</label>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {DAY_LABELS.map((label, idx) => {
+                    const active = editing.weekdays.has(idx);
+                    return (
+                      <button
+                        key={idx}
+                        type="button"
+                        className={'btn btn-sm ' + (active ? 'btn-primary' : 'btn-ghost')}
+                        title={DAY_LABELS_FULL[idx]}
+                        onClick={() => toggleWeekday(idx)}
+                        style={{ minWidth: 48 }}
+                      >{label}</button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="field">
+                <label className="lbl">Recurrence</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    type="button"
+                    className={'btn btn-md ' + (editing.recurrence === 'forever' ? 'btn-primary' : 'btn-ghost')}
+                    onClick={() => setEditing({ ...editing, recurrence: 'forever' })}
+                  >Recurs until cancelled</button>
+                  <button
+                    type="button"
+                    className={'btn btn-md ' + (editing.recurrence === 'range' ? 'btn-primary' : 'btn-ghost')}
+                    onClick={() => setEditing({ ...editing, recurrence: 'range' })}
+                  >Date range</button>
+                </div>
+              </div>
+
+              {editing.recurrence === 'range' && (
+                <div className="field">
+                  <label className="lbl">Until (inclusive)</label>
+                  <input
+                    type="date"
+                    className="d-input"
+                    value={editing.recurrence_until}
+                    onChange={e => setEditing({ ...editing, recurrence_until: e.target.value })}
+                  />
+                </div>
+              )}
+            </>
+          )}
+
+          {editing.mode === 'date' && (
+            <div className="field">
+              <label className="lbl">Date</label>
+              <input
+                type="date"
+                className="d-input"
+                value={editing.specific_date}
+                onChange={e => setEditing({ ...editing, specific_date: e.target.value })}
+              />
+            </div>
+          )}
+
           <div className="field-row">
             <div className="field">
               <label className="lbl">Start</label>
@@ -252,6 +399,7 @@ export function BusyBlocksDrawer({ open, onClose, onChanged }: BusyBlocksDrawerP
               />
             </div>
           </div>
+
           <div className="field">
             <label className="lbl">Label (optional)</label>
             <input

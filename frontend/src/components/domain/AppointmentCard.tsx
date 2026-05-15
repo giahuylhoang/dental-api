@@ -5,6 +5,7 @@ const STATUS_TONE: Record<string, { bg: string; fg: string; label: string }> = {
   pending:   { bg: '#FDF3E5', fg: '#B45309', label: 'Pending' },
   no_show:   { bg: '#F8E5E8', fg: '#9B2335', label: 'No-show' },
   completed: { bg: '#F5F2EC', fg: '#4A5568', label: 'Completed' },
+  cancelled: { bg: '#EDE9E0', fg: '#4A5568', label: 'Cancelled' },
 };
 
 interface AppointmentCardProps {

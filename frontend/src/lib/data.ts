@@ -19,7 +19,7 @@ export interface Appointment {
   provider: string;
   chair: string;
   kind: string;
-  status: 'confirmed' | 'pending' | 'no_show' | 'completed';
+  status: 'confirmed' | 'pending' | 'no_show' | 'completed' | 'cancelled';
 }
 
 export interface Invoice {

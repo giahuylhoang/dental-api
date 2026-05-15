@@ -11,10 +11,12 @@ import { ToothChartTile } from '@/components/domain/ToothChartTile';
 import { StatusPill } from '@/components/domain/StatusPill';
 import { Drawer } from '@/components/overlays/Drawer';
 import { CenterModal } from '@/components/overlays/CenterModal';
+import { ConfirmDialog } from '@/components/overlays/ConfirmDialog';
 import { useToast } from '@/components/overlays/ToastContext';
 import { PATIENTS, APPOINTMENTS, INVOICES, LabCase, LAB_CASES } from '@/lib/data';
-import { ArrowLeft, X } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { api, type PatientDTO } from '@/lib/api';
+import { PatientPickerWithCreate } from '@/components/domain/PatientPickerWithCreate';
 
 // Build a naive local-time ISO string (no Z suffix) for an instant `minutes` later
 // than the local-naive `startIso`. Avoids the toISOString() pitfall which converts
@@ -32,6 +34,7 @@ const WS_STATUS: Record<string, { bg: string; fg: string; label: string }> = {
   pending:   { bg: '#FDF3E5', fg: '#B45309', label: 'Pending' },
   no_show:   { bg: '#F8E5E8', fg: '#9B2335', label: 'No-show' },
   completed: { bg: '#F5F2EC', fg: '#4A5568', label: 'Completed' },
+  cancelled: { bg: '#EDE9E0', fg: '#4A5568', label: 'Cancelled' },
 };
 
 export default function DashboardPage() {
@@ -42,32 +45,19 @@ export default function DashboardPage() {
   const [appointments, setAppointments] = React.useState([...APPOINTMENTS]);
 
   // Drawer state
-  const [drawerMode, setDrawerMode] = React.useState<'appointment' | 'new-patient' | null>(null);
+  const [drawerMode, setDrawerMode] = React.useState<'appointment' | null>(null);
 
-  // New appointment form state
-  const [apptPatient, setApptPatient] = React.useState<typeof PATIENTS[0] | null>(null);
-  const [apptPatientQ, setApptPatientQ] = React.useState('');
-  const [apptPatientFocus, setApptPatientFocus] = React.useState(false);
+  // New appointment form state — apptPatient is a real backend PatientDTO (UUID id).
+  const [apptPatient, setApptPatient] = React.useState<PatientDTO | null>(null);
   const [apptDate, setApptDate] = React.useState('2026-05-04');
   const [apptTime, setApptTime] = React.useState('09:00');
   const [apptDuration, setApptDuration] = React.useState('60');
 
-  // Real patient list (UUID-keyed) loaded from API; used to resolve apptPatient → real id.
+  // Real patient list (UUID-keyed) loaded from API; the picker also appends new rows.
   const [apiPatients, setApiPatients] = React.useState<PatientDTO[]>([]);
   React.useEffect(() => {
     api.patients.list().then(setApiPatients).catch(() => {});
   }, []);
-
-  // New patient form state
-  const [newFirst, setNewFirst] = React.useState('');
-  const [newLast, setNewLast] = React.useState('');
-  const [newDob, setNewDob] = React.useState('');
-  const [newPhone, setNewPhone] = React.useState('');
-  const [newEmail, setNewEmail] = React.useState('');
-  const [newInsurance, setNewInsurance] = React.useState('');
-  const [newIsMinor, setNewIsMinor] = React.useState(false);
-  const [newGuardian, setNewGuardian] = React.useState('');
-  const [newConsent, setNewConsent] = React.useState(false);
 
   // Expanded appointment
   const [expandedApptId, setExpandedApptId] = React.useState<string | null>(null);
@@ -77,32 +67,19 @@ export default function DashboardPage() {
   const [invoiceModal, setInvoiceModal] = React.useState<typeof INVOICES[0] | null>(null);
   const [labCaseModal, setLabCaseModal] = React.useState<LabCase | null>(null);
   const [apptWorkspace, setApptWorkspace] = React.useState<typeof APPOINTMENTS[0] | null>(null);
-
-  // ─── Patient search helpers ───
-  const filteredPatients = PATIENTS.filter(p =>
-    !apptPatientQ || (p.first + ' ' + p.last).toLowerCase().includes(apptPatientQ.toLowerCase())
-  );
+  const [cancelConfirmOpen, setCancelConfirmOpen] = React.useState(false);
 
   // ─── Handlers ───
   const handleBookAppt = async () => {
     if (!apptPatient) { addToast('Pick a patient first.'); return; }
-    const name = apptPatient.first + ' ' + apptPatient.last;
-    // Resolve mock-id patient to a real-DB patient by name match. New rows added via the
-    // patient drawer now go through api.patients.create and already carry a real UUID.
-    const realId = /^[0-9a-f]{8}-/.test(apptPatient.id)
-      ? apptPatient.id
-      : (apiPatients.find(p =>
-          (p.first_name ?? '').toLowerCase() === apptPatient.first.toLowerCase() &&
-          (p.last_name ?? '').toLowerCase() === apptPatient.last.toLowerCase()
-        )?.id ?? null);
-    if (!realId) { addToast('Patient not in backend yet — save the patient first.'); return; }
+    const name = `${apptPatient.first_name ?? ''} ${apptPatient.last_name ?? ''}`.trim();
     try {
       const startIso = `${apptDate}T${apptTime}:00`;
       const endIso = addMinutesNaive(startIso, parseInt(apptDuration));
       await api.appointments.create({
         start_time: startIso,
         end_time: endIso,
-        patient_id: realId,
+        patient_id: apptPatient.id,
         provider_id: 1,
         reason: 'Appointment',
         patient_name: name,
@@ -113,23 +90,13 @@ export default function DashboardPage() {
     } catch { addToast('Failed to book appointment.'); }
   };
 
-  const handleSaveNewPatient = () => {
-    const id = 'P-' + String(Math.floor(10000 + Math.random() * 90000));
-    const p = {
-      id, first: newFirst, last: newLast, dob: newDob,
-      insurance: newInsurance, last_visit: 'New',
-      status: 'active' as const,
-    };
-    PATIENTS.push(p);
-    setApptPatient(p);
-    setApptPatientQ(p.first + ' ' + p.last);
-    // Go back to appointment drawer
-    setDrawerMode('appointment');
-    addToast('Patient added.', p.first + ' ' + p.last);
-  };
-
   const handleApptAction = async (action: string) => {
     if (!apptWorkspace) return;
+    // Cancellation is destructive — surface a confirm dialog before calling the API.
+    if (action === 'Cancelled') {
+      setCancelConfirmOpen(true);
+      return;
+    }
     const statusMap: Record<string, string> = {
       'Confirmed': 'confirmed',
       'Completed': 'completed',
@@ -146,13 +113,25 @@ export default function DashboardPage() {
         ));
       } catch { /* ignore - local state update still happens */ }
     }
-    if (action === 'Cancelled') {
-      try {
-        await api.appointments.cancel(apptWorkspace.id);
-      } catch { /* ignore */ }
-    }
     addToast(action + '.', apptWorkspace.patient + ' · ' + apptWorkspace.id);
-    if (action === 'Confirmed' || action === 'Completed' || action === 'Marked no-show' || action === 'Cancelled') {
+    if (action === 'Confirmed' || action === 'Completed' || action === 'Marked no-show') {
+      setApptWorkspace(null);
+    }
+  };
+
+  const confirmCancelAppt = async () => {
+    if (!apptWorkspace) return;
+    const target = apptWorkspace;
+    try {
+      await api.appointments.cancel(target.id);
+      setAppointments(prev => prev.map(a => (
+        a.id === target.id ? { ...a, status: 'cancelled' as const } : a
+      )));
+      addToast('Cancelled.', target.patient + ' · ' + target.id);
+    } catch {
+      addToast('Failed to cancel appointment.');
+    } finally {
+      setCancelConfirmOpen(false);
       setApptWorkspace(null);
     }
   };
@@ -453,33 +432,12 @@ export default function DashboardPage() {
             </>
           }
         >
-          <div className="field">
-            <div className="field-label-row">
-              <label className="lbl">Patient</label>
-              <a className="field-link" onClick={() => setDrawerMode('new-patient')}>+ New patient</a>
-            </div>
-            <div className="search-select">
-              <input className="d-input" placeholder="Search patients..." value={apptPatientQ}
-                onChange={e => { setApptPatientQ(e.target.value); setApptPatient(null); }}
-                onFocus={() => setApptPatientFocus(true)}
-                onBlur={() => setTimeout(() => setApptPatientFocus(false), 150)}
-              />
-              {apptPatientFocus && filteredPatients.length > 0 && (
-                <div className="search-results">
-                  {filteredPatients.slice(0, 8).map(p => (
-                    <div key={p.id}
-                      className={'search-opt' + (apptPatient && apptPatient.id === p.id ? ' selected' : '')}
-                      onMouseDown={() => { setApptPatient(p); setApptPatientQ(p.first + ' ' + p.last); setApptPatientFocus(false); }}
-                    >
-                      <span className="search-ava">{(p.first[0] + p.last[0]).toUpperCase()}</span>
-                      {p.first} {p.last}
-                      <span className="search-sub">{p.id}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+          <PatientPickerWithCreate
+            patients={apiPatients}
+            value={apptPatient}
+            onChange={setApptPatient}
+            onCreated={(p) => setApiPatients(prev => [...prev, p])}
+          />
           <div className="field">
             <label className="lbl">Provider</label>
             <select className="d-input" defaultValue="hau">
@@ -527,49 +485,24 @@ export default function DashboardPage() {
         </Drawer>
       )}
 
-      {/* ─── NEW PATIENT DRAWER (nested from appointment) ─── */}
-      {drawerMode === 'new-patient' && (
-        <Drawer
-          open={true}
-          onClose={() => setDrawerMode('appointment')}
-          meta="New patient"
-          title="Add a new patient"
-          sub="Fill in patient details below."
-          showBack
-          footer={
-            <>
-              <button className="btn btn-ghost btn-md" onClick={() => setDrawerMode('appointment')}>Back</button>
-              <button className="btn btn-primary btn-md" disabled={!newFirst || !newLast} onClick={handleSaveNewPatient}>Save patient</button>
-            </>
-          }
-        >
-          <div className="field-row">
-            <div className="field"><label className="lbl">First name *</label><input className="d-input" value={newFirst} onChange={e => setNewFirst(e.target.value)} /></div>
-            <div className="field"><label className="lbl">Last name *</label><input className="d-input" value={newLast} onChange={e => setNewLast(e.target.value)} /></div>
-          </div>
-          <div className="field"><label className="lbl">Date of birth</label><input type="date" className="d-input" value={newDob} onChange={e => setNewDob(e.target.value)} /></div>
-          <div className="field-row">
-            <div className="field"><label className="lbl">Phone</label><input className="d-input" value={newPhone} onChange={e => setNewPhone(e.target.value)} /></div>
-            <div className="field"><label className="lbl">Email</label><input className="d-input" value={newEmail} onChange={e => setNewEmail(e.target.value)} /></div>
-          </div>
-          <div className="field"><label className="lbl">Insurance provider</label><input className="d-input" value={newInsurance} onChange={e => setNewInsurance(e.target.value)} /></div>
-          <div className="field" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <input type="checkbox" id="isMinor" checked={newIsMinor} onChange={e => setNewIsMinor(e.target.checked)} />
-            <label htmlFor="isMinor" className="lbl" style={{ marginBottom: 0 }}>Patient is a minor</label>
-          </div>
-          {newIsMinor && <div className="field"><label className="lbl">Guardian name</label><input className="d-input" value={newGuardian} onChange={e => setNewGuardian(e.target.value)} /></div>}
-          <div className="field" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <input type="checkbox" id="consent" checked={newConsent} onChange={e => setNewConsent(e.target.checked)} />
-            <label htmlFor="consent" className="lbl" style={{ marginBottom: 0 }}>Consent approved</label>
-          </div>
-        </Drawer>
-      )}
-
       {/* All Modals */}
       {patientOverviewModal}
       {invoiceOverviewModal}
       {labCaseOverviewModal}
       {apptWorkspaceModal}
+
+      <ConfirmDialog
+        open={cancelConfirmOpen && !!apptWorkspace}
+        onClose={() => setCancelConfirmOpen(false)}
+        onConfirm={confirmCancelAppt}
+        destructive
+        title="Cancel this appointment?"
+        body={apptWorkspace
+          ? `Cancel ${apptWorkspace.patient}'s appointment at ${apptWorkspace.time}? It will stay on the schedule marked as cancelled.`
+          : ''}
+        confirmLabel="Cancel appointment"
+        cancelLabel="Keep it"
+      />
     </>
   );
 }

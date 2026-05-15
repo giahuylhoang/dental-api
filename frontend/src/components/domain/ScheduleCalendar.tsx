@@ -21,9 +21,17 @@ export interface ScheduleEvent {
 
 export interface BusyBlockBg {
   id: string;
-  daysOfWeek: number[];   // FullCalendar uses 0=Sun..6=Sat — caller converts
-  startTime: string;      // HH:MM:SS
-  endTime: string;        // HH:MM:SS
+  /**
+   * For recurring rules: weekdays (FullCalendar 0=Sun..6=Sat — caller converts)
+   * plus optional inclusive `endRecur` ISO date. For specific-date one-offs:
+   * omit `daysOfWeek` and supply `start`/`end` as ISO datetimes instead.
+   */
+  daysOfWeek?: number[];
+  startTime?: string;     // HH:MM:SS (recurring mode)
+  endTime?: string;       // HH:MM:SS (recurring mode)
+  endRecur?: string;      // YYYY-MM-DD (exclusive — caller adds +1 day)
+  start?: string;         // ISO datetime (one-off mode)
+  end?: string;           // ISO datetime (one-off mode)
   label?: string;
 }
 
@@ -51,6 +59,7 @@ export default function ScheduleCalendar({ events, busy, initialDate, onSelect, 
   const fcEvents: EventInput[] = [
     ...events.map(ev => {
       const palette = STATUS_COLOR[ev.status ?? 'confirmed'] ?? STATUS_COLOR.confirmed;
+      const isCancelled = ev.status === 'cancelled';
       return {
         id: ev.id,
         title: ev.title,
@@ -59,19 +68,26 @@ export default function ScheduleCalendar({ events, busy, initialDate, onSelect, 
         backgroundColor: palette.bg,
         borderColor: palette.border,
         textColor: palette.fg,
+        classNames: isCancelled ? ['fc-event-cancelled'] : undefined,
         extendedProps: { status: ev.status, providerId: ev.providerId, patient: ev.patient, kind: ev.kind },
       } as EventInput;
     }),
     ...busy.map(b => ({
       id: b.id,
       groupId: 'busy',
-      daysOfWeek: b.daysOfWeek,
-      startTime: b.startTime,
-      endTime: b.endTime,
+      ...(b.daysOfWeek ? {
+        daysOfWeek: b.daysOfWeek,
+        startTime: b.startTime,
+        endTime: b.endTime,
+        ...(b.endRecur ? { endRecur: b.endRecur } : {}),
+      } : {
+        start: b.start,
+        end: b.end,
+      }),
       display: 'background' as const,
-      backgroundColor: 'rgba(10,25,47,0.06)',
+      backgroundColor: 'rgba(10,25,47,0.14)',
       title: b.label ?? '',
-    })),
+    } as EventInput)),
   ];
 
   const handleSelect = (arg: DateSelectArg) => {

@@ -267,12 +267,28 @@ export interface KnowledgeDocDTO extends KnowledgeListItemDTO {
 export interface BusyBlockDTO {
   id: number;
   provider_id: number;
-  weekday: number;       // 0=Mon..6=Sun (matches backend)
+  // v2 fields: a block is either recurring (weekdays + optional recurrence_until)
+  // or a specific-date one-off. Exactly one of weekdays / specific_date is set.
+  weekdays: number[] | null;       // 0=Mon..6=Sun
+  specific_date: string | null;    // YYYY-MM-DD
+  recurrence_until: string | null; // YYYY-MM-DD inclusive
   start_hour: number;
   start_minute: number;
   end_hour: number;
   end_minute: number;
   label: string | null;
+}
+
+export interface BusyBlockCreate {
+  provider_id: number;
+  weekdays?: number[] | null;
+  specific_date?: string | null;
+  recurrence_until?: string | null;
+  start_hour: number;
+  start_minute?: number;
+  end_hour: number;
+  end_minute?: number;
+  label?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -437,9 +453,9 @@ export const api = {
       busyBlocks: {
         list: (params?: { provider_id?: number }) =>
           apiFetch<BusyBlockDTO[]>('/api/v2/scheduling/busy-blocks', { query: params }),
-        create: (data: Omit<BusyBlockDTO, 'id'>) =>
+        create: (data: BusyBlockCreate) =>
           apiFetch<BusyBlockDTO>('/api/v2/scheduling/busy-blocks', { method: 'POST', body: data }),
-        update: (id: number, data: Partial<Omit<BusyBlockDTO, 'id'>>) =>
+        update: (id: number, data: Partial<BusyBlockCreate>) =>
           apiFetch<BusyBlockDTO>(`/api/v2/scheduling/busy-blocks/${id}`, { method: 'PUT', body: data }),
         delete: (id: number) =>
           apiFetch<void>(`/api/v2/scheduling/busy-blocks/${id}`, { method: 'DELETE' }),

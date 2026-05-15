@@ -118,14 +118,30 @@ class ProviderAvailability(Base):
 
 
 class ProviderBusyBlock(Base):
-    """Recurring busy block for a provider (weekday/time window)."""
+    """Busy block for a provider.
+
+    Two storage modes (exactly one is populated on writes; enforced at the
+    Pydantic layer):
+    - Recurring weekly: `weekdays` is a JSON-encoded list of ints (0=Mon..6=Sun),
+      optionally bounded by `recurrence_until` (inclusive).
+    - Single-day one-off: `specific_date` is the calendar date.
+
+    `weekday` is a legacy single-day field kept nullable for backward-compat reads
+    on rows written before the v2 schema; writes go through `weekdays`.
+    """
     __tablename__ = "provider_busy_blocks"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     clinic_id = Column(String, ForeignKey("clinics.id"), nullable=False, default=DEFAULT_CLINIC_ID)
     provider_id = Column(Integer, ForeignKey("providers.id"), nullable=False)
-    # 0=Mon ... 6=Sun
-    weekday = Column(Integer, nullable=False)
+    # Legacy single-weekday field (0=Mon..6=Sun). Nullable; superseded by `weekdays`.
+    weekday = Column(Integer, nullable=True)
+    # JSON-encoded list of weekdays for recurring rules, e.g. "[0,2,4]".
+    weekdays = Column(String, nullable=True)
+    # Calendar date for a one-off block.
+    specific_date = Column(Date, nullable=True)
+    # Optional inclusive end date for the recurrence (only meaningful with `weekdays`).
+    recurrence_until = Column(Date, nullable=True)
     start_hour = Column(Integer, nullable=False)
     start_minute = Column(Integer, nullable=False, default=0)
     end_hour = Column(Integer, nullable=False)

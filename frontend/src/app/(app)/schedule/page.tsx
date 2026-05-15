@@ -2,15 +2,17 @@
 
 import React from 'react';
 import dynamic from 'next/dynamic';
-import { APPOINTMENTS, BUSY_BLOCKS } from '@/lib/data';
+import { APPOINTMENTS } from '@/lib/data';
 import { StatusPill } from '@/components/domain/StatusPill';
 import { Drawer } from '@/components/overlays/Drawer';
 import { CenterModal } from '@/components/overlays/CenterModal';
 import { useToast } from '@/components/overlays/ToastContext';
 import { ArrowLeft } from 'lucide-react';
-import { api, ApiError, type PatientDTO, type BusyBlockDTO } from '@/lib/api';
+import { api, type PatientDTO, type BusyBlockDTO } from '@/lib/api';
 import type { ScheduleEvent, BusyBlockBg } from '@/components/domain/ScheduleCalendar';
 import { BusyBlocksDrawer } from '@/components/domain/BusyBlocksDrawer';
+import { PatientPickerWithCreate } from '@/components/domain/PatientPickerWithCreate';
+import { ConfirmDialog } from '@/components/overlays/ConfirmDialog';
 
 // Calendar uses DOM APIs — load client-only.
 const ScheduleCalendar = dynamic(() => import('@/components/domain/ScheduleCalendar'), { ssr: false });
@@ -20,7 +22,7 @@ const ScheduleCalendar = dynamic(() => import('@/components/domain/ScheduleCalen
 // across other days — they just have no seed events.
 const ANCHOR_DATE = '2026-05-04'; // Monday
 
-type ApptStatus = 'confirmed' | 'pending' | 'no_show' | 'completed';
+type ApptStatus = 'confirmed' | 'pending' | 'no_show' | 'completed' | 'cancelled';
 
 interface AppointmentLocal {
   id: string;
@@ -96,31 +98,41 @@ function reasonFromError(e: unknown, fallback: string): string {
   return fallback;
 }
 
-// Map busy blocks (weekday 0=Mon..6=Sun per database/models.py) to FullCalendar
-// background events (daysOfWeek uses 0=Sun..6=Sat). Accepts the live API rows or
-// the local mock — both share the same numeric field shape.
-type BusyBlockLike = {
-  id: number;
-  weekday: number;
-  start_hour: number;
-  start_minute: number;
-  end_hour: number;
-  end_minute: number;
-  label?: string | null;
-};
-function busyToBg(blocks: BusyBlockLike[]): BusyBlockBg[] {
-  const grouped = new Map<string, BusyBlockBg>();
+// Map busy blocks (DB shape) to FullCalendar background events. Handles both
+// recurring weekday rules (with optional `recurrence_until`) and single-date
+// one-offs. DB weekday convention is 0=Mon..6=Sun; FullCalendar uses 0=Sun..6=Sat.
+function pad2(n: number): string { return n.toString().padStart(2, '0'); }
+function nextDayIso(ymd: string): string {
+  // `endRecur` in FullCalendar is exclusive — add one day to the inclusive UI date.
+  const d = new Date(ymd + 'T00:00:00');
+  d.setDate(d.getDate() + 1);
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+function busyToBg(blocks: BusyBlockDTO[]): BusyBlockBg[] {
+  const out: BusyBlockBg[] = [];
   for (const b of blocks) {
-    const fcDay = (b.weekday + 1) % 7;
-    const startTime = `${b.start_hour.toString().padStart(2, '0')}:${b.start_minute.toString().padStart(2, '0')}:00`;
-    const endTime = `${b.end_hour.toString().padStart(2, '0')}:${b.end_minute.toString().padStart(2, '0')}:00`;
+    const startTime = `${pad2(b.start_hour)}:${pad2(b.start_minute)}:00`;
+    const endTime = `${pad2(b.end_hour)}:${pad2(b.end_minute)}:00`;
     const label = b.label ?? undefined;
-    const key = `${startTime}-${endTime}-${label ?? ''}`;
-    const existing = grouped.get(key);
-    if (existing) existing.daysOfWeek.push(fcDay);
-    else grouped.set(key, { id: `bb-${b.id}`, daysOfWeek: [fcDay], startTime, endTime, label });
+    if (b.specific_date) {
+      out.push({
+        id: `bb-${b.id}`,
+        start: `${b.specific_date}T${startTime}`,
+        end: `${b.specific_date}T${endTime}`,
+        label,
+      });
+    } else if (b.weekdays && b.weekdays.length) {
+      out.push({
+        id: `bb-${b.id}`,
+        daysOfWeek: b.weekdays.map(d => (d + 1) % 7),
+        startTime,
+        endTime,
+        ...(b.recurrence_until ? { endRecur: nextDayIso(b.recurrence_until) } : {}),
+        label,
+      });
+    }
   }
-  return Array.from(grouped.values());
+  return out;
 }
 
 export default function SchedulePage() {
@@ -133,16 +145,13 @@ export default function SchedulePage() {
   const [draftTime, setDraftTime] = React.useState('09:00');
   const [draftDuration, setDraftDuration] = React.useState(60);
   const [patientOptions, setPatientOptions] = React.useState<PatientDTO[]>([]);
-  const [draftPatientId, setDraftPatientId] = React.useState('');
+  const [draftPatient, setDraftPatient] = React.useState<PatientDTO | null>(null);
   const [draftProvider, setDraftProvider] = React.useState('Dr Hau Le');
   const [draftKind, setDraftKind] = React.useState('Recall · 6mo');
 
   React.useEffect(() => {
     api.patients.list()
-      .then(rows => {
-        setPatientOptions(rows);
-        if (rows[0]) setDraftPatientId(prev => prev || rows[0].id);
-      })
+      .then(rows => setPatientOptions(rows))
       .catch(() => { /* leave empty; createAppointment will toast a useful error */ });
   }, []);
 
@@ -157,14 +166,14 @@ export default function SchedulePage() {
 
   const [busyDrawerOpen, setBusyDrawerOpen] = React.useState(false);
 
-  const draftPatientName = (() => {
-    const p = patientOptions.find(x => x.id === draftPatientId);
-    return p ? `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() : '';
-  })();
+  const draftPatientName = draftPatient
+    ? `${draftPatient.first_name ?? ''} ${draftPatient.last_name ?? ''}`.trim()
+    : '';
 
   // Detail modal for clicked event
   const [detailId, setDetailId] = React.useState<string | null>(null);
   const detailAppt = detailId ? appts.find(a => a.id === detailId) ?? null : null;
+  const [cancelConfirmOpen, setCancelConfirmOpen] = React.useState(false);
 
   const events: ScheduleEvent[] = appts.map(a => ({
     id: a.id,
@@ -182,7 +191,6 @@ export default function SchedulePage() {
     setDraftDate(date ?? ANCHOR_DATE);
     setDraftTime(time ?? '09:00');
     setDraftDuration(duration ?? 60);
-    if (!draftPatientId && patientOptions[0]) setDraftPatientId(patientOptions[0].id);
     setDraftProvider('Dr Hau Le');
     setDraftKind('Recall · 6mo');
     setDrawerOpen(true);
@@ -228,14 +236,14 @@ export default function SchedulePage() {
   };
 
   const createAppointment = async () => {
-    if (!draftPatientId) { addToast('Pick a patient first.'); return; }
+    if (!draftPatient) { addToast('Pick a patient first.'); return; }
     try {
       const startIso = toIso(draftDate, draftTime);
       const endIso = addMinutes(startIso, draftDuration);
       const res = await api.appointments.create({
         start_time: startIso,
         end_time: endIso,
-        patient_id: draftPatientId,
+        patient_id: draftPatient.id,
         provider_id: 1,
         reason: draftKind,
         patient_name: draftPatientName,
@@ -248,7 +256,7 @@ export default function SchedulePage() {
         time: draftTime,
         duration: draftDuration,
         patient: draftPatientName,
-        patient_id: draftPatientId,
+        patient_id: draftPatient.id,
         provider: draftProvider,
         chair: '1',
         kind: draftKind,
@@ -270,14 +278,20 @@ export default function SchedulePage() {
     } catch { addToast('Failed to update status.'); }
   };
 
-  const cancelAppointment = async () => {
+  const confirmCancel = async () => {
     if (!detailAppt) return;
     try {
       await api.appointments.cancel(detailAppt.id);
-      setAppts(prev => prev.filter(a => a.id !== detailAppt.id));
+      setAppts(prev => prev.map(a => (
+        a.id === detailAppt.id ? { ...a, status: 'cancelled' as const } : a
+      )));
       addToast('Appointment cancelled.', detailAppt.id);
+      setCancelConfirmOpen(false);
       setDetailId(null);
-    } catch { addToast('Failed to cancel appointment.'); }
+    } catch {
+      addToast('Failed to cancel appointment.');
+      setCancelConfirmOpen(false);
+    }
   };
 
   return (
@@ -337,15 +351,12 @@ export default function SchedulePage() {
             </>
           }
         >
-          <div className="field">
-            <label className="lbl">Patient</label>
-            <select className="d-input" value={draftPatientId} onChange={e => setDraftPatientId(e.target.value)}>
-              {patientOptions.length === 0 && <option value="">(no patients loaded)</option>}
-              {patientOptions.map(p => (
-                <option key={p.id} value={p.id}>{`${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || p.id}</option>
-              ))}
-            </select>
-          </div>
+          <PatientPickerWithCreate
+            patients={patientOptions}
+            value={draftPatient}
+            onChange={setDraftPatient}
+            onCreated={(p) => setPatientOptions(prev => [...prev, p])}
+          />
           <div className="field">
             <label className="lbl">Provider</label>
             <select className="d-input" value={draftProvider} onChange={e => setDraftProvider(e.target.value)}>
@@ -409,7 +420,13 @@ export default function SchedulePage() {
               {STATUSES.map(s => (
                 <button key={s} className={'btn btn-md ' + (detailAppt.status === s ? 'btn-primary' : 'btn-ghost')} onClick={() => updateStatus(s)}>{s.replace('_', ' ')}</button>
               ))}
-              <button className="btn btn-md btn-destructive" onClick={cancelAppointment}>Cancel appt</button>
+              <button
+                className="btn btn-md btn-destructive"
+                onClick={() => setCancelConfirmOpen(true)}
+                disabled={detailAppt.status === 'cancelled'}
+              >
+                {detailAppt.status === 'cancelled' ? 'Cancelled' : 'Cancel appt'}
+              </button>
             </div>
           </div>
         </CenterModal>
@@ -419,6 +436,19 @@ export default function SchedulePage() {
         open={busyDrawerOpen}
         onClose={() => setBusyDrawerOpen(false)}
         onChanged={reloadBusyBlocks}
+      />
+
+      <ConfirmDialog
+        open={cancelConfirmOpen && !!detailAppt}
+        onClose={() => setCancelConfirmOpen(false)}
+        onConfirm={confirmCancel}
+        destructive
+        title="Cancel this appointment?"
+        body={detailAppt
+          ? `Cancel ${detailAppt.patient}'s appointment on ${detailAppt.date} at ${detailAppt.time}? You can re-book the slot afterwards.`
+          : ''}
+        confirmLabel="Cancel appointment"
+        cancelLabel="Keep it"
       />
     </>
   );

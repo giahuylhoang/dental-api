@@ -1,7 +1,8 @@
 """Scheduling v2 router: operatories, appointments with recurrence, waitlist, recall, calendar."""
 
+import json
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -139,9 +140,38 @@ def delete_operatory(op_id: str, clinic: Clinic = Depends(get_clinic), db: Sessi
 # Provider busy blocks (recurring weekly windows when a provider is unavailable)
 # ---------------------------------------------------------------------------
 
+def _validate_busy_block_shape(
+    weekdays: Optional[List[int]],
+    specific_date: Optional[date],
+    recurrence_until: Optional[date],
+    start_hour: int,
+    start_minute: int,
+    end_hour: int,
+    end_minute: int,
+) -> None:
+    """Shared validation for create and update. Raises ValueError on bad input."""
+    if (start_hour, start_minute) >= (end_hour, end_minute):
+        raise ValueError("start time must be before end time")
+    has_wd = bool(weekdays)
+    has_date = specific_date is not None
+    if has_wd == has_date:
+        raise ValueError("exactly one of weekdays or specific_date must be provided")
+    if has_wd:
+        if any(d < 0 or d > 6 for d in weekdays):
+            raise ValueError("weekdays must be 0..6")
+        if len(set(weekdays)) != len(weekdays):
+            raise ValueError("weekdays must be unique")
+    if has_date and recurrence_until is not None:
+        raise ValueError("recurrence_until only applies to weekday rules")
+    if recurrence_until is not None and recurrence_until < date.today():
+        raise ValueError("recurrence_until must be today or later")
+
+
 class BusyBlockIn(BaseModel):
     provider_id: int
-    weekday: int = Field(ge=0, le=6, description="0=Mon..6=Sun")
+    weekdays: Optional[List[int]] = None
+    specific_date: Optional[date] = None
+    recurrence_until: Optional[date] = None
     start_hour: int = Field(ge=0, le=23)
     start_minute: int = Field(ge=0, le=59, default=0)
     end_hour: int = Field(ge=0, le=23)
@@ -149,14 +179,18 @@ class BusyBlockIn(BaseModel):
     label: Optional[str] = Field(default=None, max_length=64)
 
     @model_validator(mode="after")
-    def _start_before_end(self):
-        if (self.start_hour, self.start_minute) >= (self.end_hour, self.end_minute):
-            raise ValueError("start time must be before end time")
+    def _validate(self):
+        _validate_busy_block_shape(
+            self.weekdays, self.specific_date, self.recurrence_until,
+            self.start_hour, self.start_minute, self.end_hour, self.end_minute,
+        )
         return self
 
 
 class BusyBlockUpdate(BaseModel):
-    weekday: Optional[int] = Field(default=None, ge=0, le=6)
+    weekdays: Optional[List[int]] = None
+    specific_date: Optional[date] = None
+    recurrence_until: Optional[date] = None
     start_hour: Optional[int] = Field(default=None, ge=0, le=23)
     start_minute: Optional[int] = Field(default=None, ge=0, le=59)
     end_hour: Optional[int] = Field(default=None, ge=0, le=23)
@@ -167,7 +201,9 @@ class BusyBlockUpdate(BaseModel):
 class BusyBlockOut(BaseModel):
     id: int
     provider_id: int
-    weekday: int
+    weekdays: Optional[List[int]] = None
+    specific_date: Optional[date] = None
+    recurrence_until: Optional[date] = None
     start_hour: int
     start_minute: int
     end_hour: int
@@ -176,6 +212,35 @@ class BusyBlockOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+def _serialize_block(block: ProviderBusyBlock) -> BusyBlockOut:
+    """Build a BusyBlockOut from the ORM row, decoding the JSON-encoded weekdays."""
+    weekdays_list: Optional[List[int]] = None
+    raw = block.weekdays
+    if raw:
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, list):
+                weekdays_list = [int(x) for x in parsed]
+        except (json.JSONDecodeError, ValueError, TypeError):
+            weekdays_list = None
+    # Backward-compat: rows without `weekdays` but with legacy `weekday` get
+    # surfaced as a single-element list.
+    if weekdays_list is None and block.specific_date is None and block.weekday is not None:
+        weekdays_list = [int(block.weekday)]
+    return BusyBlockOut(
+        id=block.id,
+        provider_id=block.provider_id,
+        weekdays=weekdays_list,
+        specific_date=block.specific_date,
+        recurrence_until=block.recurrence_until,
+        start_hour=block.start_hour,
+        start_minute=block.start_minute,
+        end_hour=block.end_hour,
+        end_minute=block.end_minute,
+        label=block.label,
+    )
 
 
 @router.get("/busy-blocks", response_model=List[BusyBlockOut])
@@ -187,12 +252,13 @@ def list_busy_blocks(
     q = db.query(ProviderBusyBlock).filter(ProviderBusyBlock.clinic_id == clinic.id)
     if provider_id is not None:
         q = q.filter(ProviderBusyBlock.provider_id == provider_id)
-    return q.order_by(
+    rows = q.order_by(
         ProviderBusyBlock.provider_id,
-        ProviderBusyBlock.weekday,
+        ProviderBusyBlock.specific_date,
         ProviderBusyBlock.start_hour,
         ProviderBusyBlock.start_minute,
     ).all()
+    return [_serialize_block(r) for r in rows]
 
 
 @router.post("/busy-blocks", response_model=BusyBlockOut, status_code=201)
@@ -206,11 +272,22 @@ def create_busy_block(
     ).first()
     if provider is None:
         raise HTTPException(404, "Provider not found")
-    block = ProviderBusyBlock(clinic_id=clinic.id, **body.model_dump())
+    block = ProviderBusyBlock(
+        clinic_id=clinic.id,
+        provider_id=body.provider_id,
+        weekdays=json.dumps(sorted(body.weekdays)) if body.weekdays else None,
+        specific_date=body.specific_date,
+        recurrence_until=body.recurrence_until,
+        start_hour=body.start_hour,
+        start_minute=body.start_minute,
+        end_hour=body.end_hour,
+        end_minute=body.end_minute,
+        label=body.label,
+    )
     db.add(block)
     db.commit()
     db.refresh(block)
-    return block
+    return _serialize_block(block)
 
 
 @router.put("/busy-blocks/{block_id}", response_model=BusyBlockOut)
@@ -226,14 +303,65 @@ def update_busy_block(
     if block is None:
         raise HTTPException(404, "Busy block not found")
     patch = body.model_dump(exclude_unset=True)
-    for k, v in patch.items():
-        setattr(block, k, v)
-    # Re-validate the resulting window after the patch.
-    if (block.start_hour, block.start_minute) >= (block.end_hour, block.end_minute):
-        raise HTTPException(422, "start time must be before end time")
+
+    # Compute the post-patch field values for re-validation. Switching modes
+    # via this PUT (e.g. supplying `specific_date` on a weekdays rule) clears
+    # the other mode's fields — mirror that in the validation snapshot too.
+    current_weekdays = json.loads(block.weekdays) if block.weekdays else None
+    if "weekdays" in patch:
+        new_weekdays = patch["weekdays"]
+    elif "specific_date" in patch and patch["specific_date"] is not None:
+        new_weekdays = None
+    else:
+        new_weekdays = current_weekdays
+
+    if "specific_date" in patch:
+        new_specific_date = patch["specific_date"]
+    elif "weekdays" in patch and patch["weekdays"]:
+        new_specific_date = None
+    else:
+        new_specific_date = block.specific_date
+
+    if "recurrence_until" in patch:
+        new_recurrence_until = patch["recurrence_until"]
+    elif "specific_date" in patch and patch["specific_date"] is not None:
+        new_recurrence_until = None
+    else:
+        new_recurrence_until = block.recurrence_until
+    new_sh = patch.get("start_hour", block.start_hour)
+    new_sm = patch.get("start_minute", block.start_minute)
+    new_eh = patch.get("end_hour", block.end_hour)
+    new_em = patch.get("end_minute", block.end_minute)
+    try:
+        _validate_busy_block_shape(
+            new_weekdays, new_specific_date, new_recurrence_until,
+            new_sh, new_sm, new_eh, new_em,
+        )
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+
+    if "weekdays" in patch:
+        block.weekdays = json.dumps(sorted(patch["weekdays"])) if patch["weekdays"] else None
+        # When switching to weekday mode, clear specific_date.
+        if patch["weekdays"]:
+            block.specific_date = None
+            # Drop the legacy column so it doesn't get reused on read.
+            block.weekday = None
+    if "specific_date" in patch:
+        block.specific_date = patch["specific_date"]
+        # When switching to specific-date mode, clear recurrence fields.
+        if patch["specific_date"] is not None:
+            block.weekdays = None
+            block.weekday = None
+            block.recurrence_until = None
+    if "recurrence_until" in patch:
+        block.recurrence_until = patch["recurrence_until"]
+    for k in ("start_hour", "start_minute", "end_hour", "end_minute", "label"):
+        if k in patch:
+            setattr(block, k, patch[k])
     db.commit()
     db.refresh(block)
-    return block
+    return _serialize_block(block)
 
 
 @router.delete("/busy-blocks/{block_id}", status_code=204)

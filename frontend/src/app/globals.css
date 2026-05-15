@@ -565,6 +565,14 @@ table.list tr:hover td { background: rgba(58,127,189,0.03); }
 .rr-calendar .fc-timegrid-event {
   box-shadow: 0 1px 2px rgba(10,25,47,0.12);
 }
+.rr-calendar .fc-event.fc-event-cancelled {
+  box-shadow: none;
+  opacity: 0.78;
+}
+.rr-calendar .fc-event.fc-event-cancelled .fc-event-title,
+.rr-calendar .fc-event.fc-event-cancelled .fc-event-time {
+  text-decoration: line-through;
+}
 .rr-calendar .fc-bg-event {
   opacity: 1;
   background: repeating-linear-gradient(45deg, rgba(10,25,47,0.04), rgba(10,25,47,0.04) 6px, rgba(10,25,47,0.08) 6px, rgba(10,25,47,0.08) 12px);
