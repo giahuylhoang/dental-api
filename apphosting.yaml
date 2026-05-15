@@ -1,0 +1,18 @@
+# Firebase App Hosting build + runtime config for the CRM frontend.
+# The Next.js NEXT_PUBLIC_* vars are inlined at build time, so they must be
+# declared as BUILD-available. RUNTIME availability lets server components
+# read them too (cheap; harmless if unused).
+
+runConfig:
+  minInstances: 0
+  maxInstances: 10
+  concurrency: 80
+  cpu: 1
+  memoryMiB: 512
+
+env:
+  - variable: NEXT_PUBLIC_API_BASE
+    value: https://dental-api-v2-qkwzgio7eq-pd.a.run.app
+    availability:
+      - BUILD
+      - RUNTIME

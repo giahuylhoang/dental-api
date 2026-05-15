@@ -263,12 +263,19 @@ from api.middleware.observability import ObservabilityMiddleware
 app.add_middleware(ObservabilityMiddleware)
 
 # CORS: allow frontend (Vite often on 5173 or 5174 when 5173 is in use)
+_CORS_BASE = [
+    "http://localhost:5173", "http://localhost:5174", "http://localhost:3000",
+    "http://127.0.0.1:5173", "http://127.0.0.1:5174", "http://127.0.0.1:3000",
+    "https://dental-crm--rockyridgeai-dental.us-central1.hosted.app",
+]
+_CORS_EXTRA = [o.strip() for o in os.getenv("CORS_EXTRA_ORIGINS", "").split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173", "http://localhost:5174", "http://localhost:3000",
-        "http://127.0.0.1:5173", "http://127.0.0.1:5174", "http://127.0.0.1:3000",
-    ],
+    allow_origins=_CORS_BASE + _CORS_EXTRA,
+    # Allow any Firebase App Hosting URL for this project — covers preview
+    # channels and region renames without code changes.
+    allow_origin_regex=r"https://[a-z0-9-]+--rockyridgeai-dental\.[a-z0-9-]+\.hosted\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
