@@ -100,46 +100,6 @@ class PatientVerifyResponse(BaseModel):
     verified: bool = True
 
 
-class LeadCreateRequest(BaseModel):
-    """Request model for creating lead."""
-    name: Optional[str] = None
-    phone: Optional[str] = None
-    email: Optional[str] = None
-    source: Optional[str] = None
-    notes: Optional[str] = None
-
-
-class LeadUpdateRequest(BaseModel):
-    """Request model for updating lead."""
-    name: Optional[str] = None
-    phone: Optional[str] = None
-    email: Optional[str] = None
-    source: Optional[str] = None
-    status: Optional[str] = None
-    notes: Optional[str] = None
-
-
-class LeadResponse(BaseModel):
-    """Response model for lead."""
-    id: str
-    name: Optional[str] = None
-    phone: Optional[str] = None
-    email: Optional[str] = None
-    source: Optional[str] = None
-    status: str
-    notes: Optional[str] = None
-    created_at: datetime
-    updated_at: datetime
-    
-    class Config:
-        from_attributes = True
-
-
-class LeadStatusUpdateRequest(BaseModel):
-    """Request model for updating lead status."""
-    status: str = Field(..., description="New status value (e.g., NEW, CONTACTED, QUALIFIED, CONVERTED, LOST)")
-
-
 class AppointmentStatusUpdateRequest(BaseModel):
     """Request model for updating appointment status."""
     status: str = Field(..., description="New status value (e.g., CONFIRMED, REMINDER_SENT, CANCELLED)")
@@ -1199,125 +1159,6 @@ async def delete_appointments_by_date_endpoint(
     }
 
 
-# ============================================================================
-# Database CRUD Endpoints - Leads
-# ============================================================================
-
-@app.post("/api/leads", response_model=LeadResponse)
-async def create_lead(
-    lead_data: LeadCreateRequest,
-    db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
-):
-    """Create new lead."""
-    try:
-        lead_dict = lead_data.model_dump(exclude_none=True)
-        lead = Lead(clinic_id=clinic.id, **lead_dict)
-        db.add(lead)
-        db.commit()
-        db.refresh(lead)
-        return LeadResponse.model_validate(lead)
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Error creating lead: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to create lead: {str(e)}")
-
-
-@app.get("/api/leads", response_model=List[LeadResponse])
-async def list_leads(
-    status: Optional[str] = Query(None, description="Filter by status"),
-    source: Optional[str] = Query(None, description="Filter by source"),
-    db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
-):
-    """List leads with optional filters."""
-    query = db.query(Lead).filter(Lead.clinic_id == clinic.id)
-    if status:
-        try:
-            status_enum = LeadStatus(status.upper())
-            query = query.filter(Lead.status == status_enum)
-        except ValueError:
-            raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
-    if source:
-        query = query.filter(Lead.source == source)
-    leads = query.order_by(Lead.created_at.desc()).all()
-    return [LeadResponse.model_validate(lead) for lead in leads]
-
-
-@app.get("/api/leads/{lead_id}", response_model=LeadResponse)
-async def get_lead(
-    lead_id: str,
-    db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
-):
-    """Get lead by ID."""
-    lead = db.query(Lead).filter(Lead.id == lead_id, Lead.clinic_id == clinic.id).first()
-    if not lead:
-        raise HTTPException(status_code=404, detail="Lead not found")
-    return LeadResponse.model_validate(lead)
-
-
-@app.put("/api/leads/{lead_id}", response_model=LeadResponse)
-async def update_lead(
-    lead_id: str,
-    lead_data: LeadUpdateRequest,
-    db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
-):
-    """Update lead."""
-    lead = db.query(Lead).filter(Lead.id == lead_id, Lead.clinic_id == clinic.id).first()
-    if not lead:
-        raise HTTPException(status_code=404, detail="Lead not found")
-    
-    update_data = lead_data.model_dump(exclude_none=True)
-    
-    # Handle status update
-    if "status" in update_data:
-        try:
-            status_enum = LeadStatus(update_data["status"].upper())
-            lead.status = status_enum
-            del update_data["status"]
-        except ValueError:
-            raise HTTPException(status_code=400, detail=f"Invalid status: {update_data['status']}")
-    
-    # Update other fields
-    for key, value in update_data.items():
-        if hasattr(lead, key):
-            setattr(lead, key, value)
-    
-    lead.updated_at = datetime.utcnow()
-    db.commit()
-    db.refresh(lead)
-    return LeadResponse.model_validate(lead)
-
-
-@app.put("/api/leads/{lead_id}/status", response_model=LeadResponse)
-async def update_lead_status(
-    lead_id: str,
-    request: LeadStatusUpdateRequest,
-    db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
-):
-    """Update lead status."""
-    try:
-        new_status = LeadStatus(request.status.upper())
-    except ValueError:
-        valid_statuses = [s.value for s in LeadStatus]
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid status: {request.status}. Valid values: {', '.join(valid_statuses)}"
-        )
-    
-    lead = db.query(Lead).filter(Lead.id == lead_id, Lead.clinic_id == clinic.id).first()
-    if not lead:
-        raise HTTPException(status_code=404, detail="Lead not found")
-    
-    lead.status = new_status
-    lead.updated_at = datetime.utcnow()
-    db.commit()
-    db.refresh(lead)
-    return LeadResponse.model_validate(lead)
-
 
 # ============================================================================
 # Health Check
@@ -1359,6 +1200,8 @@ from api.v1.providers.router import router as _v1_providers_router
 app.include_router(_v1_providers_router)
 from api.v1.catalog.router import router as _v1_catalog_router
 app.include_router(_v1_catalog_router)
+from api.v1.leads.router import router as _v1_leads_router
+app.include_router(_v1_leads_router)
 
 # ============================================================================
 # v2 routers (Track 1 — Auth / RBAC / Audit)
