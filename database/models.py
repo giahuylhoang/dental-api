@@ -5,7 +5,7 @@ from datetime import datetime, date
 from enum import Enum as PyEnum
 from typing import Optional
 
-from sqlalchemy import Column, String, Integer, Boolean, DateTime, Date, Text, ForeignKey, Enum as SQLEnum, DECIMAL
+from sqlalchemy import Column, String, Integer, Boolean, DateTime, Date, Text, ForeignKey, Enum as SQLEnum, DECIMAL, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -43,6 +43,7 @@ class Clinic(Base):
 
     id = Column(String, primary_key=True, default=DEFAULT_CLINIC_ID)
     name = Column(String, nullable=False)
+    display_name = Column(Text, nullable=True)
     timezone = Column(String, default="America/Edmonton")
     working_hour_start = Column(Integer, default=9)
     working_hour_end = Column(Integer, default=17)
@@ -117,18 +118,35 @@ class ProviderAvailability(Base):
 
 
 class ProviderBusyBlock(Base):
-    """Recurring busy block for a provider (weekday/time window)."""
+    """Busy block for a provider.
+
+    Two storage modes (exactly one is populated on writes; enforced at the
+    Pydantic layer):
+    - Recurring weekly: `weekdays` is a JSON-encoded list of ints (0=Mon..6=Sun),
+      optionally bounded by `recurrence_until` (inclusive).
+    - Single-day one-off: `specific_date` is the calendar date.
+
+    `weekday` is a legacy single-day field kept nullable for backward-compat reads
+    on rows written before the v2 schema; writes go through `weekdays`.
+    """
     __tablename__ = "provider_busy_blocks"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     clinic_id = Column(String, ForeignKey("clinics.id"), nullable=False, default=DEFAULT_CLINIC_ID)
     provider_id = Column(Integer, ForeignKey("providers.id"), nullable=False)
-    # 0=Mon ... 6=Sun
-    weekday = Column(Integer, nullable=False)
+    # Legacy single-weekday field (0=Mon..6=Sun). Nullable; superseded by `weekdays`.
+    weekday = Column(Integer, nullable=True)
+    # JSON-encoded list of weekdays for recurring rules, e.g. "[0,2,4]".
+    weekdays = Column(String, nullable=True)
+    # Calendar date for a one-off block.
+    specific_date = Column(Date, nullable=True)
+    # Optional inclusive end date for the recurrence (only meaningful with `weekdays`).
+    recurrence_until = Column(Date, nullable=True)
     start_hour = Column(Integer, nullable=False)
     start_minute = Column(Integer, nullable=False, default=0)
     end_hour = Column(Integer, nullable=False)
     end_minute = Column(Integer, nullable=False, default=0)
+    label = Column(String, nullable=True)
 
     provider = relationship("Provider")
 
@@ -161,6 +179,7 @@ class Appointment(Base):
     start_time = Column(DateTime, nullable=False)
     end_time = Column(DateTime, nullable=False)
     reason_note = Column(Text, nullable=True)
+    chief_complaint = Column(Text, nullable=True)
     status = Column(SQLEnum(AppointmentStatus), default=AppointmentStatus.SCHEDULED)
     calendar_event_id = Column(String, nullable=True)  # Google Calendar event ID for sync
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -185,7 +204,26 @@ class Lead(Base):
     source = Column(String, nullable=True)  # Ad campaign source
     status = Column(SQLEnum(LeadStatus), default=LeadStatus.NEW)
     notes = Column(Text, nullable=True)  # Qualification notes, needs, budget, timeline, etc.
+    owner_id = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     clinic = relationship("Clinic", back_populates="leads")
+
+
+# v1.1 performance indexes — additive, never alter existing columns.
+Index("ix_patients_clinic", Patient.clinic_id)
+Index("ix_appointments_clinic_start", Appointment.clinic_id, Appointment.start_time.desc())
+Index("ix_appointments_clinic_status", Appointment.clinic_id, Appointment.status)
+Index("ix_appointments_patient_start", Appointment.patient_id, Appointment.start_time.desc())
+Index("ix_leads_clinic_status", Lead.clinic_id, Lead.status)
+Index(
+    "ix_provider_busy_blocks_provider_weekday",
+    ProviderBusyBlock.provider_id,
+    ProviderBusyBlock.weekday,
+)
+Index(
+    "ix_provider_availability_provider_weekday",
+    ProviderAvailability.provider_id,
+    ProviderAvailability.weekday,
+)

@@ -1,0 +1,785 @@
+openapi: 3.0.3
+info:
+  title: Dental PMS/CRM API v2
+  version: 0.1.0
+  description: |
+    PMS/CRM extension for the dental-api. v2 routes layered on top of v1
+    (which is frozen — see tests/test_contract_v1.py). All routes are
+    multi-tenant via X-Clinic-Id (default: "default"). All non-auth
+    routes require Bearer JWT when V2_REQUIRE_AUTH=true.
+
+    Tracks may extend this spec by adding new paths. Do not change a
+    schema once a track has shipped against it.
+
+servers:
+  - url: http://localhost:8000
+    description: Local dev
+  - url: https://dental-api.example.run.app
+    description: Cloud Run
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    XClinicId:
+      name: X-Clinic-Id
+      in: header
+      required: false
+      schema: { type: string, default: default }
+
+  schemas:
+    Error:
+      type: object
+      required: [detail]
+      properties:
+        detail:
+          oneOf:
+            - { type: string }
+            - { type: object }
+
+    # ----- Auth (Track 1) -----
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, format: password }
+
+    TokenPair:
+      type: object
+      required: [access_token, refresh_token, expires_in, user]
+      properties:
+        access_token: { type: string }
+        refresh_token: { type: string }
+        expires_in: { type: integer, description: "seconds" }
+        user: { $ref: "#/components/schemas/User" }
+
+    User:
+      type: object
+      required: [id, clinic_id, email, full_name, is_active]
+      properties:
+        id: { type: string }
+        clinic_id: { type: string }
+        email: { type: string, format: email }
+        full_name: { type: string }
+        is_active: { type: boolean }
+        roles: { type: array, items: { type: string } }
+        permissions: { type: array, items: { type: string } }
+
+    # ----- Clinical (Track 2) -----
+    PatientInsurance:
+      type: object
+      required: [carrier, policy_number, holder_name, is_primary]
+      properties:
+        id: { type: string }
+        carrier: { type: string }
+        policy_number: { type: string }
+        group_number: { type: string, nullable: true }
+        holder_name: { type: string }
+        holder_relationship: { type: string, nullable: true }
+        assignment_of_benefits: { type: boolean, default: false }
+        coverage_pct_by_category: { type: object, additionalProperties: { type: number } }
+        valid_from: { type: string, format: date, nullable: true }
+        valid_to: { type: string, format: date, nullable: true }
+        is_primary: { type: boolean }
+
+    Document:
+      type: object
+      required: [kind, storage_url, content_sha256, mime, size_bytes]
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [photo, xray, consent, other] }
+        storage_url: { type: string, format: uri }
+        content_sha256: { type: string }
+        mime: { type: string }
+        size_bytes: { type: integer }
+        uploaded_by: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    ClinicalNote:
+      type: object
+      required: [patient_id]
+      properties:
+        id: { type: string }
+        patient_id: { type: string }
+        appointment_id: { type: string, nullable: true }
+        author_id: { type: string, nullable: true }
+        soap_subjective: { type: string }
+        soap_objective: { type: string }
+        soap_assessment: { type: string }
+        soap_plan: { type: string }
+        locked_at: { type: string, format: date-time, nullable: true }
+        supersedes_id: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    DentureCase:
+      type: object
+      required: [patient_id, arch, case_type, current_stage, status]
+      properties:
+        id: { type: string }
+        patient_id: { type: string }
+        arch: { type: string, enum: [upper, lower, both] }
+        case_type: { type: string, enum: [complete, partial, immediate, implant_retained] }
+        current_stage:
+          type: string
+          enum: [consult, prelim_imp, final_imp, bite_reg, wax_tryin, insert, adjust, complete, cancelled]
+        status: { type: string, enum: [open, closed] }
+        opened_at: { type: string, format: date-time }
+        closed_at: { type: string, format: date-time, nullable: true }
+        notes: { type: string, nullable: true }
+
+    DentureCaseEvent:
+      type: object
+      properties:
+        id: { type: string }
+        case_id: { type: string }
+        stage: { type: string }
+        occurred_at: { type: string, format: date-time }
+        provider_id: { type: integer, nullable: true }
+        note: { type: string, nullable: true }
+        photo_document_ids: { type: array, items: { type: string } }
+
+    LabVendor:
+      type: object
+      required: [name]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        contact_email: { type: string, format: email, nullable: true }
+        contact_phone: { type: string, nullable: true }
+        sla_days: { type: integer, nullable: true }
+        is_active: { type: boolean, default: true }
+
+    LabCase:
+      type: object
+      required: [denture_case_id, vendor_id, status]
+      properties:
+        id: { type: string }
+        denture_case_id: { type: string }
+        vendor_id: { type: string }
+        sent_at: { type: string, format: date-time, nullable: true }
+        due_back_at: { type: string, format: date-time, nullable: true }
+        returned_at: { type: string, format: date-time, nullable: true }
+        status: { type: string, enum: [draft, sent, in_progress, returned, remake, cancelled] }
+        remake_of_id: { type: string, nullable: true }
+        remake_reason: { type: string, nullable: true }
+        lab_fee: { type: number, nullable: true }
+        courier_tracking: { type: string, nullable: true }
+
+    Procedure:
+      type: object
+      required: [code, name]
+      properties:
+        id: { type: string }
+        code: { type: string, description: "ADA&C code" }
+        name: { type: string }
+        default_duration_min: { type: integer, nullable: true }
+        default_fee: { type: number, nullable: true }
+        category:
+          type: string
+          enum: [preventive, diagnostic, restorative, prosthodontic, periodontic, surgical, other]
+
+    TreatmentPlan:
+      type: object
+      required: [patient_id, status]
+      properties:
+        id: { type: string }
+        patient_id: { type: string }
+        status:
+          type: string
+          enum: [draft, presented, accepted, in_progress, completed, declined]
+        total_estimate: { type: number }
+        insurance_estimate: { type: number }
+        patient_estimate: { type: number }
+        items: { type: array, items: { $ref: "#/components/schemas/TreatmentPlanItem" } }
+
+    TreatmentPlanItem:
+      type: object
+      required: [procedure_code, fee]
+      properties:
+        id: { type: string }
+        sequence: { type: integer }
+        procedure_code: { type: string }
+        description: { type: string, nullable: true }
+        fee: { type: number }
+        insurance_coverage_pct: { type: number, nullable: true }
+        completed_at: { type: string, format: date-time, nullable: true }
+
+    # ----- Ops (Track 3) -----
+    Operatory:
+      type: object
+      required: [name]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        equipment_tags: { type: array, items: { type: string } }
+        is_active: { type: boolean, default: true }
+
+    Invoice:
+      type: object
+      required: [patient_id, status, subtotal, gst, total, balance]
+      properties:
+        id: { type: string }
+        patient_id: { type: string }
+        appointment_id: { type: string, nullable: true }
+        treatment_plan_id: { type: string, nullable: true }
+        status: { type: string, enum: [draft, issued, partial, paid, void] }
+        subtotal: { type: number }
+        gst: { type: number }
+        total: { type: number }
+        balance: { type: number }
+        currency: { type: string, default: CAD }
+        issued_at: { type: string, format: date-time, nullable: true }
+        due_at: { type: string, format: date-time, nullable: true }
+        lines: { type: array, items: { $ref: "#/components/schemas/InvoiceLine" } }
+
+    InvoiceLine:
+      type: object
+      required: [procedure_code, qty, unit_price, total]
+      properties:
+        id: { type: string }
+        sequence: { type: integer }
+        procedure_code: { type: string }
+        description: { type: string, nullable: true }
+        qty: { type: number }
+        unit_price: { type: number }
+        total: { type: number }
+
+    Payment:
+      type: object
+      required: [method, amount, received_at]
+      properties:
+        id: { type: string }
+        method: { type: string, enum: [cash, card, cheque, etransfer, insurance] }
+        amount: { type: number }
+        received_at: { type: string, format: date-time }
+        reference: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+
+    InsuranceClaim:
+      type: object
+      required: [invoice_id, carrier, kind, status]
+      properties:
+        id: { type: string }
+        invoice_id: { type: string }
+        carrier: { type: string }
+        kind: { type: string, enum: [predetermination, claim] }
+        assignment_of_benefits: { type: boolean }
+        status: { type: string, enum: [draft, submitted, accepted, adjudicated, paid, rejected, partial] }
+        submitted_at: { type: string, format: date-time, nullable: true }
+        adjudicated_at: { type: string, format: date-time, nullable: true }
+        paid_at: { type: string, format: date-time, nullable: true }
+        response_payload: { type: object, nullable: true }
+
+    Communication:
+      type: object
+      required: [patient_id, channel, direction, body, status]
+      properties:
+        id: { type: string }
+        patient_id: { type: string }
+        channel: { type: string, enum: [sms, email, inbound_sms, inbound_email] }
+        direction: { type: string, enum: [out, in] }
+        body: { type: string }
+        status: { type: string, enum: [queued, sent, delivered, failed, received] }
+        related_appointment_id: { type: string, nullable: true }
+        related_invoice_id: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+        sent_at: { type: string, format: date-time, nullable: true }
+
+    LeadEvent:
+      type: object
+      required: [lead_id, kind, occurred_at]
+      properties:
+        id: { type: string }
+        lead_id: { type: string }
+        kind: { type: string, enum: [note, status_change, email_sent, sms_sent, converted] }
+        occurred_at: { type: string, format: date-time }
+        payload: { type: object }
+
+    AuditLogEntry:
+      type: object
+      required: [id, action, entity_type, entity_id, created_at]
+      properties:
+        id: { type: string }
+        clinic_id: { type: string }
+        user_id: { type: string, nullable: true }
+        action: { type: string }
+        entity_type: { type: string }
+        entity_id: { type: string }
+        before: { type: object, nullable: true }
+        after: { type: object, nullable: true }
+        ip: { type: string, nullable: true }
+        user_agent: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    # ----- PMS P0 -----
+    DocumentUpload:
+      type: object
+      required: [id, storage_url, sha256, kind, patient_id, deduped]
+      properties:
+        id: { type: string }
+        storage_url: { type: string }
+        sha256: { type: string }
+        mime_type: { type: string, nullable: true }
+        size_bytes: { type: integer, nullable: true }
+        kind: { type: string, enum: [photo, xray, consent, other] }
+        patient_id: { type: string }
+        deduped: { type: boolean }
+
+    ToothChartEntry:
+      type: object
+      required: [tooth_number, status]
+      properties:
+        tooth_number: { type: integer, minimum: 1, maximum: 32 }
+        status: { type: string }
+        surface_notes: { type: object, nullable: true }
+
+    ToothChartEntryIn:
+      type: object
+      required: [tooth_number, status]
+      properties:
+        tooth_number: { type: integer, minimum: 1, maximum: 32 }
+        status: { type: string }
+        surface_notes: { type: object, nullable: true }
+
+    InsuranceIn:
+      type: object
+      required: [carrier]
+      properties:
+        carrier: { type: string }
+        policy_number: { type: string, nullable: true }
+        group_number: { type: string, nullable: true }
+        holder_name: { type: string, nullable: true }
+        holder_relationship: { type: string, nullable: true }
+        assignment_of_benefits: { type: boolean, default: false }
+        coverage_pct_by_category: { type: object, additionalProperties: { type: number } }
+        valid_from: { type: string, format: date-time, nullable: true }
+        valid_to: { type: string, format: date-time, nullable: true }
+        is_primary: { type: boolean, default: false }
+
+    DentureCaseImplant:
+      type: object
+      required: [id, denture_case_id, tooth_position, vendor, lot_number]
+      properties:
+        id: { type: string }
+        denture_case_id: { type: string }
+        tooth_position: { type: integer }
+        vendor: { type: string }
+        model: { type: string, nullable: true }
+        lot_number: { type: string }
+        surface_treatment: { type: string, nullable: true }
+        abutment_type: { type: string, nullable: true }
+        placed_date: { type: string, format: date, nullable: true }
+
+    DentureCaseImplantIn:
+      type: object
+      required: [tooth_position, vendor, lot_number]
+      properties:
+        tooth_position: { type: integer }
+        vendor: { type: string }
+        model: { type: string, nullable: true }
+        lot_number: { type: string }
+        surface_treatment: { type: string, nullable: true }
+        abutment_type: { type: string, nullable: true }
+        placed_date: { type: string, format: date, nullable: true }
+
+    InvoiceFromPlanIn:
+      type: object
+      required: [treatment_plan_id, patient_id]
+      properties:
+        treatment_plan_id: { type: string }
+        patient_id: { type: string }
+        gst_rate: { type: number, default: 0.05 }
+
+    # ----- PMS M0 -----
+    LeadOut:
+      type: object
+      required: [id, clinic_id, phone]
+      properties:
+        id: { type: string }
+        clinic_id: { type: string }
+        name: { type: string, nullable: true }
+        first_name: { type: string, nullable: true }
+        last_name: { type: string, nullable: true }
+        phone: { type: string }
+        email: { type: string, nullable: true }
+        source: { type: string, nullable: true }
+        status: { type: string }
+        notes: { type: string, nullable: true }
+        owner_id: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    LeadActivity:
+      type: object
+      required: [id, lead_id, kind, occurred_at]
+      properties:
+        id: { type: string }
+        lead_id: { type: string }
+        kind: { type: string, enum: [note, call, email, meeting] }
+        body: { type: string, nullable: true }
+        occurred_at: { type: string, format: date-time }
+        payload: { type: object, nullable: true }
+
+    AppointmentV2:
+      type: object
+      required: [id, patient_id, provider_id, start_time, end_time, status]
+      properties:
+        id: { type: string }
+        patient_id: { type: string }
+        provider_id: { type: integer }
+        service_id: { type: integer, nullable: true }
+        start_time: { type: string, format: date-time }
+        end_time: { type: string, format: date-time }
+        reason_note: { type: string, nullable: true }
+        chief_complaint: { type: string, nullable: true }
+        status: { type: string }
+
+security:
+  - bearerAuth: []
+  - {}
+
+paths:
+  # ---- Auth (Track 1) ----
+  /api/v2/auth/login:
+    post:
+      summary: Issue access + refresh token
+      security: []
+      parameters: [{ $ref: "#/components/parameters/XClinicId" }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/LoginRequest" } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/TokenPair" } } } }
+        '401': { description: Bad credentials, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /api/v2/auth/refresh:
+    post:
+      summary: Rotate refresh token
+      security: []
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [refresh_token], properties: { refresh_token: { type: string } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/TokenPair" } } } }
+
+  /api/v2/auth/logout:
+    post:
+      summary: Revoke caller's refresh token
+      responses: { '204': { description: revoked } }
+
+  /api/v2/auth/me:
+    get:
+      summary: Current user
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/User" } } } } }
+
+  # ---- Clinical (Track 2) — examples; extend per-track ----
+  /api/v2/clinical/denture-cases:
+    parameters: [{ $ref: "#/components/parameters/XClinicId" }]
+    get:
+      summary: List denture cases
+      parameters:
+        - { name: patient_id, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { type: string, enum: [open, closed] } }
+        - { name: stage, in: query, schema: { type: string } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/DentureCase" } } } } }
+    post:
+      summary: Open a denture case
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [patient_id, arch, case_type], properties: { patient_id: { type: string }, arch: { type: string }, case_type: { type: string }, notes: { type: string } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/DentureCase" } } } }
+
+  /api/v2/clinical/denture-cases/{id}/advance:
+    parameters:
+      - { $ref: "#/components/parameters/XClinicId" }
+      - { name: id, in: path, required: true, schema: { type: string } }
+    post:
+      summary: Advance case stage
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [stage], properties: { stage: { type: string }, note: { type: string }, photo_document_ids: { type: array, items: { type: string } } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/DentureCase" } } } }
+        '400': { description: Invalid transition, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /api/v2/lab/cases:
+    parameters: [{ $ref: "#/components/parameters/XClinicId" }]
+    get:
+      summary: List lab cases
+      parameters:
+        - { name: status, in: query, schema: { type: string } }
+        - { name: vendor_id, in: query, schema: { type: string } }
+        - { name: denture_case_id, in: query, schema: { type: string } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/LabCase" } } } } }
+    post:
+      summary: Create a lab case (status=draft)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [denture_case_id, vendor_id], properties: { denture_case_id: { type: string }, vendor_id: { type: string }, due_back_at: { type: string, format: date-time }, lab_fee: { type: number }, courier_tracking: { type: string } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/LabCase" } } } }
+
+  /api/v2/lab/cases/{id}/remake:
+    parameters:
+      - { $ref: "#/components/parameters/XClinicId" }
+      - { name: id, in: path, required: true, schema: { type: string } }
+    post:
+      summary: Mark a lab case as remake; returns the new child case
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [reason], properties: { reason: { type: string } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/LabCase" } } } }
+
+  /api/v2/treatment-plans:
+    parameters: [{ $ref: "#/components/parameters/XClinicId" }]
+    post:
+      summary: Create a treatment plan
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [patient_id, items], properties: { patient_id: { type: string }, items: { type: array, items: { type: object, required: [procedure_code], properties: { procedure_code: { type: string }, description: { type: string }, fee: { type: number }, insurance_coverage_pct: { type: number } } } } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/TreatmentPlan" } } } }
+
+  # ---- Billing (Track 3) ----
+  /api/v2/billing/invoices:
+    parameters: [{ $ref: "#/components/parameters/XClinicId" }]
+    post:
+      summary: Create draft invoice
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [patient_id, lines], properties: { patient_id: { type: string }, appointment_id: { type: string }, treatment_plan_id: { type: string }, gst_rate: { type: number }, lines: { type: array, items: { type: object, required: [procedure_code, qty, unit_price], properties: { procedure_code: { type: string }, description: { type: string }, qty: { type: number }, unit_price: { type: number } } } } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Invoice" } } } }
+
+  /api/v2/billing/invoices/{id}/payments:
+    parameters:
+      - { $ref: "#/components/parameters/XClinicId" }
+      - { name: id, in: path, required: true, schema: { type: string } }
+    post:
+      summary: Record a payment against an invoice
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [method, amount], properties: { method: { type: string }, amount: { type: number }, reference: { type: string }, notes: { type: string } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Payment" } } } }
+
+  /api/v2/insurance/claims:
+    parameters: [{ $ref: "#/components/parameters/XClinicId" }]
+    post:
+      summary: Create draft claim or predetermination
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [invoice_id, carrier, kind], properties: { invoice_id: { type: string }, carrier: { type: string }, kind: { type: string, enum: [predetermination, claim] }, assignment_of_benefits: { type: boolean } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/InsuranceClaim" } } } }
+
+  /api/v2/communications/send:
+    parameters: [{ $ref: "#/components/parameters/XClinicId" }]
+    post:
+      summary: Send an SMS or email to a patient
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [patient_id, channel, body], properties: { patient_id: { type: string }, channel: { type: string, enum: [sms, email] }, body: { type: string }, related_appointment_id: { type: string } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Communication" } } } }
+
+  /api/v2/crm/leads/{id}/convert:
+    parameters:
+      - { $ref: "#/components/parameters/XClinicId" }
+      - { name: id, in: path, required: true, schema: { type: string } }
+    post:
+      summary: Convert a lead to a patient (idempotent)
+      requestBody:
+        required: false
+        content: { application/json: { schema: { type: object, properties: { create_patient: { type: boolean, default: true } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: object, required: [lead_id, patient_id], properties: { lead_id: { type: string }, patient_id: { type: string }, status: { type: string } } } } } }
+
+  /api/v2/admin/audit-log:
+    parameters: [{ $ref: "#/components/parameters/XClinicId" }]
+    get:
+      summary: Paginated audit log
+      parameters:
+        - { name: entity_type, in: query, schema: { type: string } }
+        - { name: entity_id, in: query, schema: { type: string } }
+        - { name: user_id, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, default: 100 } }
+        - { name: offset, in: query, schema: { type: integer, default: 0 } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/AuditLogEntry" } } } } }
+
+  # ---- PMS P0 new endpoints ----
+
+  /api/v2/clinical/documents/upload:
+    parameters: [{ $ref: "#/components/parameters/XClinicId" }]
+    post:
+      summary: Upload a document (multipart); deduplicates by sha256
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, kind, patient_id]
+              properties:
+                file: { type: string, format: binary }
+                kind: { type: string, enum: [photo, xray, consent, other] }
+                patient_id: { type: string }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/DocumentUpload" } } } }
+
+  /api/v2/clinical/patients/{patient_id}/tooth-chart:
+    parameters:
+      - { $ref: "#/components/parameters/XClinicId" }
+      - { name: patient_id, in: path, required: true, schema: { type: string } }
+    get:
+      summary: Get tooth chart (always 32 entries)
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/ToothChartEntry" } } } } }
+    post:
+      summary: Upsert tooth chart entries (partial)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/ToothChartEntryIn" } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/ToothChartEntry" } } } } }
+
+  /api/v2/clinical/patients/{patient_id}/insurance/{insurance_id}:
+    parameters:
+      - { $ref: "#/components/parameters/XClinicId" }
+      - { name: patient_id, in: path, required: true, schema: { type: string } }
+      - { name: insurance_id, in: path, required: true, schema: { type: string } }
+    put:
+      summary: Update a patient insurance record
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/InsuranceIn" } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/PatientInsurance" } } } }
+        '404': { description: Not found }
+    delete:
+      summary: Delete a patient insurance record
+      responses:
+        '204': { description: Deleted }
+        '404': { description: Not found }
+
+  /api/v2/clinical/denture-cases/{case_id}/implants:
+    parameters:
+      - { $ref: "#/components/parameters/XClinicId" }
+      - { name: case_id, in: path, required: true, schema: { type: string } }
+    get:
+      summary: List implants for a denture case
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/DentureCaseImplant" } } } } }
+    post:
+      summary: Add an implant to a denture case
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/DentureCaseImplantIn" } } }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/DentureCaseImplant" } } } }
+
+  /api/v2/billing/invoices/from-plan:
+    parameters: [{ $ref: "#/components/parameters/XClinicId" }]
+    post:
+      summary: Create a draft invoice from a treatment plan
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/InvoiceFromPlanIn" } } }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Invoice" } } } }
+        '404': { description: Treatment plan not found }
+
+  # ---- PMS M0 new endpoints ----
+
+  /api/v2/crm/leads:
+    parameters: [{ $ref: "#/components/parameters/XClinicId" }]
+    post:
+      summary: Create a new lead
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [first_name, last_name, phone]
+              properties:
+                first_name: { type: string }
+                last_name: { type: string }
+                phone: { type: string }
+                email: { type: string, nullable: true }
+                source: { type: string, nullable: true }
+                notes: { type: string, nullable: true }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/LeadOut" } } } }
+
+  /api/v2/crm/leads/{lead_id}:
+    parameters:
+      - { $ref: "#/components/parameters/XClinicId" }
+      - { name: lead_id, in: path, required: true, schema: { type: string } }
+    put:
+      summary: Partial update a lead (owner_id, status, notes, etc.)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                owner_id: { type: string, nullable: true }
+                status: { type: string, nullable: true }
+                notes: { type: string, nullable: true }
+                first_name: { type: string, nullable: true }
+                last_name: { type: string, nullable: true }
+                phone: { type: string, nullable: true }
+                email: { type: string, nullable: true }
+                source: { type: string, nullable: true }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/LeadOut" } } } }
+        '404': { description: Lead not found }
+
+  /api/v2/crm/leads/{lead_id}/activities:
+    parameters:
+      - { $ref: "#/components/parameters/XClinicId" }
+      - { name: lead_id, in: path, required: true, schema: { type: string } }
+    post:
+      summary: Create an activity (note/call/email/meeting) for a lead
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, body]
+              properties:
+                kind: { type: string, enum: [note, call, email, meeting] }
+                body: { type: string }
+                payload: { type: object, nullable: true }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/LeadActivity" } } } }
+        '404': { description: Lead not found }
+    get:
+      summary: List activities for a lead, sorted by created_at DESC
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/LeadActivity" } } } } }
+        '404': { description: Lead not found }
+
+  /api/v2/clinical/appointments/{appointment_id}:
+    parameters:
+      - { $ref: "#/components/parameters/XClinicId" }
+      - { name: appointment_id, in: path, required: true, schema: { type: string } }
+    get:
+      summary: Get appointment by ID (v2 — includes chief_complaint)
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/AppointmentV2" } } } }
+        '404': { description: Not found }

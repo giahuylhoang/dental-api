@@ -6,13 +6,56 @@ Supports generic providers (doctor, assistant, etc.).
 """
 
 import datetime
+import json
 import os
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import pytz
 from sqlalchemy.orm import Session
 
 from database.models import Appointment, AppointmentStatus, Provider, ProviderBusyBlock
+
+
+def _parse_block_weekdays(block: ProviderBusyBlock) -> List[int]:
+    """Return the weekdays a recurring block applies to, normalized to a list.
+
+    Reads the v2 JSON-encoded `weekdays` column and falls back to the legacy
+    single-day `weekday` field for rows written before the schema upgrade.
+    Returns an empty list when the block is a one-off (`specific_date` set).
+    """
+    raw = getattr(block, "weekdays", None)
+    if raw:
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, list):
+                return [int(x) for x in parsed]
+        except (json.JSONDecodeError, ValueError, TypeError):
+            pass
+    legacy = getattr(block, "weekday", None)
+    if legacy is not None and getattr(block, "specific_date", None) is None:
+        return [int(legacy)]
+    return []
+
+
+def _block_applies_on(block: ProviderBusyBlock, day: datetime.date) -> bool:
+    """True if this busy block covers calendar day `day`.
+
+    A block applies when either:
+      - it's a one-off and `specific_date == day`, or
+      - it's a recurring rule, `day.weekday()` is in its weekday set, and the
+        recurrence has not expired (`recurrence_until` is None or >= day).
+    """
+    if getattr(block, "specific_date", None) is not None:
+        return block.specific_date == day
+    weekdays = _parse_block_weekdays(block)
+    if not weekdays:
+        return False
+    if day.weekday() not in weekdays:
+        return False
+    end = getattr(block, "recurrence_until", None)
+    if end is not None and end < day:
+        return False
+    return True
 
 EDMONTON_TZ = pytz.timezone("America/Edmonton")
 
@@ -81,22 +124,25 @@ def get_available_slots(
 
     slot_delta = datetime.timedelta(minutes=slot_minutes)
 
-    def _iter_busy_blocks_for_dt(
-        blocks_by_weekday: Dict[int, List[tuple]], dt: datetime.datetime
+    def _iter_busy_intervals_for_dt(
+        provider_blocks: List[ProviderBusyBlock], dt: datetime.datetime
     ) -> List[tuple]:
-        wd = int(dt.weekday())
-        blocks = blocks_by_weekday.get(wd) or []
-        if not blocks:
-            return []
+        """Return tz-aware (start, end) intervals for blocks that cover `dt.date()`."""
         day = dt.date()
         intervals: List[tuple] = []
-        for sh, sm, eh, em in blocks:
-            b_start = tz.localize(datetime.datetime.combine(day, datetime.time(sh, sm, 0)))
-            b_end = tz.localize(datetime.datetime.combine(day, datetime.time(eh, em, 0)))
+        for b in provider_blocks:
+            if not _block_applies_on(b, day):
+                continue
+            b_start = tz.localize(datetime.datetime.combine(
+                day, datetime.time(int(b.start_hour), int(b.start_minute), 0)
+            ))
+            b_end = tz.localize(datetime.datetime.combine(
+                day, datetime.time(int(b.end_hour), int(b.end_minute), 0)
+            ))
             intervals.append((b_start, b_end))
         return intervals
 
-    def compute_slots_for_busy(busy_intervals: List[tuple], blocks_by_weekday: Dict[int, List[tuple]]) -> List[str]:
+    def compute_slots_for_busy(busy_intervals: List[tuple], provider_blocks: List[ProviderBusyBlock]) -> List[str]:
         available: List[str] = []
         current = max(start_dt, day_start(start_dt))
 
@@ -119,9 +165,9 @@ def get_available_slots(
                 if max(current, b_start) < min(slot_end, b_end):
                     is_free = False
                     break
-            # Recurring busy blocks (weekday/time)
+            # Provider busy blocks (recurring weekday rules + specific-date one-offs)
             if is_free:
-                for b_start, b_end in _iter_busy_blocks_for_dt(blocks_by_weekday, current):
+                for b_start, b_end in _iter_busy_intervals_for_dt(provider_blocks, current):
                     if max(current, b_start) < min(slot_end, b_end):
                         is_free = False
                         break
@@ -178,18 +224,13 @@ def get_available_slots(
                 apt_end = apt_end.astimezone(tz)
             busy_intervals.append((apt_start, apt_end))
 
-        # Provider busy blocks (recurring)
+        # Provider busy blocks (recurring + one-off)
         blocks_q = db.query(ProviderBusyBlock).filter(ProviderBusyBlock.provider_id == provider.id)
         if clinic_id:
             blocks_q = blocks_q.filter(ProviderBusyBlock.clinic_id == clinic_id)
-        blocks = blocks_q.all()
-        blocks_by_weekday: Dict[int, List[tuple]] = {}
-        for b in blocks:
-            blocks_by_weekday.setdefault(int(b.weekday), []).append(
-                (int(b.start_hour), int(b.start_minute), int(b.end_hour), int(b.end_minute))
-            )
+        provider_blocks = blocks_q.all()
 
-        slots = compute_slots_for_busy(busy_intervals, blocks_by_weekday)
+        slots = compute_slots_for_busy(busy_intervals, provider_blocks)
         results.append(
             {
                 "provider_id": provider.id,
@@ -204,3 +245,52 @@ def get_available_slots(
         return {"provider": {"provider_id": single["provider_id"], "title": single["title"]}, "slots": single["slots"]}
 
     return {"providers": results}
+
+
+def find_busy_block_overlap(
+    db: Session,
+    clinic_id: str,
+    provider_id: int,
+    start_dt: datetime.datetime,
+    end_dt: datetime.datetime,
+    tz: pytz.tzinfo.BaseTzInfo,
+) -> Optional[ProviderBusyBlock]:
+    """Return the first ProviderBusyBlock that overlaps [start_dt, end_dt) for
+    this provider in this clinic, or None if the window is free of busy blocks.
+
+    Handles both recurring rules (`weekdays`, optional `recurrence_until`) and
+    specific-date one-offs (`specific_date`). Cross-midnight requests are not
+    supported by the schema — the lookup keys on `start_dt.date()`.
+    """
+    if start_dt.tzinfo is None:
+        start_dt = tz.localize(start_dt)
+    else:
+        start_dt = start_dt.astimezone(tz)
+    if end_dt.tzinfo is None:
+        end_dt = tz.localize(end_dt)
+    else:
+        end_dt = end_dt.astimezone(tz)
+
+    blocks = (
+        db.query(ProviderBusyBlock)
+        .filter(
+            ProviderBusyBlock.clinic_id == clinic_id,
+            ProviderBusyBlock.provider_id == provider_id,
+        )
+        .all()
+    )
+    if not blocks:
+        return None
+    day = start_dt.date()
+    for b in blocks:
+        if not _block_applies_on(b, day):
+            continue
+        b_start = tz.localize(
+            datetime.datetime.combine(day, datetime.time(int(b.start_hour), int(b.start_minute), 0))
+        )
+        b_end = tz.localize(
+            datetime.datetime.combine(day, datetime.time(int(b.end_hour), int(b.end_minute), 0))
+        )
+        if max(start_dt, b_start) < min(end_dt, b_end):
+            return b
+    return None

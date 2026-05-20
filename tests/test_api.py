@@ -623,7 +623,8 @@ def test_patch_clinic_me_updates_contact_fields(client):
 
 
 def test_create_appointment_background_sms_and_clinic_email(client, db_session, monkeypatch):
-    """Patch handlers bound in api.main so BackgroundTasks run instantly (no Twilio/SMTP thread)."""
+    """Patch handlers bound in services.notifications so BackgroundTasks run instantly (no Twilio/SMTP thread)."""
+    import services.notifications as svc_notif
     p1, _, s1 = seed_providers_and_services(db_session)
 
     sms_log: list = []
@@ -635,8 +636,8 @@ def test_create_appointment_background_sms_and_clinic_email(client, db_session, 
     async def fake_clinic_email_delayed(*args):
         email_log.append(args)
 
-    monkeypatch.setattr(api_main, "send_booking_sms_delayed", fake_booking_sms_delayed)
-    monkeypatch.setattr(api_main, "send_clinic_booking_email_delayed", fake_clinic_email_delayed)
+    monkeypatch.setattr(svc_notif, "send_booking_sms_delayed", fake_booking_sms_delayed)
+    monkeypatch.setattr(svc_notif, "send_clinic_booking_email_delayed", fake_clinic_email_delayed)
 
     pr = client.patch(
         "/api/clinics/me",
@@ -689,6 +690,7 @@ def test_create_appointment_background_sms_and_clinic_email(client, db_session, 
 
 
 def test_create_appointment_clinic_email_without_patient_phone(client, db_session, monkeypatch):
+    import services.notifications as svc_notif
     p1, _, s1 = seed_providers_and_services(db_session)
 
     sms_log: list = []
@@ -700,8 +702,8 @@ def test_create_appointment_clinic_email_without_patient_phone(client, db_sessio
     async def fake_clinic_email_delayed(*args):
         email_log.append(args)
 
-    monkeypatch.setattr(api_main, "send_booking_sms_delayed", fake_booking_sms_delayed)
-    monkeypatch.setattr(api_main, "send_clinic_booking_email_delayed", fake_clinic_email_delayed)
+    monkeypatch.setattr(svc_notif, "send_booking_sms_delayed", fake_booking_sms_delayed)
+    monkeypatch.setattr(svc_notif, "send_clinic_booking_email_delayed", fake_clinic_email_delayed)
 
     client.patch(
         "/api/clinics/me",
@@ -733,6 +735,7 @@ def test_create_appointment_booking_email_env_recipient_without_clinic_field(
     client, db_session, monkeypatch
 ):
     """BOOKING_NOTIFICATION_TO alone triggers clinic email (no clinic.booking_notification_email)."""
+    import services.notifications as svc_notif
     monkeypatch.delenv("BOOKING_NOTIFICATION_TO", raising=False)
     monkeypatch.setenv("BOOKING_NOTIFICATION_TO", "env-only-recipient@example.com")
 
@@ -743,7 +746,7 @@ def test_create_appointment_booking_email_env_recipient_without_clinic_field(
     async def fake_clinic_email_delayed(*args):
         email_log.append(args)
 
-    monkeypatch.setattr(api_main, "send_clinic_booking_email_delayed", fake_clinic_email_delayed)
+    monkeypatch.setattr(svc_notif, "send_clinic_booking_email_delayed", fake_clinic_email_delayed)
 
     patient_id = create_patient_without_phone(client)
 
@@ -769,6 +772,7 @@ def test_create_appointment_booking_email_env_recipient_without_clinic_field(
 def test_create_appointment_booking_email_env_overrides_clinic_recipient(
     client, db_session, monkeypatch
 ):
+    import services.notifications as svc_notif
     monkeypatch.setenv("BOOKING_NOTIFICATION_TO", "wins@example.com")
 
     p1, _, s1 = seed_providers_and_services(db_session)
@@ -777,7 +781,7 @@ def test_create_appointment_booking_email_env_overrides_clinic_recipient(
     async def fake_clinic_email_delayed(*args):
         email_log.append(args)
 
-    monkeypatch.setattr(api_main, "send_clinic_booking_email_delayed", fake_clinic_email_delayed)
+    monkeypatch.setattr(svc_notif, "send_clinic_booking_email_delayed", fake_clinic_email_delayed)
 
     client.patch(
         "/api/clinics/me",

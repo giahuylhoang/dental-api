@@ -6,186 +6,30 @@ Provides REST API endpoints for:
 - Database CRUD operations (patients, appointments, doctors, services)
 """
 
-import sys
 import os
-from datetime import datetime
-from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Depends, Query, Request, BackgroundTasks
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field, ConfigDict
-from sqlalchemy.orm import Session, joinedload
 
-from database.connection import get_db, init_db
-from database.models import Patient, Appointment, Provider, Service, AppointmentStatus, Lead, LeadStatus, Clinic, DEFAULT_CLINIC_ID
-from tools.slot_utils import get_available_slots
-from clients.sms_client import (
-    send_booking_sms_delayed,
-    send_cancellation_sms_delayed,
-    send_reschedule_sms_delayed,
-)
-from clients.email_client import resolve_booking_notification_recipient, send_clinic_booking_email_delayed
-import pytz
+from database.connection import init_db
+
+# Re-exports — historical home of these helpers. v2 routers and tests
+# import them from api.main; keep the names available here.
+from api.dependencies import get_db, get_clinic_id, get_clinic  # noqa: F401
+from api.serializers import _busy_block_envelope, _to_appointment_detail  # noqa: F401
+
 import logging
 
+# Re-export appointment schemas so existing callers that import from api.main keep working.
+from api.v1.appointments.schemas import (  # noqa: F401
+    AppointmentCreateRequest,
+    AppointmentResponse,
+    AppointmentStatusUpdateRequest,
+    AppointmentDetailResponse,
+)
+
 logger = logging.getLogger("dental-receptionist")
-
-EDMONTON_TZ = pytz.timezone('America/Edmonton')
-
-
-# Multi-tenant: resolve clinic from X-Clinic-Id header (default: "default")
-def get_clinic_id(request: Request) -> str:
-    clinic_id = request.headers.get("X-Clinic-Id", DEFAULT_CLINIC_ID)
-    return clinic_id.strip() or DEFAULT_CLINIC_ID
-
-
-def get_clinic(db: Session = Depends(get_db), clinic_id: str = Depends(get_clinic_id)):
-    """Resolve Clinic by X-Clinic-Id. Raises 404 if not found."""
-    clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
-    if not clinic:
-        raise HTTPException(status_code=404, detail=f"Clinic not found: {clinic_id}")
-    return clinic
-
-
-# Pydantic models for request/response
-class AppointmentCreateRequest(BaseModel):
-    """Request model for creating appointment."""
-    start_time: str = Field(..., description="ISO datetime string")
-    end_time: str = Field(..., description="ISO datetime string")
-    patient_id: str
-    provider_id: int
-    service_id: Optional[int] = None
-    patient_name: str
-    service_name: str
-    reason: str
-
-
-class AppointmentResponse(BaseModel):
-    """Response model for appointment."""
-    appointment_id: str
-    calendar_event_id: Optional[str] = None
-    calendar_link: Optional[str] = None
-    status: str
-
-
-class PatientCreateRequest(BaseModel):
-    """Request model for creating patient."""
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-    dob: Optional[str] = None
-    phone: Optional[str] = None
-    email: Optional[str] = None
-    insurance_provider: Optional[str] = None
-    is_minor: Optional[bool] = False
-    guardian_name: Optional[str] = None
-    guardian_contact: Optional[str] = None
-    consent_approved: Optional[bool] = False
-
-
-class PatientResponse(BaseModel):
-    """Response model for patient."""
-    id: str
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-    phone: Optional[str] = None
-    email: Optional[str] = None
-    
-    class Config:
-        from_attributes = True
-
-
-class PatientVerifyRequest(BaseModel):
-    """Request model for patient verification."""
-    phone: str = Field(..., description="Phone number to verify")
-    dob: str = Field(..., description="Date of birth in YYYY-MM-DD format")
-
-
-class PatientVerifyResponse(BaseModel):
-    """Response model for patient verification."""
-    patient_id: str
-    verified: bool = True
-
-
-class LeadCreateRequest(BaseModel):
-    """Request model for creating lead."""
-    name: Optional[str] = None
-    phone: Optional[str] = None
-    email: Optional[str] = None
-    source: Optional[str] = None
-    notes: Optional[str] = None
-
-
-class LeadUpdateRequest(BaseModel):
-    """Request model for updating lead."""
-    name: Optional[str] = None
-    phone: Optional[str] = None
-    email: Optional[str] = None
-    source: Optional[str] = None
-    status: Optional[str] = None
-    notes: Optional[str] = None
-
-
-class LeadResponse(BaseModel):
-    """Response model for lead."""
-    id: str
-    name: Optional[str] = None
-    phone: Optional[str] = None
-    email: Optional[str] = None
-    source: Optional[str] = None
-    status: str
-    notes: Optional[str] = None
-    created_at: datetime
-    updated_at: datetime
-    
-    class Config:
-        from_attributes = True
-
-
-class LeadStatusUpdateRequest(BaseModel):
-    """Request model for updating lead status."""
-    status: str = Field(..., description="New status value (e.g., NEW, CONTACTED, QUALIFIED, CONVERTED, LOST)")
-
-
-class AppointmentStatusUpdateRequest(BaseModel):
-    """Request model for updating appointment status."""
-    status: str = Field(..., description="New status value (e.g., CONFIRMED, REMINDER_SENT, CANCELLED)")
-
-
-class AppointmentDetailResponse(BaseModel):
-    """Detailed appointment response."""
-    id: str
-    patient_id: str
-    provider_id: int
-    service_id: Optional[int] = None
-    provider_name: Optional[str] = None
-    service_name: Optional[str] = None
-    start_time: datetime
-    end_time: datetime
-    reason_note: Optional[str] = None
-    status: str
-    calendar_event_id: Optional[str] = None
-
-
-def _to_appointment_detail(apt: Appointment) -> AppointmentDetailResponse:
-    """Build AppointmentDetailResponse with provider_name and service_name."""
-    provider_name = None
-    if apt.provider:
-        provider_name = " ".join(filter(None, [apt.provider.title, apt.provider.name])).strip() or apt.provider.name
-    service_name = apt.service.name if apt.service else None
-    return AppointmentDetailResponse(
-        id=apt.id,
-        patient_id=apt.patient_id,
-        provider_id=apt.provider_id,
-        service_id=apt.service_id,
-        provider_name=provider_name,
-        service_name=service_name,
-        start_time=apt.start_time,
-        end_time=apt.end_time,
-        reason_note=apt.reason_note,
-        status=apt.status.value,
-        calendar_event_id=apt.calendar_event_id,
-    )
 
 
 @asynccontextmanager
@@ -196,9 +40,28 @@ async def lifespan(app: FastAPI):
         logger.info("Database tables ready")
     except Exception as e:
         logger.warning("Database init failed: %s", e)
+    try:
+        from database.connection import engine as _engine
+        from database.observability import register_sql_events
+        register_sql_events(_engine)
+    except Exception as e:
+        logger.warning("SQL observability not registered: %s", e)
+    # Start Track 3 reminder scheduler
+    _reminder_task = None
+    try:
+        from api.v2.scheduling.reminder_scheduler import start_reminder_scheduler
+        from database.connection import get_db as _get_db
+        _reminder_task = start_reminder_scheduler(_get_db)
+    except Exception as _e:
+        logger.warning("Reminder scheduler not started: %s", _e)
     yield
-    # Shutdown: cleanup if needed
-    pass
+    # Shutdown: cancel reminder scheduler
+    if _reminder_task is not None:
+        try:
+            from api.v2.scheduling.reminder_scheduler import stop_reminder_scheduler
+            stop_reminder_scheduler()
+        except Exception:
+            pass
 
 
 app = FastAPI(
@@ -208,13 +71,24 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Observability middleware (request tracing, structured logging) - registered BEFORE CORS
+from api.middleware.observability import ObservabilityMiddleware
+app.add_middleware(ObservabilityMiddleware)
+
 # CORS: allow frontend (Vite often on 5173 or 5174 when 5173 is in use)
+_CORS_BASE = [
+    "http://localhost:5173", "http://localhost:5174", "http://localhost:3000",
+    "http://127.0.0.1:5173", "http://127.0.0.1:5174", "http://127.0.0.1:3000",
+    "https://dental-crm--rockyridgeai-dental.us-central1.hosted.app",
+]
+_CORS_EXTRA = [o.strip() for o in os.getenv("CORS_EXTRA_ORIGINS", "").split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173", "http://localhost:5174", "http://localhost:3000",
-        "http://127.0.0.1:5173", "http://127.0.0.1:5174", "http://127.0.0.1:3000",
-    ],
+    allow_origins=_CORS_BASE + _CORS_EXTRA,
+    # Allow any Firebase App Hosting URL for this project — covers preview
+    # channels and region renames without code changes.
+    allow_origin_regex=r"https://[a-z0-9-]+--rockyridgeai-dental\.[a-z0-9-]+\.hosted\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -222,1216 +96,97 @@ app.add_middleware(
 
 
 # ============================================================================
-# Calendar Endpoints
+# App-level system endpoints (not v1 contract)
 # ============================================================================
+from api.system import router as _system_router
+app.include_router(_system_router)
 
-@app.get("/api/calendar/slots")
-async def get_calendar_slots(
-    start_datetime: str = Query(..., description="ISO datetime string"),
-    end_datetime: str = Query(..., description="ISO datetime string"),
-    provider_id: Optional[int] = Query(None, description="Provider ID for filtering"),
-    provider_name: Optional[str] = Query(None, description="Provider name for filtering"),
-    slot_minutes: int = Query(30, description="Slot duration in minutes"),
-    db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
-):
-    """
-    Get available appointment slots for a datetime range (computed from database).
-    Per-clinic working hours and timezone from X-Clinic-Id.
-    """
-    try:
-        slots = get_available_slots(
-            db=db,
-            start_datetime=start_datetime,
-            end_datetime=end_datetime,
-            provider_id=provider_id,
-            provider_name=provider_name,
-            slot_minutes=slot_minutes,
-            clinic_id=clinic.id,
-            timezone_str=clinic.timezone,
-            hour_start=clinic.working_hour_start,
-            hour_end=clinic.working_hour_end,
-        )
-        return slots
-    except Exception as e:
-        logger.error(f"Error in get_calendar_slots: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+# ============================================================================
+# v1 routers — historical /api/* paths; contract preserved for dental-agent.
+# Intentionally NOT wrapped in try/except: a missing v1 router would silently
+# break the contract dental-agent depends on, so it must be a hard failure.
+# ============================================================================
+from api.v1.clinics.router import router as _v1_clinics_router
+app.include_router(_v1_clinics_router)
+from api.v1.providers.router import router as _v1_providers_router
+app.include_router(_v1_providers_router)
+from api.v1.catalog.router import router as _v1_catalog_router
+app.include_router(_v1_catalog_router)
+from api.v1.leads.router import router as _v1_leads_router
+app.include_router(_v1_leads_router)
+from api.v1.patients.router import router as _v1_patients_router
+app.include_router(_v1_patients_router)
+from api.v1.appointments.router import router as _v1_appointments_router
+app.include_router(_v1_appointments_router)
+from api.v1.calendar.router import router as _v1_calendar_router
+app.include_router(_v1_calendar_router)
 
-
-@app.post("/api/calendar/events")
-async def create_calendar_event(
-    request: AppointmentCreateRequest,
-    background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
-):
-    """Create appointment in database (DB is source of truth)."""
-    # 0. Validate datetime formats BEFORE creating appointment
-    try:
-        start_time_dt = datetime.fromisoformat(request.start_time.replace('Z', '+00:00'))
-    except (ValueError, AttributeError) as e:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Invalid start_time format: {str(e)}. Expected ISO datetime format."
-        )
-    
-    try:
-        end_time_dt = datetime.fromisoformat(request.end_time.replace('Z', '+00:00'))
-    except (ValueError, AttributeError) as e:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Invalid end_time format: {str(e)}. Expected ISO datetime format."
-        )
-    
-    # Validate end_time is after start_time
-    if end_time_dt <= start_time_dt:
-        raise HTTPException(
-            status_code=400,
-            detail="end_time must be after start_time"
-        )
-    
-    # Validate patient_id exists and belongs to clinic
-    patient = db.query(Patient).filter(Patient.id == request.patient_id, Patient.clinic_id == clinic.id).first()
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
-    
-    # Validate provider_id exists and belongs to clinic
-    provider = db.query(Provider).filter(
-        Provider.id == request.provider_id, Provider.clinic_id == clinic.id
-    ).first()
-    if not provider:
-        raise HTTPException(status_code=404, detail="Provider not found")
-    
-    # Validate service_id exists and belongs to clinic (if provided)
-    if request.service_id is not None:
-        service = db.query(Service).filter(Service.id == request.service_id, Service.clinic_id == clinic.id).first()
-        if not service:
-            raise HTTPException(status_code=404, detail="Service not found")
-    
-    # Check for conflicting appointments with the same provider
-    # An appointment conflicts if:
-    # 1. Same provider_id
-    # 2. Time ranges overlap (new_start < existing_end AND new_end > existing_start)
-    # 3. Status is SCHEDULED, CONFIRMED, or PENDING_SYNC (not CANCELLED, RESCHEDULED, COMPLETED, NO_SHOW)
-    conflicting_appointments = db.query(Appointment).filter(
-        Appointment.clinic_id == clinic.id,
-        Appointment.provider_id == request.provider_id,
-        Appointment.status.in_([
-            AppointmentStatus.SCHEDULED,
-            AppointmentStatus.CONFIRMED,
-            AppointmentStatus.PENDING_SYNC,
-            AppointmentStatus.PENDING
-        ]),
-        # Check for time overlap: new_start < existing_end AND new_end > existing_start
-        Appointment.start_time < end_time_dt,
-        Appointment.end_time > start_time_dt
-    ).all()
-    
-    if conflicting_appointments:
-        conflict_details = []
-        for apt in conflicting_appointments:
-            conflict_details.append({
-                "appointment_id": apt.id,
-                "start_time": apt.start_time.isoformat(),
-                "end_time": apt.end_time.isoformat(),
-                "patient_id": apt.patient_id,
-                "status": apt.status.value
-            })
-        
-        logger.warning(
-            f"Appointment conflict detected for provider_id {request.provider_id} "
-            f"at {start_time_dt.isoformat()} - {end_time_dt.isoformat()}. "
-            f"Found {len(conflicting_appointments)} conflicting appointment(s)."
-        )
-        
-        raise HTTPException(
-            status_code=409,  # Conflict status code
-            detail={
-                "error": "Appointment conflict",
-                "message": "Provider already has an appointment scheduled during this time slot.",
-                "requested_time": {
-                    "start_time": start_time_dt.isoformat(),
-                    "end_time": end_time_dt.isoformat()
-                },
-                "conflicting_appointments": conflict_details
-            }
-        )
-    
-    # 1. Create appointment in database
-    appointment = Appointment(
-        clinic_id=clinic.id,
-        patient_id=request.patient_id,
-        provider_id=request.provider_id,
-        service_id=request.service_id,
-        start_time=start_time_dt,
-        end_time=end_time_dt,
-        reason_note=request.reason,
-        status=AppointmentStatus.SCHEDULED,
-    )
-    db.add(appointment)
-    db.commit()
-    db.refresh(appointment)
-
-    provider_display_name = " ".join(filter(None, [provider.title, provider.name])).strip() or provider.name
-    tz = pytz.timezone(clinic.timezone or "America/Edmonton")
-    start_local = start_time_dt.astimezone(tz) if start_time_dt.tzinfo else tz.localize(start_time_dt)
-    date_str = start_local.strftime("%Y-%m-%d")
-    time_str = start_local.strftime("%I:%M %p")
-    patient_name = " ".join(filter(None, [patient.first_name, patient.last_name])) or "Patient"
-    svc = db.query(Service).filter(Service.id == request.service_id, Service.clinic_id == clinic.id).first() if request.service_id else None
-    service_name = (svc.name if svc else None) or request.service_name
-
-    # Schedule SMS confirmation (background; configurable delay)
-    if patient.phone:
-        try:
-            background_tasks.add_task(
-                send_booking_sms_delayed,
-                patient.phone,
-                patient_name,
-                date_str,
-                time_str,
-                provider_display_name,
-                service_name,
-                clinic.name,
-                clinic.address,
-                clinic.contact_phone,
-            )
-        except Exception as e:
-            logger.warning("SMS confirmation skipped: %s", e)
-    else:
-        logger.info("No patient phone; skipping SMS confirmation")
-
-    booking_notify_to = resolve_booking_notification_recipient(clinic.booking_notification_email)
-    if booking_notify_to:
-        try:
-            when_local = f"{date_str} at {time_str}"
-            background_tasks.add_task(
-                send_clinic_booking_email_delayed,
-                booking_notify_to,
-                clinic.name,
-                appointment.id,
-                patient_name,
-                patient.phone or "",
-                patient.email or "",
-                when_local,
-                provider_display_name,
-                service_name,
-            )
-        except Exception as e:
-            logger.warning("Clinic booking email skipped: %s", e)
-
-    return AppointmentResponse(
-        appointment_id=appointment.id,
-        calendar_event_id=None,
-        calendar_link=None,
-        status=appointment.status.value,
-    )
-@app.get("/api/patients", response_model=List[PatientResponse])
-async def list_patients(
-    phone: Optional[str] = Query(None),
-    email: Optional[str] = Query(None),
-    db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
-):
-    """List patients with optional filters."""
-    query = db.query(Patient).filter(Patient.clinic_id == clinic.id)
-    if phone:
-        query = query.filter(Patient.phone == phone)
-    if email:
-        query = query.filter(Patient.email == email)
-    patients = query.all()
-    return [PatientResponse.model_validate(p) for p in patients]
-
-
-@app.post("/api/patients/verify", response_model=PatientVerifyResponse)
-async def verify_patient(
-    request: PatientVerifyRequest,
-    db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
-):
-    """
-    Verify patient identity by phone number and date of birth.
-    
-    This is a secure endpoint that only returns patient_id if verification succeeds.
-    No other patient data is exposed. Returns 404 if verification fails.
-    
-    Args:
-        request: PatientVerifyRequest with phone and dob
-    
-    Returns:
-        PatientVerifyResponse with patient_id if verification succeeds
-        Raises 404 if no patient matches or verification fails
-    """
-    try:
-        # Normalize phone to digits only
-        phone_digits = ''.join(c for c in request.phone if c.isdigit())
-        
-        # Parse DOB
-        from datetime import date as date_type
-        dob_date = datetime.strptime(request.dob, '%Y-%m-%d').date()
-        
-        # Query patient by phone (scoped to clinic)
-        patient = db.query(Patient).filter(Patient.phone == phone_digits, Patient.clinic_id == clinic.id).first()
-        
-        if not patient:
-            raise HTTPException(status_code=404, detail="Patient not found")
-        
-        # Verify DOB matches
-        if not patient.dob:
-            raise HTTPException(status_code=404, detail="Patient verification failed")
-        
-        # Compare DOB (handle both date and string formats)
-        patient_dob = patient.dob
-        if isinstance(patient_dob, str):
-            patient_dob = datetime.strptime(patient_dob, '%Y-%m-%d').date()
-        
-        if patient_dob != dob_date:
-            raise HTTPException(status_code=404, detail="Patient verification failed")
-        
-        # Verification successful - return only patient_id
-        return PatientVerifyResponse(patient_id=patient.id, verified=True)
-        
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=f"Invalid date format: {str(e)}. Use YYYY-MM-DD")
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error verifying patient: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error during verification")
-
-
-@app.get("/api/patients/{patient_id}", response_model=PatientResponse)
-async def get_patient(
-    patient_id: str,
-    db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
-):
-    """Get patient by ID."""
-    patient = db.query(Patient).filter(Patient.id == patient_id, Patient.clinic_id == clinic.id).first()
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
-    return PatientResponse.model_validate(patient)
-
-
-@app.post("/api/patients", response_model=PatientResponse)
-async def create_patient(
-    patient_data: PatientCreateRequest,
-    db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
-):
-    """Create new patient."""
-    try:
-        # Convert Pydantic model to dict
-        patient_dict = patient_data.model_dump(exclude_none=True)
-        
-        # Convert dob string to date if provided
-        if 'dob' in patient_dict and patient_dict['dob']:
-            from datetime import date as date_type
-            if isinstance(patient_dict['dob'], str):
-                patient_dict['dob'] = datetime.strptime(patient_dict['dob'], '%Y-%m-%d').date()
-        
-        patient = Patient(clinic_id=clinic.id, **patient_dict)
-        db.add(patient)
-        db.commit()
-        db.refresh(patient)
-        return PatientResponse.model_validate(patient)
-    except Exception as e:
-        db.rollback()
-        import traceback
-        error_detail = str(e)
-        print(f"Error creating patient: {error_detail}")
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Failed to create patient: {error_detail}")
-
-
-@app.put("/api/patients/{patient_id}", response_model=PatientResponse)
-async def update_patient(
-    patient_id: str,
-    patient_data: dict,
-    db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
-):
-    """Update patient."""
-    patient = db.query(Patient).filter(Patient.id == patient_id, Patient.clinic_id == clinic.id).first()
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
-    for key, value in patient_data.items():
-        if hasattr(patient, key):
-            setattr(patient, key, value)
-    db.commit()
-    db.refresh(patient)
-    return PatientResponse.model_validate(patient)
+# ============================================================================
+# v2 routers (Track 1 — Auth / RBAC / Audit)
+# ============================================================================
+try:
+    from api.v2.auth.router import router as _auth_router
+    from api.v2.admin.router import router as _admin_router
+    from database.auth.audit import register_audit_listeners
+    app.include_router(_auth_router)
+    app.include_router(_admin_router)
+    register_audit_listeners()
+except ImportError:
+    pass  # v2 modules not yet present — v1 keeps working
 
 
 # ============================================================================
-# Database CRUD Endpoints - Appointments
+# v2 routers (Track 2 — Clinical / Lab / Treatment Plans)
 # ============================================================================
-
-@app.get("/api/appointments", response_model=List[AppointmentDetailResponse])
-async def list_appointments(
-    appointment_id: Optional[str] = Query(None, description="Filter by specific appointment ID"),
-    patient_id: Optional[str] = Query(None, description="Filter by patient ID"),
-    provider_id: Optional[int] = Query(None, description="Filter by provider ID"),
-    service_id: Optional[int] = Query(None, description="Filter by service ID"),
-    status: Optional[str] = Query(None, description="Filter by status (SCHEDULED, CANCELLED, COMPLETED, NO_SHOW, PENDING)"),
-    start_date: Optional[str] = Query(None, description="Filter appointments starting from this date (ISO format: YYYY-MM-DD)"),
-    end_date: Optional[str] = Query(None, description="Filter appointments ending before this date (ISO format: YYYY-MM-DD)"),
-    start_datetime: Optional[str] = Query(None, description="Filter appointments starting from this datetime (ISO format)"),
-    end_datetime: Optional[str] = Query(None, description="Filter appointments ending before this datetime (ISO format)"),
-    date: Optional[str] = Query(None, description="Filter appointments on a specific date (ISO format: YYYY-MM-DD)"),
-    provider_name: Optional[str] = Query(None, description="Filter by provider name"),
-    patient_name: Optional[str] = Query(None, description="Filter by patient name (searches first_name and last_name)"),
-    db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
-):
-    """
-    List appointments with comprehensive filtering options.
-    
-    Supports filtering by:
-    - appointment_id: Get specific appointment
-    - patient_id: All appointments for a patient
-    - provider_id: All appointments for a provider
-    - service_id: All appointments for a service
-    - status: Filter by appointment status
-    - start_date/end_date: Date range filtering
-    - start_datetime/end_datetime: Datetime range filtering
-    - date: Appointments on a specific date
-    - provider_name: Filter by provider name
-    - patient_name: Filter by patient name (partial match)
-    """
-    query = (
-        db.query(Appointment)
-        .filter(Appointment.clinic_id == clinic.id)
-        .options(joinedload(Appointment.provider), joinedload(Appointment.service))
-    )
-
-    # Filter by appointment ID (returns single result if found)
-    if appointment_id:
-        query = query.filter(Appointment.id == appointment_id)
-    
-    # Filter by patient ID
-    if patient_id:
-        query = query.filter(Appointment.patient_id == patient_id)
-    
-    # Filter by provider ID
-    if provider_id:
-        query = query.filter(Appointment.provider_id == provider_id)
-    
-    # Filter by service ID
-    if service_id:
-        query = query.filter(Appointment.service_id == service_id)
-    
-    # Filter by status
-    if status:
-        try:
-            status_enum = AppointmentStatus(status.upper())
-            query = query.filter(Appointment.status == status_enum)
-        except ValueError:
-            raise HTTPException(status_code=400, detail=f"Invalid status: {status}. Valid values: SCHEDULED, CANCELLED, COMPLETED, NO_SHOW, PENDING")
-    
-    # Filter by provider name (scoped to clinic)
-    if provider_name:
-        provider = db.query(Provider).filter(
-            Provider.clinic_id == clinic.id, Provider.name.ilike(f"%{provider_name}%")
-        ).first()
-        if provider:
-            query = query.filter(Appointment.provider_id == provider.id)
-        else:
-            # Return empty list if provider not found
-            return []
-    
-    # Filter by patient name (scoped to clinic)
-    if patient_name:
-        patients = db.query(Patient).filter(
-            Patient.clinic_id == clinic.id,
-            (Patient.first_name.ilike(f"%{patient_name}%")) |
-            (Patient.last_name.ilike(f"%{patient_name}%"))
-        ).all()
-        if patients:
-            patient_ids = [p.id for p in patients]
-            query = query.filter(Appointment.patient_id.in_(patient_ids))
-        else:
-            # Return empty list if no patients found
-            return []
-    
-    # Date range filtering
-    if start_date:
-        try:
-            start_dt = datetime.strptime(start_date, "%Y-%m-%d").date()
-            query = query.filter(Appointment.start_time >= datetime.combine(start_dt, datetime.min.time()))
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid start_date format. Use YYYY-MM-DD")
-    
-    if end_date:
-        try:
-            end_dt = datetime.strptime(end_date, "%Y-%m-%d").date()
-            query = query.filter(Appointment.end_time <= datetime.combine(end_dt, datetime.max.time()))
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid end_date format. Use YYYY-MM-DD")
-    
-    # Datetime range filtering (more precise)
-    if start_datetime:
-        try:
-            start_dt = datetime.fromisoformat(start_datetime.replace('Z', '+00:00'))
-            query = query.filter(Appointment.start_time >= start_dt)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid start_datetime format. Use ISO format")
-    
-    if end_datetime:
-        try:
-            end_dt = datetime.fromisoformat(end_datetime.replace('Z', '+00:00'))
-            query = query.filter(Appointment.end_time <= end_dt)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid end_datetime format. Use ISO format")
-    
-    # Filter by specific date
-    if date:
-        try:
-            target_date = datetime.strptime(date, "%Y-%m-%d").date()
-            start_of_day = datetime.combine(target_date, datetime.min.time())
-            end_of_day = datetime.combine(target_date, datetime.max.time())
-            query = query.filter(
-                Appointment.start_time >= start_of_day,
-                Appointment.start_time <= end_of_day
-            )
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
-    
-    appointments = query.order_by(Appointment.start_time).all()
-    return [_to_appointment_detail(apt) for apt in appointments]
-
-
-@app.get("/api/appointments/{appointment_id}", response_model=AppointmentDetailResponse)
-async def get_appointment(
-    appointment_id: str,
-    db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
-):
-    """Get appointment by ID."""
-    appointment = (
-        db.query(Appointment)
-        .options(joinedload(Appointment.provider), joinedload(Appointment.service))
-        .filter(Appointment.id == appointment_id, Appointment.clinic_id == clinic.id)
-        .first()
-    )
-    if not appointment:
-        raise HTTPException(status_code=404, detail="Appointment not found")
-    return _to_appointment_detail(appointment)
-
-
-@app.post("/api/appointments", response_model=AppointmentResponse)
-async def create_appointment(
-    request: AppointmentCreateRequest,
-    background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
-):
-    """Create appointment (also creates calendar event)."""
-    return await create_calendar_event(request, background_tasks, db, clinic)
-
-
-@app.put("/api/appointments/{appointment_id}", response_model=AppointmentDetailResponse)
-async def update_appointment(
-    appointment_id: str,
-    updates: dict,
-    db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
-):
-    """Update appointment in database."""
-    appointment = (
-        db.query(Appointment)
-        .options(joinedload(Appointment.provider), joinedload(Appointment.service))
-        .filter(Appointment.id == appointment_id, Appointment.clinic_id == clinic.id)
-        .first()
-    )
-    if not appointment:
-        raise HTTPException(status_code=404, detail="Appointment not found")
-
-    for key, value in updates.items():
-        if hasattr(appointment, key):
-            if key in ["start_time", "end_time"]:
-                setattr(
-                    appointment,
-                    key,
-                    datetime.fromisoformat(value.replace("Z", "+00:00")),
-                )
-            else:
-                setattr(appointment, key, value)
-
-    appointment.updated_at = datetime.utcnow()
-    db.commit()
-    db.refresh(appointment)
-    return _to_appointment_detail(appointment)
-
-
-@app.delete("/api/appointments/{appointment_id}")
-async def delete_appointment(
-    appointment_id: str,
-    db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
-):
-    """
-    Delete appointment permanently from database.
-    Use PUT /api/appointments/{id}/cancel if you want to cancel but keep the record.
-    """
-    appointment = db.query(Appointment).filter(Appointment.id == appointment_id, Appointment.clinic_id == clinic.id).first()
-    if not appointment:
-        raise HTTPException(status_code=404, detail="Appointment not found")
-
-    try:
-        db.delete(appointment)
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to delete appointment from database: {str(e)}",
-        )
-
-    return {
-        "message": "Appointment deleted successfully",
-        "appointment_id": appointment_id,
-    }
-
-
-@app.put("/api/appointments/{appointment_id}/cancel")
-async def cancel_appointment(
-    appointment_id: str,
-    background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
-):
-    """
-    Cancel appointment (marks as CANCELLED but keeps record).
-    Use DELETE endpoint if you want to permanently remove the appointment.
-    """
-    appointment = (
-        db.query(Appointment)
-        .options(joinedload(Appointment.provider), joinedload(Appointment.service))
-        .filter(Appointment.id == appointment_id, Appointment.clinic_id == clinic.id)
-        .first()
-    )
-    if not appointment:
-        raise HTTPException(status_code=404, detail="Appointment not found")
-
-    appointment.status = AppointmentStatus.CANCELLED
-    appointment.updated_at = datetime.utcnow()
-    db.commit()
-    db.refresh(appointment)
-
-    # Schedule cancellation SMS (background; configurable delay)
-    patient = db.query(Patient).filter(Patient.id == appointment.patient_id, Patient.clinic_id == clinic.id).first()
-    provider = db.query(Provider).filter(Provider.id == appointment.provider_id, Provider.clinic_id == clinic.id).first()
-    if patient and patient.phone and provider:
-        try:
-            provider_display_name = " ".join(filter(None, [provider.title, provider.name])).strip() or provider.name
-            tz = pytz.timezone(clinic.timezone or "America/Edmonton")
-            start_local = appointment.start_time.astimezone(tz) if appointment.start_time.tzinfo else tz.localize(appointment.start_time)
-            date_str = start_local.strftime("%Y-%m-%d")
-            time_str = start_local.strftime("%I:%M %p")
-            patient_name = " ".join(filter(None, [patient.first_name, patient.last_name])) or "Patient"
-            background_tasks.add_task(
-                send_cancellation_sms_delayed,
-                patient.phone,
-                patient_name,
-                date_str,
-                time_str,
-                provider_display_name,
-                clinic.name,
-                clinic.address,
-                clinic.contact_phone,
-            )
-        except Exception as e:
-            logger.warning("Cancellation SMS skipped: %s", e)
-    elif patient and not patient.phone:
-        logger.info("No patient phone; skipping cancellation SMS")
-
-    return _to_appointment_detail(appointment)
-
-
-@app.put("/api/appointments/{appointment_id}/status", response_model=AppointmentDetailResponse)
-async def update_appointment_status(
-    appointment_id: str,
-    request: AppointmentStatusUpdateRequest,
-    db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
-):
-    """Update appointment status in database."""
-    try:
-        new_status = AppointmentStatus(request.status.upper())
-    except ValueError:
-        valid_statuses = [s.value for s in AppointmentStatus]
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid status: {request.status}. Valid values: {', '.join(valid_statuses)}",
-        )
-
-    appointment = (
-        db.query(Appointment)
-        .options(joinedload(Appointment.provider), joinedload(Appointment.service))
-        .filter(Appointment.id == appointment_id, Appointment.clinic_id == clinic.id)
-        .first()
-    )
-    if not appointment:
-        raise HTTPException(status_code=404, detail="Appointment not found")
-
-    appointment.status = new_status
-    appointment.updated_at = datetime.utcnow()
-    db.commit()
-    db.refresh(appointment)
-
-    return _to_appointment_detail(appointment)
-
-
-@app.put("/api/appointments/{appointment_id}/reschedule")
-async def reschedule_appointment(
-    appointment_id: str,
-    request: AppointmentCreateRequest,
-    background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
-):
-    """
-    Reschedule an existing appointment.
-    Creates a new appointment with the new time/date and marks the old one as RESCHEDULED.
-    """
-    old_appointment = db.query(Appointment).filter(Appointment.id == appointment_id, Appointment.clinic_id == clinic.id).first()
-    if not old_appointment:
-        raise HTTPException(status_code=404, detail="Appointment not found")
-
-    if old_appointment.status != AppointmentStatus.SCHEDULED:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Cannot reschedule appointment with status {old_appointment.status.value}. Only SCHEDULED appointments can be rescheduled.",
-        )
-
-    try:
-        new_start_time = datetime.fromisoformat(request.start_time.replace("Z", "+00:00"))
-        new_end_time = datetime.fromisoformat(request.end_time.replace("Z", "+00:00"))
-
-        conflicting_appointments = db.query(Appointment).filter(
-            Appointment.clinic_id == clinic.id,
-            Appointment.provider_id == request.provider_id,
-            Appointment.id != appointment_id,
-            Appointment.status.in_([
-                AppointmentStatus.SCHEDULED,
-                AppointmentStatus.CONFIRMED,
-                AppointmentStatus.PENDING_SYNC,
-                AppointmentStatus.PENDING,
-            ]),
-            Appointment.start_time < new_end_time,
-            Appointment.end_time > new_start_time,
-        ).all()
-
-        if conflicting_appointments:
-            conflict_details = [
-                {
-                    "appointment_id": apt.id,
-                    "start_time": apt.start_time.isoformat(),
-                    "end_time": apt.end_time.isoformat(),
-                    "patient_id": apt.patient_id,
-                    "status": apt.status.value,
-                }
-                for apt in conflicting_appointments
-            ]
-            raise HTTPException(
-                status_code=409,
-                detail={
-                    "error": "Appointment conflict",
-                    "message": "Provider already has an appointment scheduled during the requested time slot.",
-                    "requested_time": {
-                        "start_time": new_start_time.isoformat(),
-                        "end_time": new_end_time.isoformat(),
-                    },
-                    "conflicting_appointments": conflict_details,
-                },
-            )
-
-        new_appointment = Appointment(
-            clinic_id=clinic.id,
-            patient_id=request.patient_id,
-            provider_id=request.provider_id,
-            service_id=request.service_id,
-            start_time=new_start_time,
-            end_time=new_end_time,
-            reason_note=request.reason,
-            status=AppointmentStatus.SCHEDULED,
-        )
-        db.add(new_appointment)
-        db.flush()
-
-        old_appointment.status = AppointmentStatus.RESCHEDULED
-        old_appointment.updated_at = datetime.utcnow()
-
-        db.commit()
-        db.refresh(new_appointment)
-        db.refresh(old_appointment)
-
-        # Schedule reschedule confirmation SMS (background; configurable delay)
-        patient = db.query(Patient).filter(Patient.id == request.patient_id, Patient.clinic_id == clinic.id).first()
-        provider = db.query(Provider).filter(
-            Provider.id == request.provider_id, Provider.clinic_id == clinic.id
-        ).first()
-        svc = db.query(Service).filter(Service.id == request.service_id, Service.clinic_id == clinic.id).first() if request.service_id else None
-        service_name = (svc.name if svc else None) or request.service_name
-        if patient and patient.phone and provider:
-            try:
-                tz = pytz.timezone(clinic.timezone or "America/Edmonton")
-                new_local = new_start_time.astimezone(tz) if new_start_time.tzinfo else tz.localize(new_start_time)
-                date_str = new_local.strftime("%Y-%m-%d")
-                time_str = new_local.strftime("%I:%M %p")
-                patient_name = " ".join(filter(None, [patient.first_name, patient.last_name])) or "Patient"
-                provider_display_name = " ".join(filter(None, [provider.title, provider.name])).strip() or provider.name
-                background_tasks.add_task(
-                    send_reschedule_sms_delayed,
-                    patient.phone,
-                    patient_name,
-                    date_str,
-                    time_str,
-                    provider_display_name,
-                    service_name,
-                    clinic.name,
-                    clinic.address,
-                    clinic.contact_phone,
-                )
-            except Exception as e:
-                logger.warning("Reschedule SMS skipped: %s", e)
-        elif patient and not patient.phone:
-            logger.info("No patient phone; skipping reschedule SMS")
-
-        return {
-            "old_appointment_id": old_appointment.id,
-            "new_appointment_id": new_appointment.id,
-            "status": "RESCHEDULED",
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Error rescheduling appointment: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Error rescheduling appointment: {str(e)}")
+try:
+    import database.clinical.models  # noqa: F401 — register models with Base
+    from api.v2.clinical.router import router as _clinical_router
+    from api.v2.lab.router import router as _lab_router
+    from api.v2.treatment_plans.router import router as _tp_router
+    app.include_router(_clinical_router)
+    app.include_router(_lab_router)
+    # Mount treatment plans at both hyphenated and underscore paths
+    app.include_router(_tp_router, prefix="/api/v2/treatment-plans")
+    app.include_router(_tp_router, prefix="/api/v2/treatment_plans")
+except ImportError:
+    pass  # v2 clinical modules not yet present
 
 
 # ============================================================================
-# Database CRUD Endpoints - Providers
+# v2 routers (Track 3 — Scheduling / Billing / Insurance / Comms / CRM)
 # ============================================================================
+try:
+    import database.ops.models  # noqa: F401 — register models with Base
+    from api.v2.scheduling.router import router as _scheduling_router
+    from api.v2.billing.router import router as _billing_router
+    from api.v2.insurance.router import router as _insurance_router
+    from api.v2.communications.router import router as _comms_router
+    from api.v2.crm.router import router as _crm_router
+    app.include_router(_scheduling_router)
+    app.include_router(_billing_router)
+    app.include_router(_insurance_router)
+    app.include_router(_comms_router)
+    app.include_router(_crm_router)
+except ImportError:
+    pass  # v2 ops modules not yet present
 
-@app.get("/api/providers")
-async def list_providers(
-    db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
-):
-    """List all active providers."""
-    providers = db.query(Provider).filter(
-        Provider.clinic_id == clinic.id, Provider.is_active == True
-    ).all()
-    return [
-        {
-            "id": p.id,
-            "name": p.name,
-            "title": p.title,
-            "specialty": p.specialty,
-            "is_active": p.is_active,
-        }
-        for p in providers
-    ]
+# v2 routers (F0 — Settings)
+try:
+    from api.v2.settings.router import router as _settings_router
+    app.include_router(_settings_router)
+except ImportError:
+    pass
 
+# v2 routers (Reporting — Dashboard KPIs)
+try:
+    from api.v2.reporting.router import router as _reporting_router
+    app.include_router(_reporting_router)
+except ImportError:
+    pass
 
-@app.get("/api/providers/{provider_id}")
-async def get_provider(
-    provider_id: int,
-    db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
-):
-    """Get provider by ID."""
-    provider = db.query(Provider).filter(
-        Provider.id == provider_id, Provider.clinic_id == clinic.id
-    ).first()
-    if not provider:
-        raise HTTPException(status_code=404, detail="Provider not found")
-    return {
-        "id": provider.id,
-        "name": provider.name,
-        "title": provider.title,
-        "specialty": provider.specialty,
-        "is_active": provider.is_active,
-    }
-
-
-# ============================================================================
-# Database CRUD Endpoints - Services
-# ============================================================================
-
-@app.get("/api/services")
-async def list_services(
-    name: Optional[str] = Query(None, description="Filter by service name"),
-    db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
-):
-    """List all services."""
-    query = db.query(Service).filter(Service.clinic_id == clinic.id)
-    if name:
-        query = query.filter(Service.name.ilike(f"%{name}%"))
-    services = query.all()
-    return [{
-        "id": s.id,
-        "name": s.name,
-        "description": s.description,
-        "duration_min": s.duration_min,
-        "base_price": float(s.base_price) if s.base_price else None
-    } for s in services]
-
-
-@app.get("/api/services/{service_id}")
-async def get_service(
-    service_id: int,
-    db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
-):
-    """Get service by ID."""
-    service = db.query(Service).filter(Service.id == service_id, Service.clinic_id == clinic.id).first()
-    if not service:
-        raise HTTPException(status_code=404, detail="Service not found")
-    return {
-        "id": service.id,
-        "name": service.name,
-        "description": service.description,
-        "duration_min": service.duration_min,
-        "base_price": float(service.base_price) if service.base_price else None
-    }
-
-
-# ============================================================================
-# Health Check
-# ============================================================================
-
-@app.delete("/api/appointments/bulk/date/{date}")
-async def delete_appointments_by_date_endpoint(
-    date: str,
-    dry_run: bool = Query(False, description="If true, only preview without deleting"),
-    db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
-):
-    """
-    Delete all appointments for a specific date from database.
-
-    Args:
-        date: Date in YYYY-MM-DD format (e.g., "2025-12-22")
-        dry_run: If true, only return what would be deleted without actually deleting
-    """
-    try:
-        target_date_obj = datetime.strptime(date, "%Y-%m-%d").date()
-    except ValueError:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid date format. Use YYYY-MM-DD (e.g., 2025-12-22)",
-        )
-
-    tz = pytz.timezone(clinic.timezone or "America/Edmonton")
-    start_of_day = tz.localize(datetime.combine(target_date_obj, datetime.min.time()))
-    end_of_day = tz.localize(datetime.combine(target_date_obj, datetime.max.time()))
-
-    appointments = db.query(Appointment).filter(
-        Appointment.clinic_id == clinic.id,
-        Appointment.start_time >= start_of_day,
-        Appointment.start_time <= end_of_day,
-    ).all()
-
-    if not appointments:
-        return {
-            "message": f"No appointments found for {date}",
-            "date": date,
-            "appointments_found": 0,
-            "deleted": 0,
-        }
-
-    if dry_run:
-        return {
-            "message": f"DRY RUN: Would delete {len(appointments)} appointment(s) for {date}",
-            "date": date,
-            "appointments_found": len(appointments),
-            "appointments": [
-                {
-                    "id": apt.id,
-                    "patient_id": apt.patient_id,
-                    "provider_id": apt.provider_id,
-                    "start_time": apt.start_time.isoformat(),
-                    "status": apt.status.value,
-                }
-                for apt in appointments
-            ],
-            "deleted": 0,
-        }
-
-    deleted_count = 0
-    failed_count = 0
-    deleted_ids = []
-    failed_ids = []
-
-    for appointment in appointments:
-        appointment_id = appointment.id
-        try:
-            db.delete(appointment)
-            db.commit()
-            deleted_count += 1
-            deleted_ids.append(appointment_id)
-        except Exception as e:
-            db.rollback()
-            failed_count += 1
-            failed_ids.append(appointment_id)
-            logger.warning(f"Failed to delete appointment {appointment_id}: {e}")
-
-    return {
-        "message": f"Deleted {deleted_count} appointment(s) for {date}",
-        "date": date,
-        "appointments_found": len(appointments),
-        "deleted": deleted_count,
-        "failed": failed_count,
-        "deleted_ids": deleted_ids,
-        "failed_ids": failed_ids,
-    }
-
-
-# ============================================================================
-# Database CRUD Endpoints - Leads
-# ============================================================================
-
-@app.post("/api/leads", response_model=LeadResponse)
-async def create_lead(
-    lead_data: LeadCreateRequest,
-    db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
-):
-    """Create new lead."""
-    try:
-        lead_dict = lead_data.model_dump(exclude_none=True)
-        lead = Lead(clinic_id=clinic.id, **lead_dict)
-        db.add(lead)
-        db.commit()
-        db.refresh(lead)
-        return LeadResponse.model_validate(lead)
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Error creating lead: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to create lead: {str(e)}")
-
-
-@app.get("/api/leads", response_model=List[LeadResponse])
-async def list_leads(
-    status: Optional[str] = Query(None, description="Filter by status"),
-    source: Optional[str] = Query(None, description="Filter by source"),
-    db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
-):
-    """List leads with optional filters."""
-    query = db.query(Lead).filter(Lead.clinic_id == clinic.id)
-    if status:
-        try:
-            status_enum = LeadStatus(status.upper())
-            query = query.filter(Lead.status == status_enum)
-        except ValueError:
-            raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
-    if source:
-        query = query.filter(Lead.source == source)
-    leads = query.order_by(Lead.created_at.desc()).all()
-    return [LeadResponse.model_validate(lead) for lead in leads]
-
-
-@app.get("/api/leads/{lead_id}", response_model=LeadResponse)
-async def get_lead(
-    lead_id: str,
-    db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
-):
-    """Get lead by ID."""
-    lead = db.query(Lead).filter(Lead.id == lead_id, Lead.clinic_id == clinic.id).first()
-    if not lead:
-        raise HTTPException(status_code=404, detail="Lead not found")
-    return LeadResponse.model_validate(lead)
-
-
-@app.put("/api/leads/{lead_id}", response_model=LeadResponse)
-async def update_lead(
-    lead_id: str,
-    lead_data: LeadUpdateRequest,
-    db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
-):
-    """Update lead."""
-    lead = db.query(Lead).filter(Lead.id == lead_id, Lead.clinic_id == clinic.id).first()
-    if not lead:
-        raise HTTPException(status_code=404, detail="Lead not found")
-    
-    update_data = lead_data.model_dump(exclude_none=True)
-    
-    # Handle status update
-    if "status" in update_data:
-        try:
-            status_enum = LeadStatus(update_data["status"].upper())
-            lead.status = status_enum
-            del update_data["status"]
-        except ValueError:
-            raise HTTPException(status_code=400, detail=f"Invalid status: {update_data['status']}")
-    
-    # Update other fields
-    for key, value in update_data.items():
-        if hasattr(lead, key):
-            setattr(lead, key, value)
-    
-    lead.updated_at = datetime.utcnow()
-    db.commit()
-    db.refresh(lead)
-    return LeadResponse.model_validate(lead)
-
-
-@app.put("/api/leads/{lead_id}/status", response_model=LeadResponse)
-async def update_lead_status(
-    lead_id: str,
-    request: LeadStatusUpdateRequest,
-    db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
-):
-    """Update lead status."""
-    try:
-        new_status = LeadStatus(request.status.upper())
-    except ValueError:
-        valid_statuses = [s.value for s in LeadStatus]
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid status: {request.status}. Valid values: {', '.join(valid_statuses)}"
-        )
-    
-    lead = db.query(Lead).filter(Lead.id == lead_id, Lead.clinic_id == clinic.id).first()
-    if not lead:
-        raise HTTPException(status_code=404, detail="Lead not found")
-    
-    lead.status = new_status
-    lead.updated_at = datetime.utcnow()
-    db.commit()
-    db.refresh(lead)
-    return LeadResponse.model_validate(lead)
-
-
-# ============================================================================
-# Clinic Endpoints (multi-tenant)
-# ============================================================================
-
-class ClinicCreateRequest(BaseModel):
-    """Request model for creating clinic."""
-    id: str = Field(..., description="Clinic ID (e.g. clinic-a)")
-    name: str = Field(..., description="Clinic display name")
-    timezone: Optional[str] = Field("America/Edmonton", description="Timezone (e.g. America/Edmonton)")
-    working_hour_start: Optional[int] = Field(9, description="Start of working hours (0-23)")
-    working_hour_end: Optional[int] = Field(17, description="End of working hours (0-23)")
-    address: Optional[str] = Field(None, description="Physical address for SMS / display")
-    contact_phone: Optional[str] = Field(None, description="Clinic phone for SMS callbacks")
-    booking_notification_email: Optional[str] = Field(
-        None, description="Inbox to notify when a new appointment is booked"
-    )
-
-
-class ClinicResponse(BaseModel):
-    """Response model for clinic config."""
-    id: str
-    name: str
-    timezone: Optional[str] = None
-    working_hour_start: Optional[int] = None
-    working_hour_end: Optional[int] = None
-    address: Optional[str] = None
-    contact_phone: Optional[str] = None
-    booking_notification_email: Optional[str] = None
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class ClinicUpdateRequest(BaseModel):
-    """Partial update for current clinic (X-Clinic-Id). Omit fields to leave unchanged."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    name: Optional[str] = None
-    timezone: Optional[str] = None
-    working_hour_start: Optional[int] = None
-    working_hour_end: Optional[int] = None
-    address: Optional[str] = None
-    contact_phone: Optional[str] = None
-    booking_notification_email: Optional[str] = None
-
-
-@app.post("/api/clinics", response_model=ClinicResponse)
-async def create_clinic(
-    request: ClinicCreateRequest,
-    db: Session = Depends(get_db),
-):
-    """Create a new clinic (admin/setup)."""
-    existing = db.query(Clinic).filter(Clinic.id == request.id).first()
-    if existing:
-        raise HTTPException(status_code=409, detail=f"Clinic already exists: {request.id}")
-    clinic = Clinic(
-        id=request.id,
-        name=request.name,
-        timezone=request.timezone or "America/Edmonton",
-        working_hour_start=request.working_hour_start or 9,
-        working_hour_end=request.working_hour_end or 17,
-        address=request.address,
-        contact_phone=request.contact_phone,
-        booking_notification_email=request.booking_notification_email,
-    )
-    db.add(clinic)
-    db.commit()
-    db.refresh(clinic)
-    return ClinicResponse.model_validate(clinic)
-
-
-@app.get("/api/clinics/me", response_model=ClinicResponse)
-async def get_clinic_me(clinic: Clinic = Depends(get_clinic)):
-    """Get current clinic config (from X-Clinic-Id header)."""
-    return ClinicResponse.model_validate(clinic)
-
-
-@app.patch("/api/clinics/me", response_model=ClinicResponse)
-async def patch_clinic_me(
-    request: ClinicUpdateRequest,
-    db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
-):
-    """Update current clinic fields (from X-Clinic-Id)."""
-    updates = request.model_dump(exclude_unset=True)
-    for key, value in updates.items():
-        if hasattr(clinic, key):
-            setattr(clinic, key, value)
-    clinic.updated_at = datetime.utcnow()
-    db.commit()
-    db.refresh(clinic)
-    return ClinicResponse.model_validate(clinic)
-
-
-# ============================================================================
-# Health Check
-# ============================================================================
-
-@app.get("/health")
-async def health_check():
-    """Health check endpoint."""
-    return {"status": "ok"}
-
-
-@app.get("/api/debug/db-info")
-async def debug_db_info(db: Session = Depends(get_db)):
-    """
-    Debug: which database we're connected to and provider count.
-    Use this to verify Railway is hitting the same Supabase as the dashboard.
-    """
-    from database.connection import engine
-    url = engine.url
-    # Safe to expose: host and db name only (no password)
-    db_host = url.host if hasattr(url, "host") else ("sqlite" if "sqlite" in str(url) else "unknown")
-    db_name = url.database if hasattr(url, "database") else None
-    provider_count = db.query(Provider).count()
-    return {
-        "database_host": db_host,
-        "database_name": db_name,
-        "provider_count": provider_count,
-    }
-
-
+# v2 routers (Events — Server-Sent Events for CRM live updates)
+try:
+    from api.v2.events import router as _events_router
+    app.include_router(_events_router)
+except ImportError:
+    pass

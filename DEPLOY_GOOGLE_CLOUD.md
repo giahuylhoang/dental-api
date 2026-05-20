@@ -75,7 +75,11 @@ Cloud Run uses a Unix socket that is not reachable from your machine. Use one of
 
 **Option A: Cloud SQL Auth Proxy** (recommended)
 
-1. [Install Cloud SQL Auth Proxy](https://cloud.google.com/sql/docs/postgres/connect-auth-proxy#install)
+1. Install the proxy via gcloud:
+   ```bash
+   gcloud components install cloud-sql-proxy
+   ```
+   (Or download a binary from the [official docs](https://cloud.google.com/sql/docs/postgres/connect-auth-proxy#install).)
 2. Run: `cloud-sql-proxy YOUR_PROJECT_ID:us-central1:dental-api-db --port=5432`
 3. In another terminal:
 
@@ -204,3 +208,12 @@ VITE_API_URL=https://your-service-xxx.run.app VITE_CLINIC_ID=default npm run bui
 ```
 
 Per-clinic deployments: use `VITE_CLINIC_ID=clinic-a` so the frontend sends `X-Clinic-Id: clinic-a` on all API requests.
+
+## Operational scripts
+
+All under `scripts/`:
+
+- `scripts/provision_db.sh` — one-time Cloud SQL instance provisioning. Writes the connection name and app password to `/tmp/conn_name` and `/tmp/app_pwd`.
+- `scripts/seed_db.sh` — starts `cloud-sql-proxy`, runs `scripts/sync_db.py` to create tables + seed defaults, then kills the proxy. Resolves the proxy from PATH (or a local `./cloud-sql-proxy` fallback).
+- `scripts/smoke_tests.sh` — post-deploy curls against `/health`, `/api/doctors`, `/api/clinic`, SSE stream, end-to-end booking. Uses the current Cloud Run service URL.
+- `scripts/deploy.sh` — Cloud Run deploy (gitignored locally because it currently hardcodes Twilio credentials; treat as a personal copy until those move to Secret Manager).
