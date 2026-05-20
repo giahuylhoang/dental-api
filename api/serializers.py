@@ -7,6 +7,7 @@ from __future__ import annotations
 import json as _json
 
 from database.models import Appointment
+from api.v1.appointments.schemas import AppointmentDetailResponse
 
 
 def _busy_block_envelope(block) -> dict:
@@ -39,16 +40,8 @@ def _busy_block_envelope(block) -> dict:
     }
 
 
-def _to_appointment_detail(apt: Appointment) -> "AppointmentDetailResponse":
-    """Build AppointmentDetailResponse with provider_name and service_name.
-
-    Lazy-imports the Pydantic class to avoid an import cycle while v1 appointment
-    schemas still live in api.main. Task 10 moves the schema to
-    api/v1/appointments/schemas.py; at that point this lazy import flips to
-    a top-level import.
-    """
-    from api.main import AppointmentDetailResponse  # noqa: WPS433 (lazy until Task 10)
-
+def _to_appointment_detail(apt: Appointment) -> AppointmentDetailResponse:
+    """Build AppointmentDetailResponse with provider_name and service_name."""
     provider_name = None
     if apt.provider:
         provider_name = " ".join(filter(None, [apt.provider.title, apt.provider.name])).strip() or apt.provider.name
