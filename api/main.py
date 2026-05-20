@@ -6,34 +6,19 @@ Provides REST API endpoints for:
 - Database CRUD operations (patients, appointments, doctors, services)
 """
 
-import sys
 import os
-from datetime import datetime
-from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Depends, Query, Request, BackgroundTasks
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field, ConfigDict
-from sqlalchemy.orm import Session, joinedload
 
 from database.connection import init_db
-from database.models import Patient, Appointment, Provider, Service, AppointmentStatus, Lead, LeadStatus, Clinic, DEFAULT_CLINIC_ID
-import json as _json
-from tools.slot_utils import get_available_slots
 
 # Re-exports — historical home of these helpers. v2 routers and tests
 # import them from api.main; keep the names available here.
 from api.dependencies import get_db, get_clinic_id, get_clinic  # noqa: F401
 from api.serializers import _busy_block_envelope, _to_appointment_detail  # noqa: F401
 
-from clients.sms_client import (
-    send_booking_sms_delayed,
-    send_cancellation_sms_delayed,
-    send_reschedule_sms_delayed,
-)
-from clients.email_client import resolve_booking_notification_recipient, send_clinic_booking_email_delayed
-import pytz
 import logging
 
 # Re-export appointment schemas so existing callers that import from api.main keep working.
@@ -45,8 +30,6 @@ from api.v1.appointments.schemas import (  # noqa: F401
 )
 
 logger = logging.getLogger("dental-receptionist")
-
-EDMONTON_TZ = pytz.timezone('America/Edmonton')
 
 
 @asynccontextmanager
