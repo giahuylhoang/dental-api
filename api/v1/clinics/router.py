@@ -13,10 +13,10 @@ from api.v1.clinics.schemas import (
     ClinicUpdateRequest,
 )
 
-router = APIRouter(tags=["clinics"])
+router = APIRouter(prefix="/api/clinics", tags=["clinics"])
 
 
-@router.post("/api/clinics", response_model=ClinicResponse)
+@router.post("", response_model=ClinicResponse)
 async def create_clinic(
     request: ClinicCreateRequest,
     db: Session = Depends(get_db),
@@ -41,13 +41,13 @@ async def create_clinic(
     return ClinicResponse.model_validate(clinic)
 
 
-@router.get("/api/clinics/me", response_model=ClinicResponse)
+@router.get("/me", response_model=ClinicResponse)
 async def get_clinic_me(clinic: Clinic = Depends(get_clinic)):
     """Get current clinic config (from X-Clinic-Id header)."""
     return ClinicResponse.model_validate(clinic)
 
 
-@router.patch("/api/clinics/me", response_model=ClinicResponse)
+@router.patch("/me", response_model=ClinicResponse)
 async def patch_clinic_me(
     request: ClinicUpdateRequest,
     db: Session = Depends(get_db),

@@ -1454,7 +1454,9 @@ async def debug_db_info(db: Session = Depends(get_db)):
 
 
 # ============================================================================
-# v1 routers — historical /api/* paths; contract preserved for dental-agent
+# v1 routers — historical /api/* paths; contract preserved for dental-agent.
+# Intentionally NOT wrapped in try/except: a missing v1 router would silently
+# break the contract dental-agent depends on, so it must be a hard failure.
 # ============================================================================
 from api.v1.clinics.router import router as _v1_clinics_router
 app.include_router(_v1_clinics_router)
