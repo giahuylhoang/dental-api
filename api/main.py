@@ -112,35 +112,11 @@ app.add_middleware(
 )
 
 
-
 # ============================================================================
-# Health Check
+# App-level system endpoints (not v1 contract)
 # ============================================================================
-
-@app.get("/health")
-async def health_check():
-    """Health check endpoint."""
-    return {"status": "ok"}
-
-
-@app.get("/api/debug/db-info")
-async def debug_db_info(db: Session = Depends(get_db)):
-    """
-    Debug: which database we're connected to and provider count.
-    Use this to verify Railway is hitting the same Supabase as the dashboard.
-    """
-    from database.connection import engine
-    url = engine.url
-    # Safe to expose: host and db name only (no password)
-    db_host = url.host if hasattr(url, "host") else ("sqlite" if "sqlite" in str(url) else "unknown")
-    db_name = url.database if hasattr(url, "database") else None
-    provider_count = db.query(Provider).count()
-    return {
-        "database_host": db_host,
-        "database_name": db_name,
-        "provider_count": provider_count,
-    }
-
+from api.system import router as _system_router
+app.include_router(_system_router)
 
 # ============================================================================
 # v1 routers — historical /api/* paths; contract preserved for dental-agent.
