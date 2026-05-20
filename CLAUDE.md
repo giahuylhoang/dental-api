@@ -39,7 +39,7 @@ Deployment target is Google Cloud Run — see `DEPLOY_GOOGLE_CLOUD.md`. Cloud Ru
 
 ### Multi-tenancy (critical)
 
-Every request is scoped by clinic via the `X-Clinic-Id` header (default: `"default"`). This is enforced by the `get_clinic` dependency (`api/main.py:43`), which 404s if the clinic row doesn't exist. **Every query in the API filters by `clinic_id`** — when adding endpoints or queries, you must scope by `clinic.id` or you'll leak data across tenants. Per-clinic config (timezone, working hours, address, contact phone, booking notification email) lives on the `Clinic` row, not in env vars.
+Every request is scoped by clinic via the `X-Clinic-Id` header (default: `"default"`). This is enforced by the `get_clinic` dependency (`api/dependencies.py`), which 404s if the clinic row doesn't exist. **Every query in the API filters by `clinic_id`** — when adding endpoints or queries, you must scope by `clinic.id` or you'll leak data across tenants. Per-clinic config (timezone, working hours, address, contact phone, booking notification email) lives on the `Clinic` row, not in env vars.
 
 Tests reflect this: the `client` fixture seeds the `default` clinic before any request can succeed.
 
@@ -50,7 +50,7 @@ Tests reflect this: the `client` fixture seeds the `default` clinic before any r
 - `ProviderBusyBlock` rows (recurring weekly *unavailable* windows — note: busy blocks mean UNAVAILABLE, not available)
 - Existing `Appointment` rows with status in `{SCHEDULED, CONFIRMED, PENDING_SYNC, PENDING}`
 
-The same "active statuses" set is used for conflict detection in create/reschedule (`api/main.py:319`, `api/main.py:916`). When changing status semantics, update both the slot computation and the conflict checks together.
+The same "active statuses" set is used for conflict detection in `services/appointments.check_conflicts_for_create` and `check_conflicts_for_reschedule`. When changing status semantics, update both the slot computation and the conflict checks together.
 
 ### Background notifications
 
@@ -68,11 +68,23 @@ Notifications must never raise back to the request handler — they're best-effo
 
 `run_api.py` always binds to `PORT` even if `api.main` fails to import — it falls back to a stub app that only serves `/health`. This is intentional so Cloud Run / Railway health checks pass and you can debug a misconfigured deploy via logs rather than a crash loop. Don't "fix" this by removing the try/except.
 
+## Repo layout
+
+- `api/` — FastAPI app (`main.py`), shared deps (`dependencies.py`), serializers, middleware, and per-version routers under `api/v1/<domain>/` and `api/v2/<track>/`.
+- `services/` — business logic that v1 routers delegate to (appointments conflict checks, notifications, slot wrappers).
+- `database/` — SQLAlchemy models, connection, observability hooks, and per-track sub-packages (`auth/`, `clinical/`, `ops/`).
+- `clients/` — external-service adapters (Twilio SMS, SMTP email, lab case numbering).
+- `tools/` — `slot_utils.py` (the actual slot computation; `services/slots.py` is a thin wrapper).
+- `alembic/` — schema migrations. `versions/316d68e5e670_baseline_v1_schema.py` is the baseline; pre-baseline migrations under `scripts/migrate_*.py` are kept for historical reference but should not be re-run on greenfield databases.
+- `scripts/` — operational shells (`provision_db.sh`, `seed_db.sh`, `smoke_tests.sh`, gitignored `deploy.sh`), schema sync (`sync_db.py`), seed scripts (`seed_*.py`), and historical pre-baseline migrations.
+- `tests/` — pytest suite (286 passing). Uses in-memory SQLite via `tests/conftest.py`.
+- `docs/superpowers/` — design specs and implementation plans for refactors.
+
 ## Things to know
 
 - Provider was renamed from "Doctor"; the `Provider` model is generic (denturist, doctor, assistant, etc.) and `provider.title` + `provider.name` are joined for display (`"Dr Smith"`).
 - Default timezone fallback throughout is `America/Edmonton`.
 - `tmp/` is an archive of older docs/frontend/scripts — don't add new code there.
-- The empty `services/` directory is a leftover; business logic currently lives in `api/main.py` and `tools/`.
+- Business logic lives in `services/` (`appointments.py`, `notifications.py`, `slots.py`). `api/v1/<domain>/router.py` modules are thin HTTP layers that delegate to `services/`; `api/main.py` is now just the FastAPI app + middleware + router mounts (~190 lines).
 - `dental_clinic.db` is committed (local SQLite seed) and intentionally tracked.
 - The CRM/PMS frontend used to live at `frontend/`; it now lives in the sibling repo `dental-system/dental-crm-frontend/`.
