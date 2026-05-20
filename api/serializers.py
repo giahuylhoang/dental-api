@@ -39,7 +39,7 @@ def _busy_block_envelope(block) -> dict:
     }
 
 
-def _to_appointment_detail(apt: Appointment):
+def _to_appointment_detail(apt: Appointment) -> "AppointmentDetailResponse":
     """Build AppointmentDetailResponse with provider_name and service_name.
 
     Lazy-imports the Pydantic class to avoid an import cycle while v1 appointment

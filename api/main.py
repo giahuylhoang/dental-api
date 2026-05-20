@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, ConfigDict
 from sqlalchemy.orm import Session, joinedload
 
-from database.connection import get_db, init_db
+from database.connection import init_db
 from database.models import Patient, Appointment, Provider, Service, AppointmentStatus, Lead, LeadStatus, Clinic, DEFAULT_CLINIC_ID
 import json as _json
 from tools.slot_utils import get_available_slots
