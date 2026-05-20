@@ -38,3 +38,31 @@ logs/
 frontend/test-results/
 frontend/playwright-report/
 var/
+
+# --- Added by post-refactor cleanup (2026-05-20) ---
+
+# Editor / OS noise
+.DS_Store
+**/.DS_Store
+
+# Old Next.js / Vercel leftovers (frontend moved to dental-crm-frontend)
+.next/
+node_modules/
+
+# Local binaries — install via gcloud components instead
+cloud-sql-proxy
+
+# gcloud command outputs (regenerate as needed)
+builds.json
+status-*.json
+dental-api-current.yaml
+
+# Figma JSON exports (re-export from Figma if needed)
+*-prototype.json
+pms-frontend-overhaul.json
+
+# Claude Code session transcripts
+*this-session-is-being-continued*.txt
+
+# Local-only deploy script (contains secrets — move to Secret Manager)
+scripts/deploy.sh
