@@ -1425,100 +1425,6 @@ async def update_lead_status(
 
 
 # ============================================================================
-# Clinic Endpoints (multi-tenant)
-# ============================================================================
-
-class ClinicCreateRequest(BaseModel):
-    """Request model for creating clinic."""
-    id: str = Field(..., description="Clinic ID (e.g. clinic-a)")
-    name: str = Field(..., description="Clinic display name")
-    timezone: Optional[str] = Field("America/Edmonton", description="Timezone (e.g. America/Edmonton)")
-    working_hour_start: Optional[int] = Field(9, description="Start of working hours (0-23)")
-    working_hour_end: Optional[int] = Field(17, description="End of working hours (0-23)")
-    address: Optional[str] = Field(None, description="Physical address for SMS / display")
-    contact_phone: Optional[str] = Field(None, description="Clinic phone for SMS callbacks")
-    booking_notification_email: Optional[str] = Field(
-        None, description="Inbox to notify when a new appointment is booked"
-    )
-
-
-class ClinicResponse(BaseModel):
-    """Response model for clinic config."""
-    id: str
-    name: str
-    timezone: Optional[str] = None
-    working_hour_start: Optional[int] = None
-    working_hour_end: Optional[int] = None
-    address: Optional[str] = None
-    contact_phone: Optional[str] = None
-    booking_notification_email: Optional[str] = None
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class ClinicUpdateRequest(BaseModel):
-    """Partial update for current clinic (X-Clinic-Id). Omit fields to leave unchanged."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    name: Optional[str] = None
-    timezone: Optional[str] = None
-    working_hour_start: Optional[int] = None
-    working_hour_end: Optional[int] = None
-    address: Optional[str] = None
-    contact_phone: Optional[str] = None
-    booking_notification_email: Optional[str] = None
-
-
-@app.post("/api/clinics", response_model=ClinicResponse)
-async def create_clinic(
-    request: ClinicCreateRequest,
-    db: Session = Depends(get_db),
-):
-    """Create a new clinic (admin/setup)."""
-    existing = db.query(Clinic).filter(Clinic.id == request.id).first()
-    if existing:
-        raise HTTPException(status_code=409, detail=f"Clinic already exists: {request.id}")
-    clinic = Clinic(
-        id=request.id,
-        name=request.name,
-        timezone=request.timezone or "America/Edmonton",
-        working_hour_start=request.working_hour_start or 9,
-        working_hour_end=request.working_hour_end or 17,
-        address=request.address,
-        contact_phone=request.contact_phone,
-        booking_notification_email=request.booking_notification_email,
-    )
-    db.add(clinic)
-    db.commit()
-    db.refresh(clinic)
-    return ClinicResponse.model_validate(clinic)
-
-
-@app.get("/api/clinics/me", response_model=ClinicResponse)
-async def get_clinic_me(clinic: Clinic = Depends(get_clinic)):
-    """Get current clinic config (from X-Clinic-Id header)."""
-    return ClinicResponse.model_validate(clinic)
-
-
-@app.patch("/api/clinics/me", response_model=ClinicResponse)
-async def patch_clinic_me(
-    request: ClinicUpdateRequest,
-    db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
-):
-    """Update current clinic fields (from X-Clinic-Id)."""
-    updates = request.model_dump(exclude_unset=True)
-    for key, value in updates.items():
-        if hasattr(clinic, key):
-            setattr(clinic, key, value)
-    clinic.updated_at = datetime.utcnow()
-    db.commit()
-    db.refresh(clinic)
-    return ClinicResponse.model_validate(clinic)
-
-
-# ============================================================================
 # Health Check
 # ============================================================================
 
@@ -1547,6 +1453,11 @@ async def debug_db_info(db: Session = Depends(get_db)):
     }
 
 
+# ============================================================================
+# v1 routers — historical /api/* paths; contract preserved for dental-agent
+# ============================================================================
+from api.v1.clinics.router import router as _v1_clinics_router
+app.include_router(_v1_clinics_router)
 
 # ============================================================================
 # v2 routers (Track 1 — Auth / RBAC / Audit)

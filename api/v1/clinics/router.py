@@ -1,0 +1,64 @@
+"""v1 clinics router — /api/clinics, /api/clinics/me."""
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+
+from api.dependencies import get_clinic, get_db
+from database.models import Clinic
+
+from api.v1.clinics.schemas import (
+    ClinicCreateRequest,
+    ClinicResponse,
+    ClinicUpdateRequest,
+)
+
+router = APIRouter(tags=["clinics"])
+
+
+@router.post("/api/clinics", response_model=ClinicResponse)
+async def create_clinic(
+    request: ClinicCreateRequest,
+    db: Session = Depends(get_db),
+):
+    """Create a new clinic (admin/setup)."""
+    existing = db.query(Clinic).filter(Clinic.id == request.id).first()
+    if existing:
+        raise HTTPException(status_code=409, detail=f"Clinic already exists: {request.id}")
+    clinic = Clinic(
+        id=request.id,
+        name=request.name,
+        timezone=request.timezone or "America/Edmonton",
+        working_hour_start=request.working_hour_start or 9,
+        working_hour_end=request.working_hour_end or 17,
+        address=request.address,
+        contact_phone=request.contact_phone,
+        booking_notification_email=request.booking_notification_email,
+    )
+    db.add(clinic)
+    db.commit()
+    db.refresh(clinic)
+    return ClinicResponse.model_validate(clinic)
+
+
+@router.get("/api/clinics/me", response_model=ClinicResponse)
+async def get_clinic_me(clinic: Clinic = Depends(get_clinic)):
+    """Get current clinic config (from X-Clinic-Id header)."""
+    return ClinicResponse.model_validate(clinic)
+
+
+@router.patch("/api/clinics/me", response_model=ClinicResponse)
+async def patch_clinic_me(
+    request: ClinicUpdateRequest,
+    db: Session = Depends(get_db),
+    clinic: Clinic = Depends(get_clinic),
+):
+    """Update current clinic fields (from X-Clinic-Id)."""
+    updates = request.model_dump(exclude_unset=True)
+    for key, value in updates.items():
+        if hasattr(clinic, key):
+            setattr(clinic, key, value)
+    clinic.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(clinic)
+    return ClinicResponse.model_validate(clinic)
