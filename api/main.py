@@ -293,23 +293,6 @@ async def list_calendar_events(
     return out
 
 
-@app.get("/api/doctors")
-async def list_doctors_alias(
-    db: Session = Depends(get_db), clinic: Clinic = Depends(get_clinic)
-):
-    """Legacy alias — frontend code that hasn't migrated to /api/providers."""
-    providers = db.query(Provider).filter(Provider.clinic_id == clinic.id).all()
-    return [
-        {
-            "id": p.id,
-            "name": p.name,
-            "title": p.title,
-            "specialty": getattr(p, "specialty", None),
-        }
-        for p in providers
-    ]
-
-
 @app.post("/api/calendar/events")
 async def create_calendar_event(
     request: AppointmentCreateRequest,
@@ -1125,52 +1108,6 @@ async def reschedule_appointment(
 
 
 # ============================================================================
-# Database CRUD Endpoints - Providers
-# ============================================================================
-
-@app.get("/api/providers")
-async def list_providers(
-    db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
-):
-    """List all active providers."""
-    providers = db.query(Provider).filter(
-        Provider.clinic_id == clinic.id, Provider.is_active == True
-    ).all()
-    return [
-        {
-            "id": p.id,
-            "name": p.name,
-            "title": p.title,
-            "specialty": p.specialty,
-            "is_active": p.is_active,
-        }
-        for p in providers
-    ]
-
-
-@app.get("/api/providers/{provider_id}")
-async def get_provider(
-    provider_id: int,
-    db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
-):
-    """Get provider by ID."""
-    provider = db.query(Provider).filter(
-        Provider.id == provider_id, Provider.clinic_id == clinic.id
-    ).first()
-    if not provider:
-        raise HTTPException(status_code=404, detail="Provider not found")
-    return {
-        "id": provider.id,
-        "name": provider.name,
-        "title": provider.title,
-        "specialty": provider.specialty,
-        "is_active": provider.is_active,
-    }
-
-
-# ============================================================================
 # Database CRUD Endpoints - Services
 # ============================================================================
 
@@ -1460,6 +1397,8 @@ async def debug_db_info(db: Session = Depends(get_db)):
 # ============================================================================
 from api.v1.clinics.router import router as _v1_clinics_router
 app.include_router(_v1_clinics_router)
+from api.v1.providers.router import router as _v1_providers_router
+app.include_router(_v1_providers_router)
 
 # ============================================================================
 # v2 routers (Track 1 — Auth / RBAC / Audit)
