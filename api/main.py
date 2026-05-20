@@ -1107,48 +1107,6 @@ async def reschedule_appointment(
         raise HTTPException(status_code=500, detail=f"Error rescheduling appointment: {str(e)}")
 
 
-# ============================================================================
-# Database CRUD Endpoints - Services
-# ============================================================================
-
-@app.get("/api/services")
-async def list_services(
-    name: Optional[str] = Query(None, description="Filter by service name"),
-    db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
-):
-    """List all services."""
-    query = db.query(Service).filter(Service.clinic_id == clinic.id)
-    if name:
-        query = query.filter(Service.name.ilike(f"%{name}%"))
-    services = query.all()
-    return [{
-        "id": s.id,
-        "name": s.name,
-        "description": s.description,
-        "duration_min": s.duration_min,
-        "base_price": float(s.base_price) if s.base_price else None
-    } for s in services]
-
-
-@app.get("/api/services/{service_id}")
-async def get_service(
-    service_id: int,
-    db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
-):
-    """Get service by ID."""
-    service = db.query(Service).filter(Service.id == service_id, Service.clinic_id == clinic.id).first()
-    if not service:
-        raise HTTPException(status_code=404, detail="Service not found")
-    return {
-        "id": service.id,
-        "name": service.name,
-        "description": service.description,
-        "duration_min": service.duration_min,
-        "base_price": float(service.base_price) if service.base_price else None
-    }
-
 
 # ============================================================================
 # Health Check
@@ -1399,6 +1357,8 @@ from api.v1.clinics.router import router as _v1_clinics_router
 app.include_router(_v1_clinics_router)
 from api.v1.providers.router import router as _v1_providers_router
 app.include_router(_v1_providers_router)
+from api.v1.catalog.router import router as _v1_catalog_router
+app.include_router(_v1_catalog_router)
 
 # ============================================================================
 # v2 routers (Track 1 — Auth / RBAC / Audit)
