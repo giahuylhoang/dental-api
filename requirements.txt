@@ -12,3 +12,4 @@ python-dotenv>=1.0.0
 # load (run_api.py fell back to /health-only stub).
 python-multipart>=0.0.20
 twilio>=9.0.0
+firebase-admin>=6.2.0
