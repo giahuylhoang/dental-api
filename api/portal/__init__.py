@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends
 
 from api.portal.deps import PortalUser, get_portal_user, require_clinic_access
-from api.portal import whoami, routing, greeting, calls
+from api.portal import whoami, routing, greeting, calls, schedule
 
 
 def _clinic_access(clinic_id: str, user: PortalUser = Depends(get_portal_user)) -> str:
@@ -22,5 +22,6 @@ clinic_scoped = APIRouter(
 clinic_scoped.include_router(routing.router, prefix="/routing", tags=["portal:routing"])
 clinic_scoped.include_router(greeting.router, prefix="/greeting", tags=["portal:greeting"])
 clinic_scoped.include_router(calls.router, prefix="/calls", tags=["portal:calls"])
+clinic_scoped.include_router(schedule.router, prefix="/schedule", tags=["portal:schedule"])
 
 router.include_router(clinic_scoped)
