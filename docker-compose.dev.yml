@@ -1,0 +1,12 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: dental-pg
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: dev
+      POSTGRES_DB: dental
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./var/pgdata:/var/lib/postgresql/data

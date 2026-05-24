@@ -30,7 +30,13 @@ def main():
     from database.ops.models import Invoice, InvoiceLine, Communication
     from clients.lab_case_numbering import next_lab_case_number
 
-    Base.metadata.create_all(bind=engine)
+    # Skip tables that require PG-only types (Vector, JSONB) when running on SQLite
+    _SQLITE_SKIP = {"rag_docs"}
+    if engine.dialect.name == "sqlite":
+        _tables = [t for t in Base.metadata.sorted_tables if t.name not in _SQLITE_SKIP]
+        Base.metadata.create_all(bind=engine, tables=_tables)
+    else:
+        Base.metadata.create_all(bind=engine)
     SessionLocal = sessionmaker(bind=engine)
     db: Session = SessionLocal()
 

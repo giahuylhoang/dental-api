@@ -44,3 +44,22 @@ class ClinicUpdateRequest(BaseModel):
     address: Optional[str] = None
     contact_phone: Optional[str] = None
     booking_notification_email: Optional[str] = None
+
+
+class ClinicBySpecRequest(BaseModel):
+    """Provision-or-update payload from the enroll_clinic.py orchestrator.
+
+    The orchestrator owns the canonical clinic-spec.yaml; the api accepts the
+    same fields and writes/updates the clinics row idempotently. Unlike
+    ClinicCreateRequest, missing optional fields LEAVE existing values in place.
+    """
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    name: str
+    timezone: Optional[str] = None
+    working_hour_start: Optional[int] = None
+    working_hour_end: Optional[int] = None
+    address: Optional[str] = None
+    contact_phone: Optional[str] = None
+    booking_notification_email: Optional[str] = None

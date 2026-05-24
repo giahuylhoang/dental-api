@@ -5,8 +5,8 @@ from datetime import datetime, date
 from enum import Enum as PyEnum
 from typing import Optional
 
-from sqlalchemy import Column, String, Integer, Boolean, DateTime, Date, Text, ForeignKey, Enum as SQLEnum, DECIMAL, Index
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, String, Integer, Boolean, DateTime, Date, Text, ForeignKey, Enum as SQLEnum, DECIMAL, Index, JSON
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 
 from database.connection import Base
@@ -50,6 +50,7 @@ class Clinic(Base):
     address = Column(Text, nullable=True)
     contact_phone = Column(String, nullable=True)
     booking_notification_email = Column(String, nullable=True)
+    greeting = Column(JSON().with_variant(JSONB, "postgresql"), nullable=False, default=dict, server_default="{}")
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -77,8 +78,13 @@ class Patient(Base):
     guardian_name = Column(String, nullable=True)
     guardian_contact = Column(String, nullable=True)
     consent_approved = Column(Boolean, default=False)
+    # CRM/portal columns (nullable — additive, agent's POST /api/patients unaffected)
+    lead_status_crm = Column(String, nullable=True)  # 'new'/'contacted'/'booked'/'won'/'lost'/'archived'
+    crm_tags = Column(JSON().with_variant(JSONB, "postgresql"), nullable=False, default=dict, server_default="{}")
+    crm_notes = Column(Text, nullable=True)
+    last_contact_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
-    
+
     # Relationships
     clinic = relationship("Clinic", back_populates="patients")
     appointments = relationship("Appointment", back_populates="patient")
@@ -227,3 +233,37 @@ Index(
     ProviderAvailability.provider_id,
     ProviderAvailability.weekday,
 )
+
+
+class ClinicRoutingRules(Base):
+    """Per-clinic agent routing config — one row per clinic."""
+    __tablename__ = "clinic_routing_rules"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    clinic_id = Column(String, ForeignKey("clinics.id", ondelete="CASCADE"), nullable=False, unique=True)
+    rules = Column(JSON().with_variant(JSONB, "postgresql"), nullable=False, default=dict, server_default="{}")
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_by = Column(String, nullable=True)
+
+
+class CallLog(Base):
+    """Per-call record — written by agent shutdown hook (follow-up spec), read by portal."""
+    __tablename__ = "call_logs"
+
+    id = Column(String, primary_key=True)  # LiveKit room name / call SID
+    clinic_id = Column(String, ForeignKey("clinics.id", ondelete="CASCADE"), nullable=False)
+    caller_phone = Column(String, nullable=True)
+    patient_id = Column(String, ForeignKey("patients.id", ondelete="SET NULL"), nullable=True)
+    started_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    ended_at = Column(DateTime(timezone=True), nullable=True)
+    duration_sec = Column(Integer, nullable=True)
+    outcome = Column(String, nullable=True)
+    transcript = Column(JSON().with_variant(JSONB, "postgresql"), nullable=True)
+    audio_url = Column(Text, nullable=True)
+    call_metadata = Column(JSON().with_variant(JSONB, "postgresql"), nullable=False, default=dict, server_default="{}")
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("call_logs_clinic_started_idx", "clinic_id", "started_at"),
+        Index("call_logs_caller_started_idx", "caller_phone", "started_at"),
+    )
