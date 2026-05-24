@@ -7,7 +7,9 @@ from sqlalchemy.orm import Session
 from api.dependencies import get_clinic, get_db
 from database.models import Clinic
 
+from api.v1.clinics.resolver import resolve_clinic_config
 from api.v1.clinics.schemas import (
+    ClinicConfigResponse,
     ClinicCreateRequest,
     ClinicResponse,
     ClinicUpdateRequest,
@@ -62,3 +64,12 @@ async def patch_clinic_me(
     db.commit()
     db.refresh(clinic)
     return ClinicResponse.model_validate(clinic)
+
+
+@router.get("/{clinic_id}/config", response_model=ClinicConfigResponse)
+async def get_clinic_config(clinic_id: str, db: Session = Depends(get_db)):
+    """Return the fully merged clinic config (practice_type defaults + overrides + routing)."""
+    cfg = resolve_clinic_config(db, clinic_id)
+    if cfg is None:
+        raise HTTPException(status_code=404, detail=f"Clinic not found: {clinic_id}")
+    return cfg
