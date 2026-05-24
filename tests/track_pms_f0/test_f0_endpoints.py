@@ -217,7 +217,9 @@ def test_seed_demo_clinic_idempotent():
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    Base.metadata.create_all(bind=test_engine)
+    _sqlite_skip = {"rag_docs"}
+    _sqlite_tables = [t for t in Base.metadata.sorted_tables if t.name not in _sqlite_skip]
+    Base.metadata.create_all(bind=test_engine, tables=_sqlite_tables)
 
     # Patch the engine used by seed_demo_clinic
     import database.connection as _conn
