@@ -1,4 +1,4 @@
-"""Tests for services.rag.embeddings — Gemini text-embedding-005 wrapper."""
+"""Tests for services.rag.embeddings — Gemini gemini-embedding-001 wrapper."""
 import asyncio
 import httpx
 import pytest
@@ -28,10 +28,11 @@ def test_embed_calls_gemini_with_correct_payload(monkeypatch):
     assert len(vec) == 768
     assert vec[0] == pytest.approx(0.1)
     assert captured["method"] == "POST"
-    assert "text-embedding-005" in captured["url"]
+    assert "gemini-embedding-001" in captured["url"]
     assert "embedContent" in captured["url"]
     body = captured["json"]
     assert body["content"]["parts"][0]["text"] == "What's involved in a reline?"
+    assert body["output_dimensionality"] == 768
 
 
 def test_embed_raises_runtime_error_when_key_missing(monkeypatch):

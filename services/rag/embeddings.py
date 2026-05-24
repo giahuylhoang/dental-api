@@ -1,7 +1,12 @@
-"""Async wrapper around Google's text-embedding-005 model.
+"""Async wrapper around Google's gemini-embedding-001 model.
 
 One function: `embed(text) -> list[float]`. Reads GEMINI_API_KEY from env.
 Raises MissingGeminiKey if absent, EmbeddingError on non-200 from upstream.
+
+The model's native output is 3072d; we request 768d via the
+`output_dimensionality` MRL parameter so it matches the rag_docs.embedding
+column type (Vector(768)). 768d is also fine for cosine similarity — MRL
+embeddings retain semantic ordering when truncated.
 """
 import os
 import httpx
@@ -9,8 +14,9 @@ import httpx
 
 _GEMINI_ENDPOINT = (
     "https://generativelanguage.googleapis.com/v1beta/"
-    "models/text-embedding-005:embedContent"
+    "models/gemini-embedding-001:embedContent"
 )
+_OUTPUT_DIM = 768
 _TIMEOUT = httpx.Timeout(connect=5.0, read=10.0, write=5.0, pool=5.0)
 
 
@@ -29,6 +35,7 @@ async def embed(text: str) -> list[float]:
 
     payload = {
         "content": {"parts": [{"text": text}]},
+        "output_dimensionality": _OUTPUT_DIM,
     }
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         resp = await client.request(
