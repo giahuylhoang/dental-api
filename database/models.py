@@ -340,3 +340,16 @@ class CallLog(Base):
         Index("call_logs_clinic_started_idx", "clinic_id", "started_at"),
         Index("call_logs_caller_started_idx", "caller_phone", "started_at"),
     )
+
+
+# ---------------------------------------------------------------------------
+# Re-exports — convenience for callers that resolve clinic config end-to-end.
+#
+# These tables physically live in database.ops.ai_config (AI Receptionist
+# config) and database.v1_1.models (v1.1 polish: hours/closures/etc.). The
+# clinic_config_v2 resolver merges them with PracticeType + ClinicRouting +
+# Clinic, so it's cleaner for one import site (database.models) to expose
+# every model the resolver touches than to scatter the imports.
+# ---------------------------------------------------------------------------
+from database.ops.ai_config import ClinicAiVoice, ClinicAiDisclosure  # noqa: E402,F401
+from database.v1_1.models import ClinicClosure  # noqa: E402,F401
