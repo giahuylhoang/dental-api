@@ -112,3 +112,22 @@ def test_resolve_lists_active_providers(seeded):
 def test_resolve_returns_none_for_unknown_clinic(seeded):
     from api.v1.clinics.resolver import resolve_clinic_config
     assert resolve_clinic_config(seeded, 'does-not-exist') is None
+
+
+def test_clinic_config_response_validates_resolver_output(seeded):
+    from api.v1.clinics.resolver import resolve_clinic_config
+    from api.v1.clinics.schemas import ClinicConfigResponse
+    raw = resolve_clinic_config(seeded, 'clinic-a')
+    assert raw is not None
+    resp = ClinicConfigResponse.model_validate(raw)
+    assert resp.routing.dids == ['+15871234567']
+    assert resp.feature_flags['ai_disclosure_v2'] is True
+
+
+def test_clinic_routing_response_validates(seeded):
+    from api.v1.clinics.resolver import resolve_clinic_routing
+    from api.v1.clinics.schemas import ClinicRoutingResponse
+    raw = resolve_clinic_routing(seeded, 'clinic-a')
+    resp = ClinicRoutingResponse.model_validate(raw)
+    assert resp.dids == ['+15871234567']
+    assert resp.holidays == ['2026-12-25']

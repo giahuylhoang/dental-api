@@ -1,5 +1,5 @@
 """Pydantic schemas for /api/clinics."""
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -44,3 +44,48 @@ class ClinicUpdateRequest(BaseModel):
     address: Optional[str] = None
     contact_phone: Optional[str] = None
     booking_notification_email: Optional[str] = None
+
+
+class RoutingHoursWindow(BaseModel):
+    open: str
+    close: str
+
+
+class ClinicRoutingResponse(BaseModel):
+    timezone: str
+    dids: List[str] = Field(default_factory=list)
+    front_desk_numbers: List[str] = Field(default_factory=list)
+    ring_timeout_seconds: int = 20
+    hours: Dict[str, RoutingHoursWindow] = Field(default_factory=dict)
+    holidays: List[str] = Field(default_factory=list)
+    ai_after_hours: bool = True
+    ai_in_hours_overflow: bool = True
+    backup_number: Optional[str] = None
+    ai_sip_uri: Optional[str] = None
+
+
+class ClinicConfigResponse(BaseModel):
+    id: str
+    name: str
+    display_name: str
+    timezone: str
+    address: Optional[str] = None
+    contact_phone: Optional[str] = None
+    practice_type: Optional[str] = None
+    assistant_name: str
+    ai_disclosure_required: bool = False
+    ai_disclosure_phrase: str
+    greeting_message: str
+    triage_questions: List[str] = Field(default_factory=list)
+    pricing_preface: Optional[str] = None
+    pricing_dentures_range: Optional[str] = None
+    treatment_steps_guardrail: Optional[str] = None
+    feature_flags: Dict[str, Any] = Field(default_factory=dict)
+    general_consultation_service_id: Optional[int] = None
+    knowledge_base_path: Optional[str] = None
+    provider_names: List[str] = Field(default_factory=list)
+    routing: ClinicRoutingResponse
+
+
+class ClinicByDidResponse(BaseModel):
+    clinic_id: str
