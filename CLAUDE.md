@@ -23,7 +23,12 @@ uv run pytest tests/test_api.py::test_x    # single test
 uv run pytest -k slot                      # by keyword
 ```
 
-Tests use an **in-memory SQLite** DB seeded by `tests/conftest.py` — no real DB needed. The `client` fixture overrides `get_db` and seeds the `default` clinic; `client_market_mall` additionally seeds the `market-mall-denture` clinic (providers 101/102, busy blocks, service 700).
+Tests have **two backends** via `tests/conftest.py` — pick the right fixture for what you're testing:
+
+- **SQLite (in-memory, default)** — fixtures `client`, `db_session`, `db_engine`, `client_market_mall`. Fast, no real DB needed, used by most tests. `client` overrides `get_db` and seeds the `default` clinic; `client_market_mall` additionally seeds `market-mall-denture` (providers 101/102, busy blocks, service 700). Tables that can't compile on SQLite (e.g. `rag_docs` with pgvector, `clinic_routing` with `TEXT[]` / `JSONB`) are skipped via `_SQLITE_SKIP_TABLES`.
+- **Postgres + pgvector** — fixtures `pg_client`, `pg_db_session`, `pg_engine`. Connects to `TEST_DATABASE_URL` (default `postgresql://postgres:dev@localhost:5433/dental_test`); skips automatically if unavailable. Use this whenever you're testing tables/columns that require Postgres-specific types (arrays, JSONB-with-GIN, pgvector, etc.) — running `docker compose -f docker-compose.dev.yml up -d postgres` from this repo brings up the dev DB on port 5433.
+
+When adding a table that uses Postgres-only types, add its name to `_SQLITE_SKIP_TABLES` and write its tests against `pg_client` / `pg_db_session`.
 
 DB migration for existing PG instances:
 ```bash
