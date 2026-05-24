@@ -44,3 +44,21 @@ def test_get_routing_returns_full_block(pg_client, seeded_routing):
 def test_get_routing_404_for_unknown_clinic(pg_client, seeded_routing):
     resp = pg_client.get("/api/clinics/missing/routing")
     assert resp.status_code == 404
+
+
+def test_by_did_finds_clinic(pg_client, seeded_routing):
+    resp = pg_client.get("/api/clinics/by-did/+15871234567")
+    assert resp.status_code == 200
+    assert resp.json() == {"clinic_id": "clinic-x"}
+
+
+def test_by_did_normalizes_input(pg_client, seeded_routing):
+    """Whitespace, parens, dashes get stripped to +digits before lookup."""
+    resp = pg_client.get("/api/clinics/by-did/%2B1%20(587)%20123-4567")  # url-encoded "+1 (587) 123-4567"
+    assert resp.status_code == 200
+    assert resp.json() == {"clinic_id": "clinic-x"}
+
+
+def test_by_did_404_for_unknown(pg_client, seeded_routing):
+    resp = pg_client.get("/api/clinics/by-did/+19999999999")
+    assert resp.status_code == 404

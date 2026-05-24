@@ -7,8 +7,13 @@ from sqlalchemy.orm import Session
 from api.dependencies import get_clinic, get_db
 from database.models import Clinic
 
-from api.v1.clinics.resolver import resolve_clinic_config, resolve_clinic_routing
+from api.v1.clinics.resolver import (
+    resolve_clinic_config,
+    resolve_clinic_id_for_did,
+    resolve_clinic_routing,
+)
 from api.v1.clinics.schemas import (
+    ClinicByDidResponse,
     ClinicConfigResponse,
     ClinicCreateRequest,
     ClinicResponse,
@@ -65,6 +70,15 @@ async def patch_clinic_me(
     db.commit()
     db.refresh(clinic)
     return ClinicResponse.model_validate(clinic)
+
+
+@router.get("/by-did/{did:path}", response_model=ClinicByDidResponse)
+async def get_clinic_by_did(did: str, db: Session = Depends(get_db)):
+    """Reverse-index a dialed DID to its owning clinic_id (404 if none)."""
+    clinic_id = resolve_clinic_id_for_did(db, did)
+    if clinic_id is None:
+        raise HTTPException(status_code=404, detail=f"No clinic owns DID: {did}")
+    return {"clinic_id": clinic_id}
 
 
 @router.get("/{clinic_id}/config", response_model=ClinicConfigResponse)
