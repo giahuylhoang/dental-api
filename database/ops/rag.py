@@ -20,7 +20,7 @@ class ClinicFaq(Base):
     __tablename__ = "clinic_faqs"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    clinic_id = Column(String, ForeignKey("clinics.id"), nullable=False, index=True)
+    clinic_id = Column(String, ForeignKey("clinics.id"), nullable=False)
     question = Column(Text, nullable=False)
     answer = Column(Text, nullable=False)
     ordering = Column(Integer, nullable=False, default=0)

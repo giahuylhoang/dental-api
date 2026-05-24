@@ -175,28 +175,31 @@ def pg_engine():
     if not _PG_OK:
         pytest.skip(f"Postgres unavailable at {PG_TEST_URL}")
     engine = _sa.create_engine(PG_TEST_URL, pool_pre_ping=True)
-    with engine.begin() as conn:
-        conn.execute(_sa.text("CREATE EXTENSION IF NOT EXISTS vector"))
-    # Ensure all model modules are imported so Base.metadata sees them
-    import database.models  # noqa: F401
-    import database.ops.rag  # noqa: F401
-    Base.metadata.create_all(bind=engine)
-    yield engine
-    engine.dispose()
+    try:
+        with engine.begin() as conn:
+            conn.execute(_sa.text("CREATE EXTENSION IF NOT EXISTS vector"))
+        import database.models  # noqa: F401
+        import database.ops.rag  # noqa: F401
+        Base.metadata.create_all(bind=engine)
+        yield engine
+    finally:
+        engine.dispose()
 
 
 @pytest.fixture(scope="function")
 def pg_db_session(pg_engine):
     """Per-test transactional session — rolled back at end so tests are hermetic."""
     connection = pg_engine.connect()
-    trans = connection.begin()
-    Session = sessionmaker(bind=connection, autoflush=False, autocommit=False)
-    session = Session()
     try:
-        yield session
+        trans = connection.begin()
+        Session = sessionmaker(bind=connection, autoflush=False, autocommit=False)
+        session = Session()
+        try:
+            yield session
+        finally:
+            session.close()
+            trans.rollback()
     finally:
-        session.close()
-        trans.rollback()
         connection.close()
 
 
@@ -204,10 +207,7 @@ def pg_db_session(pg_engine):
 def pg_client(pg_db_session):
     """FastAPI TestClient with get_db overridden to use the pg_db_session."""
     def _override():
-        try:
-            yield pg_db_session
-        finally:
-            pass
+        yield pg_db_session
 
     app.dependency_overrides[get_db] = _override
     try:
