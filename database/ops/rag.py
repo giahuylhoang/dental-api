@@ -10,7 +10,7 @@ schema — pgvector tests opt in via the `pgvector` marker.
 from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import Column, BigInteger, Integer, String, Text, DateTime, Index
+from sqlalchemy import Column, BigInteger, Integer, String, Text, DateTime, Index, ForeignKey
 from sqlalchemy.dialects.postgresql import JSONB
 
 from database.connection import Base
@@ -20,7 +20,7 @@ class ClinicFaq(Base):
     __tablename__ = "clinic_faqs"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    clinic_id = Column(String, nullable=False, index=True)
+    clinic_id = Column(String, ForeignKey("clinics.id"), nullable=False, index=True)
     question = Column(Text, nullable=False)
     answer = Column(Text, nullable=False)
     ordering = Column(Integer, nullable=False, default=0)
@@ -36,12 +36,12 @@ class RagDoc(Base):
     __tablename__ = "rag_docs"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    clinic_id = Column(String, nullable=False, index=True)
+    clinic_id = Column(String, ForeignKey("clinics.id"), nullable=False)
     doc_title = Column(Text, nullable=False)
     content = Column(Text, nullable=False)
     voice_ready = Column(Text, nullable=True)
     embedding = Column(Vector(768), nullable=True)
-    doc_metadata = Column("metadata", JSONB, nullable=False, default=dict)
+    doc_metadata = Column("metadata", JSONB, nullable=False, default=dict, server_default="{}")
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 

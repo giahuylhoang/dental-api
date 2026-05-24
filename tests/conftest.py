@@ -17,6 +17,7 @@ for _var in (
 os.environ["SEND_BOOKING_SMS"] = "false"
 os.environ["SEND_CLINIC_BOOKING_EMAIL"] = "false"
 
+import sqlalchemy as _sa
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -134,7 +135,7 @@ def pytest_configure(config):
 
 
 # ----- pgvector test fixtures -------------------------------------------------
-import sqlalchemy as _sa
+# `import sqlalchemy as _sa` is at the top of this file.
 
 PG_TEST_URL = os.environ.get(
     "TEST_DATABASE_URL",
@@ -143,14 +144,17 @@ PG_TEST_URL = os.environ.get(
 
 
 def _pg_available() -> bool:
+    eng = None
     try:
         eng = _sa.create_engine(PG_TEST_URL, pool_pre_ping=True)
         with eng.connect() as c:
             c.execute(_sa.text("SELECT 1"))
-        eng.dispose()
         return True
     except Exception:
         return False
+    finally:
+        if eng is not None:
+            eng.dispose()
 
 
 _PG_OK = _pg_available()
@@ -197,6 +201,8 @@ def pg_client(pg_db_session):
             pass
 
     app.dependency_overrides[get_db] = _override
-    with TestClient(app) as c:
-        yield c
-    app.dependency_overrides.pop(get_db, None)
+    try:
+        with TestClient(app) as c:
+            yield c
+    finally:
+        app.dependency_overrides.pop(get_db, None)
