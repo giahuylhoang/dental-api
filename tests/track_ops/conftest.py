@@ -42,7 +42,7 @@ def _isolate_env(monkeypatch):
 # Tables whose column types (e.g. pgvector.Vector, PG JSONB) cannot compile on
 # SQLite. RAG features are exercised by the `pg_engine`/`pg_db_session`/`pg_client`
 # fixtures, which run against the real Postgres + pgvector. Keep this set tight.
-_SQLITE_SKIP_TABLES = {"rag_docs"}
+_SQLITE_SKIP_TABLES = {"rag_docs", "clinic_routing"}
 
 
 @pytest.fixture(scope="function")

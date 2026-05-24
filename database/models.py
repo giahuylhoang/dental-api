@@ -5,8 +5,8 @@ from datetime import datetime, date
 from enum import Enum as PyEnum
 from typing import Optional
 
-from sqlalchemy import Column, String, Integer, Boolean, DateTime, Date, Text, ForeignKey, Enum as SQLEnum, DECIMAL, Index, JSON
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy import Column, String, Integer, Boolean, DateTime, Date, Text, ForeignKey, Enum as SQLEnum, DECIMAL, Index, JSON, func
+from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY
 from sqlalchemy.orm import relationship
 
 from database.connection import Base
@@ -51,15 +51,40 @@ class Clinic(Base):
     contact_phone = Column(String, nullable=True)
     booking_notification_email = Column(String, nullable=True)
     greeting = Column(JSON().with_variant(JSONB, "postgresql"), nullable=False, default=dict, server_default="{}")
+    # clinic_config_v2: shared-defaults FK + per-clinic overrides
+    practice_type_id = Column(String, ForeignKey("practice_types.id"), nullable=True)
+    knowledge_base_path = Column(String, nullable=True)
+    # use_alter=True breaks the clinics<->services FK cycle so SQLAlchemy can
+    # sort tables for create_all; the actual FK is emitted post-creation via
+    # ALTER TABLE on Postgres (and elided on SQLite, which doesn't support
+    # ALTER TABLE ADD FOREIGN KEY anyway).
+    general_consultation_service_id = Column(
+        Integer,
+        ForeignKey("services.id", use_alter=True, name="fk_clinics_general_consultation_service_id"),
+        nullable=True,
+    )
+    feature_flags_overrides = Column(JSON, nullable=False, default=dict, server_default="{}")
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
     patients = relationship("Patient", back_populates="clinic")
     providers = relationship("Provider", back_populates="clinic")
-    services = relationship("Service", back_populates="clinic")
+    services = relationship("Service", back_populates="clinic", foreign_keys="Service.clinic_id")
     appointments = relationship("Appointment", back_populates="clinic")
     leads = relationship("Lead", back_populates="clinic")
+    practice_type = relationship("PracticeType", lazy="joined")
+    # ``routing`` uses lazy="select" (not "joined") because clinic_routing is a
+    # Postgres-only table (TEXT[] + JSONB), skipped on SQLite test runs via
+    # _SQLITE_SKIP_TABLES. An eager JOIN would fire on every Clinic load and
+    # crash SQLite-backed tests with "no such table: clinic_routing". Callers
+    # that need routing should query it explicitly (or .selectinload()).
+    routing = relationship(
+        "ClinicRouting",
+        uselist=False,
+        cascade="all, delete-orphan",
+        back_populates="clinic",
+    )
 
 
 class Patient(Base):
@@ -169,7 +194,10 @@ class Service(Base):
     base_price = Column(DECIMAL(10, 2), nullable=True)
     
     # Relationships
-    clinic = relationship("Clinic", back_populates="services")
+    # Disambiguate: Clinic now has TWO FKs to Service (services.clinic_id and
+    # clinics.general_consultation_service_id from clinic_config_v2). Pin this
+    # relationship to the services.clinic_id side.
+    clinic = relationship("Clinic", back_populates="services", foreign_keys=[clinic_id])
     appointments = relationship("Appointment", back_populates="service")
 
 
@@ -244,6 +272,51 @@ class ClinicRoutingRules(Base):
     rules = Column(JSON().with_variant(JSONB, "postgresql"), nullable=False, default=dict, server_default="{}")
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
     updated_by = Column(String, nullable=True)
+
+
+class PracticeType(Base):
+    """Shared defaults for a class of practice (denturist, dentist, ...).
+
+    Many clinics may share one practice_type row; the merged config is
+    practice_type ← clinic columns ← per-clinic override tables.
+    """
+    __tablename__ = "practice_types"
+
+    id = Column(String, primary_key=True)
+    assistant_name = Column(String, nullable=False)
+    ai_disclosure_required = Column(Boolean, nullable=False, default=True, server_default="true")
+    ai_disclosure_phrase = Column(Text, nullable=False)
+    greeting_message = Column(Text, nullable=False)
+    pricing_preface = Column(Text, nullable=False)
+    pricing_dentures_range = Column(Text, nullable=True)
+    treatment_steps_guardrail = Column(Text, nullable=False)
+    triage_questions = Column(JSON, nullable=False, default=list, server_default="[]")
+    default_feature_flags = Column(JSON, nullable=False, default=dict, server_default="{}")
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class ClinicRouting(Base):
+    """Per-clinic routing/telephony config.
+
+    dids and front_desk_numbers are TEXT[] (Postgres-native arrays);
+    hours is a single JSONB column shaped like {"mon": {"open":..., "close":...}, ...}.
+    The GIN index on dids powers the by-did reverse lookup.
+    """
+    __tablename__ = "clinic_routing"
+
+    clinic_id = Column(String, ForeignKey("clinics.id", ondelete="CASCADE"), primary_key=True)
+    ring_timeout_seconds = Column(Integer, nullable=False, default=20, server_default="20")
+    ai_after_hours = Column(Boolean, nullable=False, default=True, server_default="true")
+    ai_in_hours_overflow = Column(Boolean, nullable=False, default=True, server_default="true")
+    backup_number = Column(String, nullable=True)
+    ai_sip_uri = Column(String, nullable=True)
+    dids = Column(ARRAY(Text), nullable=False, default=list, server_default="{}")
+    front_desk_numbers = Column(ARRAY(Text), nullable=False, default=list, server_default="{}")
+    hours = Column(JSONB, nullable=False, default=dict, server_default="{}")
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    clinic = relationship("Clinic", back_populates="routing")
 
 
 class CallLog(Base):

@@ -35,7 +35,7 @@ EXPECTED_TABLES = [
 ]
 
 
-_SQLITE_SKIP_TABLES = {"rag_docs"}
+_SQLITE_SKIP_TABLES = {"rag_docs", "clinic_routing"}
 
 
 def test_database_schema_tables_exist():

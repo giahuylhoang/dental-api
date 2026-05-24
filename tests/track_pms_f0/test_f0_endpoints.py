@@ -217,7 +217,7 @@ def test_seed_demo_clinic_idempotent():
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    _sqlite_skip = {"rag_docs"}
+    _sqlite_skip = {"rag_docs", "clinic_routing"}
     _sqlite_tables = [t for t in Base.metadata.sorted_tables if t.name not in _sqlite_skip]
     Base.metadata.create_all(bind=test_engine, tables=_sqlite_tables)
 

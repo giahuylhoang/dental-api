@@ -154,3 +154,85 @@ def test_upgrade_and_downgrade_lifecycle_for_fks(pg_engine):
     fk_names = {fk["name"] for fk in insp.get_foreign_keys("clinics")}
     assert "fk_clinics_practice_type_id" not in fk_names
     assert "fk_clinics_general_consultation_service_id" not in fk_names
+
+
+@pytest.fixture
+def pg_session_at_head():
+    """Per-test transactional session pinned to the current alembic head.
+
+    The local ``pg_engine`` fixture above downgrades to the prior revision in
+    setup so the migration-level tests get a real upgrade to assert on. That
+    same shadowing means the conftest ``pg_db_session`` fixture (which depends
+    on a ``pg_engine`` name) resolves to the *local* downgrading fixture in
+    this file — leaving the schema without ``practice_types`` /
+    ``clinic_routing`` for any ORM-level test. To keep model-level tests
+    independent of migration ordering, build our own engine + session here
+    and force an alembic upgrade first.
+    """
+    if not _pg_available(PG_TEST_URL):
+        pytest.skip(f"Postgres unavailable at {PG_TEST_URL}")
+    up = _alembic(["upgrade", "g1h2i3j4k5l6"])
+    assert up.returncode == 0, f"setup upgrade failed:\n{up.stdout}\n{up.stderr}"
+
+    from sqlalchemy.orm import sessionmaker
+    from database.models import Clinic
+
+    engine = sa.create_engine(PG_TEST_URL, pool_pre_ping=True)
+    connection = engine.connect()
+    try:
+        trans = connection.begin()
+        Session = sessionmaker(bind=connection, autoflush=False, autocommit=False)
+        session = Session()
+        # Seed the test clinic so the FK on clinic_routing.clinic_id is satisfied.
+        if session.query(Clinic).filter(Clinic.id == "t_clinic").first() is None:
+            session.add(Clinic(id="t_clinic", name="Test Clinic"))
+            session.flush()
+        try:
+            yield session
+        finally:
+            session.close()
+            trans.rollback()
+    finally:
+        connection.close()
+        engine.dispose()
+
+
+def test_models_can_insert_practice_type(pg_session_at_head):
+    """Inserting via the ORM should round-trip all columns including JSON."""
+    from database.models import PracticeType
+    pt = PracticeType(
+        id='denturist',
+        assistant_name='Emma',
+        ai_disclosure_required=True,
+        ai_disclosure_phrase="I'm a virtual receptionist",
+        greeting_message='hello',
+        pricing_preface='preface',
+        pricing_dentures_range='1700-2200',
+        treatment_steps_guardrail='guardrail',
+        triage_questions=['q1', 'q2', 'q3'],
+        default_feature_flags={'sms_notifications': True},
+    )
+    pg_session_at_head.add(pt)
+    pg_session_at_head.flush()
+    fetched = pg_session_at_head.query(PracticeType).filter_by(id='denturist').one()
+    assert fetched.triage_questions == ['q1', 'q2', 'q3']
+    assert fetched.default_feature_flags == {'sms_notifications': True}
+
+
+def test_models_can_insert_clinic_routing(pg_session_at_head):
+    from database.models import ClinicRouting
+    pg_session_at_head.add(ClinicRouting(
+        clinic_id='t_clinic',
+        ring_timeout_seconds=18,
+        ai_after_hours=False,
+        ai_in_hours_overflow=True,
+        backup_number='+15871234567',
+        ai_sip_uri='sip:test@example.com',
+        dids=['+15871234567', '+15879999999'],
+        front_desk_numbers=['+15871112222'],
+        hours={'mon': {'open': '09:00', 'close': '17:00'}},
+    ))
+    pg_session_at_head.flush()
+    fetched = pg_session_at_head.query(ClinicRouting).filter_by(clinic_id='t_clinic').one()
+    assert fetched.dids == ['+15871234567', '+15879999999']
+    assert fetched.hours == {'mon': {'open': '09:00', 'close': '17:00'}}
