@@ -199,3 +199,9 @@ except ImportError:
 # ============================================================================
 from api.portal import router as portal_router
 app.include_router(portal_router)
+
+# ============================================================================
+# Clinic Q&A RAG — read endpoints (voice agent) + admin write routes (portal).
+# ============================================================================
+from api.rag.router import router as _rag_router
+app.include_router(_rag_router)
