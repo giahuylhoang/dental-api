@@ -205,3 +205,5 @@ app.include_router(portal_router)
 # ============================================================================
 from api.rag.router import router as _rag_router
 app.include_router(_rag_router)
+from api.admin.rag_router import router as _admin_rag_router
+app.include_router(_admin_rag_router)
