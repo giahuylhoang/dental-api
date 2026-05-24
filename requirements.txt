@@ -13,3 +13,4 @@ python-dotenv>=1.0.0
 python-multipart>=0.0.20
 twilio>=9.0.0
 firebase-admin>=6.2.0
+pgvector>=0.2.0
