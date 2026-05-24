@@ -1,9 +1,10 @@
 """v1 patients router — /api/patients CRUD + /api/patients/verify."""
 import logging
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from api.dependencies import get_clinic, get_db
@@ -156,3 +157,36 @@ async def update_patient(
     db.commit()
     db.refresh(patient)
     return PatientResponse.model_validate(patient)
+
+
+class CRMRollupBody(BaseModel):
+    """PUT /api/patients/{id}/crm-rollup — CRM-only allowlist."""
+    lead_status_crm: Optional[str] = None
+    crm_tags: Optional[Dict[str, Any]] = None
+    crm_notes: Optional[str] = None
+    last_contact_at: Optional[datetime] = None
+
+    model_config = {"extra": "forbid"}
+
+
+@router.put("/{patient_id}/crm-rollup")
+def crm_rollup(
+    patient_id: str,
+    body: CRMRollupBody,
+    db: Session = Depends(get_db),
+    clinic: Clinic = Depends(get_clinic),
+):
+    """Update CRM-only columns on a Patient (identity fields are not accepted)."""
+    p = db.query(Patient).filter_by(id=patient_id, clinic_id=clinic.id).first()
+    if p is None:
+        raise HTTPException(404, "patient_not_found")
+    if body.lead_status_crm is not None:
+        p.lead_status_crm = body.lead_status_crm
+    if body.crm_tags is not None:
+        p.crm_tags = body.crm_tags
+    if body.crm_notes is not None:
+        p.crm_notes = body.crm_notes
+    if body.last_contact_at is not None:
+        p.last_contact_at = body.last_contact_at
+    db.commit()
+    return {"id": patient_id, "status": "ok"}

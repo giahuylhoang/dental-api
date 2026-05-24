@@ -120,6 +120,8 @@ from api.v1.appointments.router import router as _v1_appointments_router
 app.include_router(_v1_appointments_router)
 from api.v1.calendar.router import router as _v1_calendar_router
 app.include_router(_v1_calendar_router)
+from api.v1.calls.router import router as _v1_calls_router
+app.include_router(_v1_calls_router)
 
 # ============================================================================
 # v2 routers (Track 1 — Auth / RBAC / Audit)
@@ -190,3 +192,18 @@ try:
     app.include_router(_events_router)
 except ImportError:
     pass
+
+# ============================================================================
+# Portal admin layer — Firebase-authenticated /api/portal/* routes.
+# Merged from the standalone admin-api service.
+# ============================================================================
+from api.portal import router as portal_router
+app.include_router(portal_router)
+
+# ============================================================================
+# Clinic Q&A RAG — read endpoints (voice agent) + admin write routes (portal).
+# ============================================================================
+from api.rag.router import router as _rag_router
+app.include_router(_rag_router)
+from api.admin.rag_router import router as _admin_rag_router
+app.include_router(_admin_rag_router)

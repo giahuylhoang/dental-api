@@ -17,6 +17,7 @@ for _var in (
 os.environ["SEND_BOOKING_SMS"] = "false"
 os.environ["SEND_CLINIC_BOOKING_EMAIL"] = "false"
 
+import sqlalchemy as _sa
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -63,6 +64,12 @@ def _isolate_notification_env(monkeypatch):
     monkeypatch.setattr(_email_client, "SEND_CLINIC_BOOKING_EMAIL", False)
 
 
+# Tables whose column types (e.g. pgvector.Vector, PG JSONB) cannot compile on
+# SQLite. RAG features are exercised by the `pg_engine`/`pg_db_session`/`pg_client`
+# fixtures, which run against the real Postgres + pgvector. Keep this set tight.
+_SQLITE_SKIP_TABLES = {"rag_docs"}
+
+
 @pytest.fixture(scope="function")
 def db_engine():
     """Create a fresh in-memory engine and tables per test."""
@@ -71,7 +78,10 @@ def db_engine():
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    Base.metadata.create_all(bind=engine)
+    sqlite_tables = [
+        t for t in Base.metadata.sorted_tables if t.name not in _SQLITE_SKIP_TABLES
+    ]
+    Base.metadata.create_all(bind=engine, tables=sqlite_tables)
     yield engine
     engine.dispose()
 
@@ -127,3 +137,86 @@ def client_market_mall(client, db_session):
     seed_market_mall_denture(db_session)
     db_session.commit()
     yield client
+
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "pgvector: requires Postgres + pgvector running")
+
+
+# ----- pgvector test fixtures -------------------------------------------------
+# `import sqlalchemy as _sa` is at the top of this file.
+
+PG_TEST_URL = os.environ.get(
+    "TEST_DATABASE_URL",
+    "postgresql://postgres:dev@localhost:5433/dental_test",
+)
+
+
+def _pg_available() -> bool:
+    eng = None
+    try:
+        eng = _sa.create_engine(PG_TEST_URL, pool_pre_ping=True)
+        with eng.connect() as c:
+            c.execute(_sa.text("SELECT 1"))
+        return True
+    except Exception:
+        return False
+    finally:
+        if eng is not None:
+            eng.dispose()
+
+
+_PG_OK = _pg_available()
+
+
+@pytest.fixture(scope="session")
+def pg_engine():
+    """Postgres + pgvector engine; tables created from Base.metadata at session start."""
+    if not _PG_OK:
+        pytest.skip(f"Postgres unavailable at {PG_TEST_URL}")
+    engine = _sa.create_engine(PG_TEST_URL, pool_pre_ping=True)
+    try:
+        with engine.begin() as conn:
+            conn.execute(_sa.text("CREATE EXTENSION IF NOT EXISTS vector"))
+        import database.models  # noqa: F401
+        import database.ops.rag  # noqa: F401
+        Base.metadata.create_all(bind=engine)
+        yield engine
+    finally:
+        engine.dispose()
+
+
+@pytest.fixture(scope="function")
+def pg_db_session(pg_engine):
+    """Per-test transactional session — rolled back at end so tests are hermetic."""
+    from database.models import Clinic
+    connection = pg_engine.connect()
+    try:
+        trans = connection.begin()
+        Session = sessionmaker(bind=connection, autoflush=False, autocommit=False)
+        session = Session()
+        # Seed a test clinic so FK constraints on clinic_id="t_clinic" pass.
+        if session.query(Clinic).filter(Clinic.id == "t_clinic").first() is None:
+            session.add(Clinic(id="t_clinic", name="Test Clinic"))
+            session.flush()
+        try:
+            yield session
+        finally:
+            session.close()
+            trans.rollback()
+    finally:
+        connection.close()
+
+
+@pytest.fixture(scope="function")
+def pg_client(pg_db_session):
+    """FastAPI TestClient with get_db overridden to use the pg_db_session."""
+    def _override():
+        yield pg_db_session
+
+    app.dependency_overrides[get_db] = _override
+    try:
+        with TestClient(app) as c:
+            yield c
+    finally:
+        app.dependency_overrides.pop(get_db, None)

@@ -35,6 +35,9 @@ EXPECTED_TABLES = [
 ]
 
 
+_SQLITE_SKIP_TABLES = {"rag_docs"}
+
+
 def test_database_schema_tables_exist():
     """After create_all, all expected tables exist."""
     engine = create_engine(
@@ -42,7 +45,10 @@ def test_database_schema_tables_exist():
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    Base.metadata.create_all(bind=engine)
+    sqlite_tables = [
+        t for t in Base.metadata.sorted_tables if t.name not in _SQLITE_SKIP_TABLES
+    ]
+    Base.metadata.create_all(bind=engine, tables=sqlite_tables)
     inspector = inspect(engine)
     tables = inspector.get_table_names()
     for expected in EXPECTED_TABLES:

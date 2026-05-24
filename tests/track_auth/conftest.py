@@ -30,10 +30,19 @@ def pin_jwt_secret(monkeypatch):
         del deps.get_jwt_secret._dev_secret
 
 
+# Tables whose column types (e.g. pgvector.Vector, PG JSONB) cannot compile on
+# SQLite. RAG features are exercised by the `pg_engine`/`pg_db_session`/`pg_client`
+# fixtures, which run against the real Postgres + pgvector. Keep this set tight.
+_SQLITE_SKIP_TABLES = {"rag_docs"}
+
+
 @pytest.fixture()
 def db_engine():
     engine = create_engine(SQLITE_URL, connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    Base.metadata.create_all(bind=engine)
+    sqlite_tables = [
+        t for t in Base.metadata.sorted_tables if t.name not in _SQLITE_SKIP_TABLES
+    ]
+    Base.metadata.create_all(bind=engine, tables=sqlite_tables)
     yield engine
     engine.dispose()
 
