@@ -189,11 +189,16 @@ def pg_engine():
 @pytest.fixture(scope="function")
 def pg_db_session(pg_engine):
     """Per-test transactional session — rolled back at end so tests are hermetic."""
+    from database.models import Clinic
     connection = pg_engine.connect()
     try:
         trans = connection.begin()
         Session = sessionmaker(bind=connection, autoflush=False, autocommit=False)
         session = Session()
+        # Seed a test clinic so FK constraints on clinic_id="t_clinic" pass.
+        if session.query(Clinic).filter(Clinic.id == "t_clinic").first() is None:
+            session.add(Clinic(id="t_clinic", name="Test Clinic"))
+            session.flush()
         try:
             yield session
         finally:
