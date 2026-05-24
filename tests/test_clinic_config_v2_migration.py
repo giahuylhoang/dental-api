@@ -22,7 +22,7 @@ import pytest
 import sqlalchemy as sa
 
 
-pytestmark = pytest.mark.pgvector  # marker for "needs Postgres"
+pytestmark = pytest.mark.postgres  # marker for "needs Postgres" (no pgvector required)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -101,6 +101,17 @@ def test_upgrade_creates_clinic_routing(pg_engine):
     indexes = {i["name"] for i in insp.get_indexes("clinic_routing")}
     assert "ix_clinic_routing_dids" in indexes
 
+    # The whole rationale for this table being Postgres-only is the column
+    # types (TEXT[], JSONB-with-GIN). Asserting presence alone would let a
+    # future refactor silently downgrade them to TEXT/JSON.
+    cols_by_name = {c["name"]: c for c in insp.get_columns("clinic_routing")}
+    dids_type = repr(cols_by_name["dids"]["type"]).upper()
+    assert "ARRAY" in dids_type, f"dids should be TEXT[], got {dids_type}"
+    fdn_type = repr(cols_by_name["front_desk_numbers"]["type"]).upper()
+    assert "ARRAY" in fdn_type, f"front_desk_numbers should be TEXT[], got {fdn_type}"
+    hours_type = repr(cols_by_name["hours"]["type"]).upper()
+    assert "JSONB" in hours_type, f"hours should be JSONB, got {hours_type}"
+
 
 def test_upgrade_adds_clinics_columns(pg_engine):
     up = _alembic(["upgrade", "g1h2i3j4k5l6"])
@@ -123,3 +134,23 @@ def test_downgrade_restores_schema(pg_engine):
     cols = {c["name"] for c in insp.get_columns("clinics")}
     assert "practice_type_id" not in cols
     assert "feature_flags_overrides" not in cols
+
+
+def test_upgrade_and_downgrade_lifecycle_for_fks(pg_engine):
+    """FKs from clinics → practice_types and clinics → services are created on
+    upgrade and dropped on downgrade. Without this, a future refactor could
+    quietly stop creating the FKs and the columns-restored test would still
+    pass (dropping the columns cascades the FK drop)."""
+    up = _alembic(["upgrade", "g1h2i3j4k5l6"])
+    assert up.returncode == 0, f"upgrade failed:\n{up.stdout}\n{up.stderr}"
+    insp = sa.inspect(pg_engine)
+    fk_names = {fk["name"] for fk in insp.get_foreign_keys("clinics")}
+    assert "fk_clinics_practice_type_id" in fk_names
+    assert "fk_clinics_general_consultation_service_id" in fk_names
+
+    down = _alembic(["downgrade", "-1"])
+    assert down.returncode == 0, f"downgrade failed:\n{down.stdout}\n{down.stderr}"
+    insp = sa.inspect(pg_engine)
+    fk_names = {fk["name"] for fk in insp.get_foreign_keys("clinics")}
+    assert "fk_clinics_practice_type_id" not in fk_names
+    assert "fk_clinics_general_consultation_service_id" not in fk_names

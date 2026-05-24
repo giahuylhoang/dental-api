@@ -43,6 +43,7 @@ def upgrade() -> None:
         sa.Column('pricing_preface', sa.Text(), nullable=False),
         sa.Column('pricing_dentures_range', sa.Text(), nullable=True),
         sa.Column('treatment_steps_guardrail', sa.Text(), nullable=False),
+        # sa.JSON (not JSONB) keeps practice_types compatible with both backends; these fields are never queried by content
         sa.Column('triage_questions', sa.JSON(), nullable=False, server_default=triage_default),
         sa.Column('default_feature_flags', sa.JSON(), nullable=False, server_default=flags_default),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),

@@ -141,6 +141,7 @@ def client_market_mall(client, db_session):
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "pgvector: requires Postgres + pgvector running")
+    config.addinivalue_line("markers", "postgres: requires Postgres running")
 
 
 # ----- pgvector test fixtures -------------------------------------------------
