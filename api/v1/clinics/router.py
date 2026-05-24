@@ -18,15 +18,17 @@ from api.v1.clinics.schemas import (
 router = APIRouter(prefix="/api/clinics", tags=["clinics"])
 
 
-def _require_admin_token(x_admin_token: str = Header(..., alias="X-Admin-Token")) -> None:
+def _require_admin_token(
+    x_admin_token: str | None = Header(default=None, alias="X-Admin-Token"),
+) -> None:
     """Inline dep validating the X-Admin-Token header against DENTAL_ADMIN_TOKEN env.
 
     Defined here (not in a shared auth module) to keep S1's scope tight and to
     avoid forcing other endpoints to opt into a new auth dep. Returns None on
-    success, raises 401 on mismatch.
+    success, raises 401 on mismatch OR when the header is missing entirely.
     """
     expected = os.environ.get("DENTAL_ADMIN_TOKEN")
-    if not expected or x_admin_token != expected:
+    if not expected or not x_admin_token or x_admin_token != expected:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="invalid X-Admin-Token",
