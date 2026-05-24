@@ -127,3 +127,76 @@ def client_market_mall(client, db_session):
     seed_market_mall_denture(db_session)
     db_session.commit()
     yield client
+
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "pgvector: requires Postgres + pgvector running")
+
+
+# ----- pgvector test fixtures -------------------------------------------------
+import sqlalchemy as _sa
+
+PG_TEST_URL = os.environ.get(
+    "TEST_DATABASE_URL",
+    "postgresql://postgres:dev@localhost:5433/dental_test",
+)
+
+
+def _pg_available() -> bool:
+    try:
+        eng = _sa.create_engine(PG_TEST_URL, pool_pre_ping=True)
+        with eng.connect() as c:
+            c.execute(_sa.text("SELECT 1"))
+        eng.dispose()
+        return True
+    except Exception:
+        return False
+
+
+_PG_OK = _pg_available()
+
+
+@pytest.fixture(scope="session")
+def pg_engine():
+    """Postgres + pgvector engine; tables created from Base.metadata at session start."""
+    if not _PG_OK:
+        pytest.skip(f"Postgres unavailable at {PG_TEST_URL}")
+    engine = _sa.create_engine(PG_TEST_URL, pool_pre_ping=True)
+    with engine.begin() as conn:
+        conn.execute(_sa.text("CREATE EXTENSION IF NOT EXISTS vector"))
+    # Ensure all model modules are imported so Base.metadata sees them
+    import database.models  # noqa: F401
+    import database.ops.rag  # noqa: F401
+    Base.metadata.create_all(bind=engine)
+    yield engine
+    engine.dispose()
+
+
+@pytest.fixture(scope="function")
+def pg_db_session(pg_engine):
+    """Per-test transactional session — rolled back at end so tests are hermetic."""
+    connection = pg_engine.connect()
+    trans = connection.begin()
+    Session = sessionmaker(bind=connection, autoflush=False, autocommit=False)
+    session = Session()
+    try:
+        yield session
+    finally:
+        session.close()
+        trans.rollback()
+        connection.close()
+
+
+@pytest.fixture(scope="function")
+def pg_client(pg_db_session):
+    """FastAPI TestClient with get_db overridden to use the pg_db_session."""
+    def _override():
+        try:
+            yield pg_db_session
+        finally:
+            pass
+
+    app.dependency_overrides[get_db] = _override
+    with TestClient(app) as c:
+        yield c
+    app.dependency_overrides.pop(get_db, None)
