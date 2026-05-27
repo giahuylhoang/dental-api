@@ -101,3 +101,55 @@ def clinic_day_window(
             )
 
     return window
+
+
+def provider_day_window(
+    provider_id: int,
+    clinic_id: str,
+    target_date: date,
+    daily_window: IntervalSet,
+    db: Session,
+    tz: pytz.tzinfo.BaseTzInfo,
+) -> IntervalSet:
+    """Narrow daily_window to a provider's working hours on target_date.
+
+    If the provider has no provider_availability rows for this weekday, return
+    daily_window unchanged (decision C: no rows = "available during clinic hours").
+    Otherwise union the rows for this weekday and intersect with daily_window.
+    """
+    if daily_window.is_empty:
+        return daily_window
+
+    rows = (
+        db.query(ProviderAvailability)
+        .filter(
+            ProviderAvailability.clinic_id == clinic_id,
+            ProviderAvailability.provider_id == provider_id,
+            ProviderAvailability.weekday == target_date.weekday(),
+        )
+        .all()
+    )
+    if not rows:
+        return daily_window
+
+    pieces = []
+    for r in rows:
+        start = _combine(target_date, time(r.start_hour, r.start_minute), tz)
+        end = _combine(target_date, time(r.end_hour, r.end_minute), tz)
+        if start < end:
+            pieces.append((start, end))
+    if not pieces:
+        return IntervalSet([])
+
+    # Build a sorted, non-overlapping union. Existing rows may overlap or be
+    # out-of-order; flatten via subtract trick (union(A,B) = total - (total - A - B)
+    # is overkill — just sort + merge).
+    pieces.sort()
+    merged = [pieces[0]]
+    for s, e in pieces[1:]:
+        last_s, last_e = merged[-1]
+        if s <= last_e:
+            merged[-1] = (last_s, max(last_e, e))
+        else:
+            merged.append((s, e))
+    return IntervalSet(merged).intersect(daily_window)
