@@ -692,6 +692,27 @@ def test_clinic_create_and_me(client):
     assert me_resp.json()["id"] == "clinic-a"
 
 
+def test_list_clinics_returns_summary_shape(client):
+    """GET /api/clinics powers the CRM/admin sidebar clinic switcher.
+    Must be reachable WITHOUT an X-Clinic-Id header (the switcher needs to
+    populate before a clinic has been picked) and return only id/name/timezone."""
+    client.post("/api/clinics", json={"id": "clinic-a", "name": "Clinic A"})
+    client.post(
+        "/api/clinics",
+        json={"id": "clinic-b", "name": "Clinic B", "timezone": "America/Toronto"},
+    )
+
+    resp = client.get("/api/clinics")  # no X-Clinic-Id header on purpose
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "clinics" in body
+    ids = [c["id"] for c in body["clinics"]]
+    assert "clinic-a" in ids and "clinic-b" in ids
+    # response must NOT leak operational/PII fields
+    sample = body["clinics"][0]
+    assert set(sample.keys()) == {"id", "name", "timezone"}
+
+
 def test_patch_clinic_me_updates_contact_fields(client):
     r = client.patch(
         "/api/clinics/me",

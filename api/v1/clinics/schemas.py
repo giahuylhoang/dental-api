@@ -89,3 +89,20 @@ class ClinicConfigResponse(BaseModel):
 
 class ClinicByDidResponse(BaseModel):
     clinic_id: str
+
+
+class ClinicSummary(BaseModel):
+    """Minimal clinic shape for list/switcher UIs.
+
+    Intentionally omits operational + PII fields (working hours, address,
+    notification email) — those belong to /clinics/me or /clinics/{id}/config."""
+
+    id: str
+    name: str
+    timezone: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ClinicsListResponse(BaseModel):
+    clinics: List[ClinicSummary]

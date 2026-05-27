@@ -18,10 +18,24 @@ from api.v1.clinics.schemas import (
     ClinicCreateRequest,
     ClinicResponse,
     ClinicRoutingResponse,
+    ClinicSummary,
+    ClinicsListResponse,
     ClinicUpdateRequest,
 )
 
 router = APIRouter(prefix="/api/clinics", tags=["clinics"])
+
+
+@router.get("", response_model=ClinicsListResponse)
+async def list_clinics(db: Session = Depends(get_db)):
+    """Return every clinic in the database (id + name + timezone).
+
+    Unscoped on purpose — the CRM/admin sidebar uses this to populate the
+    clinic switcher before any X-Clinic-Id has been picked. Clinic IDs and
+    names are not secrets; per-clinic data is still gated by the
+    X-Clinic-Id header on every other endpoint."""
+    rows = db.query(Clinic).order_by(Clinic.name).all()
+    return {"clinics": [ClinicSummary.model_validate(r) for r in rows]}
 
 
 @router.post("", response_model=ClinicResponse)
