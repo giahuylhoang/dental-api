@@ -9,12 +9,15 @@ import pytest
 
 import api.main as api_main
 
+from datetime import time as _time
+
 from database.models import (
     DEFAULT_CLINIC_ID,
     Provider,
     ProviderBusyBlock,
     Service,
 )
+from database.v1_1.models import ClinicOperatingHours
 
 
 # ---------------------------------------------------------------------------
@@ -139,6 +142,17 @@ def seed_providers_and_services(db_session):
         base_price=150.0,
     )
     db_session.add_all([provider1, provider2, service1])
+    # Seed per-weekday clinic operating hours (9-17 Mon-Fri) so the new
+    # slot engine can resolve windows. (Spec rewrite removed the legacy
+    # clinic.working_hour_start/end fallback.)
+    for dow in (0, 1, 2, 3, 4):
+        if not db_session.query(ClinicOperatingHours).filter_by(
+            clinic_id=DEFAULT_CLINIC_ID, day_of_week=dow
+        ).first():
+            db_session.add(ClinicOperatingHours(
+                clinic_id=DEFAULT_CLINIC_ID, day_of_week=dow,
+                open_at=_time(9, 0), close_at=_time(17, 0), is_closed=False,
+            ))
     db_session.commit()
     return provider1, provider2, service1
 

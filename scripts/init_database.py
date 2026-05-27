@@ -7,8 +7,11 @@ import os
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
+from datetime import time as _time
+
 from database.connection import init_db, SessionLocal
 from database.models import Provider, Service, Clinic, ProviderBusyBlock, DEFAULT_CLINIC_ID
+from database.v1_1.models import ClinicOperatingHours
 from scripts.service_descriptions import SERVICE_DESCRIPTIONS
 
 MARKET_MALL_CLINIC_ID = "market-mall-denture"
@@ -30,6 +33,18 @@ def seed_market_mall_denture(db):
     )
     db.add(clinic)
     db.flush()
+    # Per-weekday clinic hours (Mon-Fri 9-17). Required by the new slot
+    # engine — the legacy clinic.working_hour_start/end fallback was removed.
+    for dow in (0, 1, 2, 3, 4):
+        db.add(ClinicOperatingHours(
+            clinic_id=MARKET_MALL_CLINIC_ID, day_of_week=dow,
+            open_at=_time(9, 0), close_at=_time(17, 0), is_closed=False,
+        ))
+    for dow in (5, 6):
+        db.add(ClinicOperatingHours(
+            clinic_id=MARKET_MALL_CLINIC_ID, day_of_week=dow,
+            open_at=_time(0, 0), close_at=_time(0, 0), is_closed=True,
+        ))
     providers = [
         Provider(id=101, clinic_id=MARKET_MALL_CLINIC_ID, name="Soheil", title="Denturist", specialty="Denturist", is_active=True),
         Provider(id=102, clinic_id=MARKET_MALL_CLINIC_ID, name="Nadeem", title="Denturist", specialty="Denturist", is_active=True),
