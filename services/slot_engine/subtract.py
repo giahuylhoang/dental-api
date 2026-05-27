@@ -123,3 +123,42 @@ def time_off_for(
         if lo < hi:
             pieces.append((lo, hi))
     return IntervalSet(sorted(pieces))
+
+
+def appointments_for(
+    provider_id: int,
+    clinic_id: str,
+    target_date: date,
+    tz: pytz.tzinfo.BaseTzInfo,
+    db: Session,
+) -> IntervalSet:
+    """Return busy intervals from active appointments overlapping target_date.
+
+    Active = status in {SCHEDULED, CONFIRMED, PENDING_SYNC, PENDING}.
+    Midnight-crossing appointments are clipped to [date 00:00, date 24:00).
+    """
+    day_start = _combine(target_date, time(0, 0), tz)
+    day_end = day_start + timedelta(days=1)
+
+    rows = (
+        db.query(Appointment)
+        .filter(
+            Appointment.clinic_id == clinic_id,
+            Appointment.provider_id == provider_id,
+            Appointment.status.in_(_ACTIVE_STATUSES),
+            Appointment.start_time < day_end,
+            Appointment.end_time > day_start,
+        )
+        .order_by(Appointment.start_time.asc())
+        .all()
+    )
+
+    pieces = []
+    for r in rows:
+        st = r.start_time if r.start_time.tzinfo else tz.localize(r.start_time)
+        et = r.end_time if r.end_time.tzinfo else tz.localize(r.end_time)
+        lo = max(day_start, st)
+        hi = min(day_end, et)
+        if lo < hi:
+            pieces.append((lo, hi))
+    return IntervalSet(pieces)
