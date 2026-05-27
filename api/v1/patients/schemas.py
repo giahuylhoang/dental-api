@@ -1,4 +1,5 @@
 """Pydantic schemas for /api/patients."""
+from datetime import date
 from typing import Optional
 
 from pydantic import BaseModel, Field
@@ -25,6 +26,7 @@ class PatientResponse(BaseModel):
     last_name: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
+    dob: Optional[date] = None
 
     class Config:
         from_attributes = True

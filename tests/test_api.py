@@ -562,6 +562,82 @@ def test_verify_patient_success(client):
     assert verify_resp.json()["patient_id"] == patient_id
 
 
+def test_verify_patient_handles_e164_phone(client):
+    """Regression: a patient created with an E.164 phone (e.g. SIP caller ID
+    "+13682990959") must verify when looked up by the same E.164 form. Verify
+    used to strip the leading '+' before comparing, so it never matched any
+    stored E.164 row — every existing patient who called in failed verify.
+
+    Repro from prod: caller_match found 4 records for '+13682990959',
+    verify_patient with the matching DOB returned 404, the agent exhausted
+    3 attempts and cold-transferred."""
+    payload = {
+        "first_name": "Asim",
+        "last_name": "Ahmed",
+        "phone": "+13682990959",
+        "dob": "1997-11-18",
+    }
+    create_resp = client.post("/api/patients", json=payload)
+    assert create_resp.status_code == 200
+    patient_id = create_resp.json()["id"]
+
+    verify_resp = client.post(
+        "/api/patients/verify",
+        json={"phone": "+13682990959", "dob": "1997-11-18"},
+    )
+    assert verify_resp.status_code == 200, verify_resp.text
+    assert verify_resp.json()["patient_id"] == patient_id
+
+
+def test_verify_patient_normalizes_mixed_phone_formats(client):
+    """Whatever the create phone format, lookup by digits-only must work too —
+    once we normalize on the read side, all callers (E.164, formatted, raw)
+    converge."""
+    payload = {
+        "first_name": "Carol",
+        "last_name": "Tester",
+        "phone": "+14035550199",
+        "dob": "1985-06-15",
+    }
+    create_resp = client.post("/api/patients", json=payload)
+    patient_id = create_resp.json()["id"]
+
+    # Same patient, digits-only lookup.
+    verify_resp = client.post(
+        "/api/patients/verify",
+        json={"phone": "14035550199", "dob": "1985-06-15"},
+    )
+    assert verify_resp.status_code == 200, verify_resp.text
+    assert verify_resp.json()["patient_id"] == patient_id
+
+    # Same patient, formatted lookup.
+    verify_resp2 = client.post(
+        "/api/patients/verify",
+        json={"phone": "(403) 555-0199", "dob": "1985-06-15"},
+    )
+    assert verify_resp2.status_code == 200, verify_resp2.text
+    assert verify_resp2.json()["patient_id"] == patient_id
+
+
+def test_create_patient_response_includes_dob(client):
+    """PatientResponse should surface the persisted dob so callers can verify
+    round-trip and surface "DOB on file" in the CRM UI. Currently the field
+    is stored on the model but stripped from the response schema."""
+    payload = {
+        "first_name": "Dora",
+        "last_name": "Birth",
+        "phone": "+15875551234",
+        "dob": "1972-03-09",
+    }
+    create_resp = client.post("/api/patients", json=payload)
+    assert create_resp.status_code == 200
+    body = create_resp.json()
+    assert body["dob"] == "1972-03-09"
+
+    get_resp = client.get(f"/api/patients/{body['id']}")
+    assert get_resp.json()["dob"] == "1972-03-09"
+
+
 # ---------------------------------------------------------------------------
 # Leads
 # ---------------------------------------------------------------------------

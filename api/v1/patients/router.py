@@ -22,6 +22,15 @@ logger = logging.getLogger("dental-receptionist")
 router = APIRouter(prefix="/api/patients", tags=["patients"])
 
 
+def _phone_digits(phone: Optional[str]) -> str:
+    """Reduce a phone string to its digits. Used to match patients regardless
+    of how the caller formatted the number (E.164, dashed, parenthesized).
+    Stored Patient.phone can be any of those forms — historical data is mixed."""
+    if not phone:
+        return ""
+    return "".join(c for c in phone if c.isdigit())
+
+
 @router.get("", response_model=List[PatientResponse])
 async def list_patients(
     phone: Optional[str] = Query(None),
@@ -59,15 +68,28 @@ async def verify_patient(
         Raises 404 if no patient matches or verification fails
     """
     try:
-        # Normalize phone to digits only
-        phone_digits = ''.join(c for c in request.phone if c.isdigit())
+        # Normalize phone to digits only for comparison.
+        phone_digits = _phone_digits(request.phone)
 
         # Parse DOB
         from datetime import date as date_type
         dob_date = datetime.strptime(request.dob, '%Y-%m-%d').date()
 
-        # Query patient by phone (scoped to clinic)
-        patient = db.query(Patient).filter(Patient.phone == phone_digits, Patient.clinic_id == clinic.id).first()
+        # Narrow by suffix (last 10 digits) using an indexable LIKE, then
+        # suffix-compare in Python — stored phones can be E.164
+        # ("+13682990959"), digits-only ("13682990959"), or formatted
+        # ("(403) 555-0199"), and lookup phones may or may not include the
+        # country code. Comparing the last 10 digits collapses all of those
+        # to the same NANP subscriber number.
+        suffix = phone_digits[-10:] if len(phone_digits) >= 10 else phone_digits
+        candidates = db.query(Patient).filter(
+            Patient.clinic_id == clinic.id,
+            Patient.phone.like(f"%{suffix}"),
+        ).all() if suffix else []
+        patient = next(
+            (p for p in candidates if _phone_digits(p.phone).endswith(suffix)),
+            None,
+        )
 
         if not patient:
             raise HTTPException(status_code=404, detail="Patient not found")
