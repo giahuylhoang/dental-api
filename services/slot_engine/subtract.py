@@ -86,3 +86,40 @@ def busy_blocks_for(
 
     pieces = specific_pieces if specific_pieces else recurring_pieces
     return IntervalSet(sorted(pieces))
+
+
+def time_off_for(
+    provider_id: int,
+    clinic_id: str,
+    target_date: date,
+    tz: pytz.tzinfo.BaseTzInfo,
+    db: Session,
+) -> IntervalSet:
+    """Return the intersection of provider_time_off rows with target_date.
+
+    Multi-day PTO contributes [date 00:00, date 24:00) ∩ [start_at, end_at)
+    per overlapping date.
+    """
+    day_start = _combine(target_date, time(0, 0), tz)
+    day_end = day_start + timedelta(days=1)
+
+    rows = (
+        db.query(ProviderTimeOff)
+        .filter(
+            ProviderTimeOff.clinic_id == clinic_id,
+            ProviderTimeOff.provider_id == provider_id,
+            ProviderTimeOff.start_at < day_end,
+            ProviderTimeOff.end_at > day_start,
+        )
+        .all()
+    )
+
+    pieces = []
+    for r in rows:
+        start_at = r.start_at if r.start_at.tzinfo else tz.localize(r.start_at)
+        end_at = r.end_at if r.end_at.tzinfo else tz.localize(r.end_at)
+        lo = max(day_start, start_at)
+        hi = min(day_end, end_at)
+        if lo < hi:
+            pieces.append((lo, hi))
+    return IntervalSet(sorted(pieces))
