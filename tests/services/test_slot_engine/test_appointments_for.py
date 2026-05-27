@@ -23,6 +23,14 @@ def setup(db_session):
 
 
 def _apt(p_id, start, end, status=AppointmentStatus.SCHEDULED):
+    # Strip tzinfo before write so the test mimics how Postgres stores values
+    # in production: tz-aware writes get silently converted to UTC and the
+    # offset dropped. SQLite tests would otherwise preserve the local wall-
+    # clock value and diverge from prod semantics.
+    if start.tzinfo is not None:
+        start = start.astimezone(pytz.utc).replace(tzinfo=None)
+    if end.tzinfo is not None:
+        end = end.astimezone(pytz.utc).replace(tzinfo=None)
     return Appointment(
         clinic_id="c1", patient_id="pat-c1", provider_id=p_id,
         start_time=start, end_time=end, status=status,

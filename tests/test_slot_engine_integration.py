@@ -160,10 +160,14 @@ def test_saturday_and_sunday_return_no_slots_for_any_provider(db_session, mm):
 
 
 def test_existing_appointment_carves_out_those_slots(db_session, mm):
+    # Postgres prod normalizes tz-aware writes to naive UTC. Mirror that on
+    # SQLite so the test exercises the same read-side TZ conversion that
+    # services/slot_engine/subtract.py performs.
+    _s = TZ.localize(datetime(2026, 5, 25, 10, 0)).astimezone(pytz.utc).replace(tzinfo=None)
+    _e = TZ.localize(datetime(2026, 5, 25, 11, 0)).astimezone(pytz.utc).replace(tzinfo=None)
     db_session.add(Appointment(
         clinic_id="mm", patient_id="pat-mm", provider_id=mm["nadeem"],
-        start_time=TZ.localize(datetime(2026, 5, 25, 10, 0)),
-        end_time=TZ.localize(datetime(2026, 5, 25, 11, 0)),
+        start_time=_s, end_time=_e,
         status=AppointmentStatus.SCHEDULED, reason_note="t",
     ))
     db_session.commit()

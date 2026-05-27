@@ -6,8 +6,11 @@ from __future__ import annotations
 
 import json as _json
 
-from database.models import Appointment
+from typing import Optional
+
+from database.models import Appointment, Clinic
 from api.v1.appointments.schemas import AppointmentDetailResponse
+from services.tz_utils import to_clinic_local
 
 
 def _busy_block_envelope(block) -> dict:
@@ -40,12 +43,21 @@ def _busy_block_envelope(block) -> dict:
     }
 
 
-def _to_appointment_detail(apt: Appointment) -> AppointmentDetailResponse:
-    """Build AppointmentDetailResponse with provider_name and service_name."""
+def _to_appointment_detail(
+    apt: Appointment, clinic: Optional[Clinic] = None,
+) -> AppointmentDetailResponse:
+    """Build AppointmentDetailResponse with provider_name and service_name.
+
+    When ``clinic`` is provided, start_time/end_time are converted to the
+    clinic's local timezone with the offset attached on the wire. Without
+    it the raw (naive UTC) values are passed through — only safe for
+    internal callers that handle TZ themselves."""
     provider_name = None
     if apt.provider:
         provider_name = " ".join(filter(None, [apt.provider.title, apt.provider.name])).strip() or apt.provider.name
     service_name = apt.service.name if apt.service else None
+    start = to_clinic_local(apt.start_time, clinic) if clinic else apt.start_time
+    end = to_clinic_local(apt.end_time, clinic) if clinic else apt.end_time
     return AppointmentDetailResponse(
         id=apt.id,
         patient_id=apt.patient_id,
@@ -53,8 +65,8 @@ def _to_appointment_detail(apt: Appointment) -> AppointmentDetailResponse:
         service_id=apt.service_id,
         provider_name=provider_name,
         service_name=service_name,
-        start_time=apt.start_time,
-        end_time=apt.end_time,
+        start_time=start,
+        end_time=end,
         reason_note=apt.reason_note,
         status=apt.status.value,
         calendar_event_id=apt.calendar_event_id,

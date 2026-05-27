@@ -154,14 +154,16 @@ async def create_calendar_event(
         end=end_time_dt,
     )
 
-    # 1. Create appointment in database
+    # 1. Create appointment in database — normalize to naive UTC so SQLite
+    #    and Postgres store the same value regardless of input offset.
+    from services.tz_utils import to_storage_utc
     appointment = Appointment(
         clinic_id=clinic.id,
         patient_id=request.patient_id,
         provider_id=request.provider_id,
         service_id=request.service_id,
-        start_time=start_time_dt,
-        end_time=end_time_dt,
+        start_time=to_storage_utc(start_time_dt),
+        end_time=to_storage_utc(end_time_dt),
         reason_note=request.reason,
         status=AppointmentStatus.SCHEDULED,
     )
@@ -189,11 +191,8 @@ async def create_calendar_event(
     # by this point.
     provider_display_name = " ".join(filter(None, [provider.title, provider.name])).strip() or provider.name
     patient_name = " ".join(filter(None, [patient.first_name, patient.last_name])) or "Patient"
-    import pytz
-    tz = pytz.timezone(clinic.timezone or "America/Edmonton")
-    start_local = start_time_dt.astimezone(tz) if start_time_dt.tzinfo else tz.localize(start_time_dt)
-    date_str = start_local.strftime("%Y-%m-%d")
-    time_str = start_local.strftime("%I:%M %p")
+    from services.tz_utils import format_clinic_local, to_clinic_local_iso
+    date_str, time_str = format_clinic_local(appointment.start_time, clinic)
     try:
         from api.v2.events import publish_appointment_created
         publish_appointment_created(clinic.id, {
@@ -204,8 +203,8 @@ async def create_calendar_event(
             "provider_name": provider_display_name,
             "service_id": appointment.service_id,
             "service_name": service_name,
-            "start_time": appointment.start_time.isoformat(),
-            "end_time": appointment.end_time.isoformat(),
+            "start_time": to_clinic_local_iso(appointment.start_time, clinic),
+            "end_time": to_clinic_local_iso(appointment.end_time, clinic),
             "start_time_local": f"{date_str} {time_str}",
             "status": appointment.status.value,
         })

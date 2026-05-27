@@ -140,14 +140,22 @@ def appointments_for(
     day_start = _combine(target_date, time(0, 0), tz)
     day_end = day_start + timedelta(days=1)
 
+    # Stored values are naive UTC (Postgres drops the offset on insert).
+    # Convert the day-window bounds to naive UTC too so the SQL filter
+    # compares apples to apples — comparing tz-aware bounds against a
+    # naive column silently mis-matches and drops rows.
+    from datetime import timezone as _tz
+    day_start_utc = day_start.astimezone(_tz.utc).replace(tzinfo=None)
+    day_end_utc = day_end.astimezone(_tz.utc).replace(tzinfo=None)
+
     rows = (
         db.query(Appointment)
         .filter(
             Appointment.clinic_id == clinic_id,
             Appointment.provider_id == provider_id,
             Appointment.status.in_(_ACTIVE_STATUSES),
-            Appointment.start_time < day_end,
-            Appointment.end_time > day_start,
+            Appointment.start_time < day_end_utc,
+            Appointment.end_time > day_start_utc,
         )
         .order_by(Appointment.start_time.asc())
         .all()
@@ -155,10 +163,13 @@ def appointments_for(
 
     pieces = []
     for r in rows:
-        st = r.start_time if r.start_time.tzinfo else tz.localize(r.start_time)
-        et = r.end_time if r.end_time.tzinfo else tz.localize(r.end_time)
-        lo = max(day_start, st)
-        hi = min(day_end, et)
+        # Naive values from the DB are really UTC — convert via UTC, not via
+        # local-stamping which would shift bookings by the offset and break
+        # conflict detection.
+        st = r.start_time if r.start_time.tzinfo else r.start_time.replace(tzinfo=_tz.utc)
+        et = r.end_time if r.end_time.tzinfo else r.end_time.replace(tzinfo=_tz.utc)
+        lo = max(day_start, st.astimezone(tz))
+        hi = min(day_end, et.astimezone(tz))
         if lo < hi:
             pieces.append((lo, hi))
     return IntervalSet(pieces)

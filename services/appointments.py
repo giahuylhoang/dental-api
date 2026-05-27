@@ -49,12 +49,18 @@ def _query_overlapping_appointments(
     Optionally excludes a specific appointment id (used by the reschedule path
     so the appointment being moved doesn't conflict with itself).
     """
+    # Appointment.start_time / end_time are stored naive UTC. Normalize the
+    # filter values to the same representation so the SQL comparison doesn't
+    # silently fall over when the caller passes a tz-aware bound.
+    from services.tz_utils import to_storage_utc
+    start_utc = to_storage_utc(start)
+    end_utc = to_storage_utc(end)
     q = db.query(Appointment).filter(
         Appointment.clinic_id == clinic_id,
         Appointment.provider_id == provider_id,
         Appointment.status.in_(ACTIVE_STATUSES),
-        Appointment.start_time < end,
-        Appointment.end_time > start,
+        Appointment.start_time < end_utc,
+        Appointment.end_time > start_utc,
     )
     if excluding_appointment_id is not None:
         q = q.filter(Appointment.id != excluding_appointment_id)

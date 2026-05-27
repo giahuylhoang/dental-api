@@ -157,7 +157,7 @@ async def list_appointments(
             raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
 
     appointments = query.order_by(Appointment.start_time).all()
-    return [_to_appointment_detail(apt) for apt in appointments]
+    return [_to_appointment_detail(apt, clinic) for apt in appointments]
 
 
 @router.delete("/bulk/date/{date}")
@@ -267,7 +267,7 @@ async def get_appointment(
     )
     if not appointment:
         raise HTTPException(status_code=404, detail="Appointment not found")
-    return _to_appointment_detail(appointment)
+    return _to_appointment_detail(appointment, clinic)
 
 
 @router.post("", response_model=AppointmentResponse)
@@ -305,13 +305,14 @@ async def update_appointment(
     if not appointment:
         raise HTTPException(status_code=404, detail="Appointment not found")
 
+    from services.tz_utils import to_storage_utc
     for key, value in updates.items():
         if hasattr(appointment, key):
             if key in ["start_time", "end_time"]:
                 setattr(
                     appointment,
                     key,
-                    datetime.fromisoformat(value.replace("Z", "+00:00")),
+                    to_storage_utc(datetime.fromisoformat(value.replace("Z", "+00:00"))),
                 )
             else:
                 setattr(appointment, key, value)
@@ -319,7 +320,7 @@ async def update_appointment(
     appointment.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(appointment)
-    return _to_appointment_detail(appointment)
+    return _to_appointment_detail(appointment, clinic)
 
 
 @router.delete("/{appointment_id}")
@@ -389,7 +390,7 @@ async def cancel_appointment(
             clinic=clinic,
         )
 
-    return _to_appointment_detail(appointment)
+    return _to_appointment_detail(appointment, clinic)
 
 
 @router.put("/{appointment_id}/status", response_model=AppointmentDetailResponse)
@@ -423,7 +424,7 @@ async def update_appointment_status(
     db.commit()
     db.refresh(appointment)
 
-    return _to_appointment_detail(appointment)
+    return _to_appointment_detail(appointment, clinic)
 
 
 @router.put("/{appointment_id}/reschedule")
@@ -461,13 +462,14 @@ async def reschedule_appointment(
             excluding_appointment_id=appointment_id,
         )
 
+        from services.tz_utils import to_storage_utc
         new_appointment = Appointment(
             clinic_id=clinic.id,
             patient_id=request.patient_id,
             provider_id=request.provider_id,
             service_id=request.service_id,
-            start_time=new_start_time,
-            end_time=new_end_time,
+            start_time=to_storage_utc(new_start_time),
+            end_time=to_storage_utc(new_end_time),
             reason_note=request.reason,
             status=AppointmentStatus.SCHEDULED,
         )

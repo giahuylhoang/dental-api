@@ -389,6 +389,16 @@ def test_appointment_create_list_get_update_cancel_status_delete(client, db_sess
     assert "service_name" in apt
     assert apt["provider_name"] is not None
     assert apt["service_name"] == s1.name
+    # Regression: the response start_time/end_time must carry an offset so
+    # downstream consumers (v3 voice agent, CRM frontend) render the local
+    # wall-clock time. Without it the agent's appointment list was rendering
+    # 6h ahead, and SMS confirmations were going out as +6h.
+    # Default clinic timezone is America/Edmonton; in March the offset is -06:00.
+    assert apt["start_time"].endswith("-06:00") or apt["start_time"].endswith("-07:00"), apt["start_time"]
+    assert apt["end_time"].endswith("-06:00") or apt["end_time"].endswith("-07:00"), apt["end_time"]
+    # And the local wall-clock matches what we POSTed.
+    assert "T10:00:00" in apt["start_time"], apt["start_time"]
+    assert "T11:00:00" in apt["end_time"], apt["end_time"]
 
     update_resp = client.put(
         f"/api/appointments/{appointment_id}",

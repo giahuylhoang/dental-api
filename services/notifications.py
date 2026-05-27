@@ -15,7 +15,6 @@ import logging
 from datetime import datetime
 from typing import Optional
 
-import pytz
 from fastapi import BackgroundTasks
 
 from clients.email_client import (
@@ -28,10 +27,9 @@ from clients.sms_client import (
     send_reschedule_sms_delayed,
 )
 from database.models import Appointment, Clinic, Patient, Provider
+from services.tz_utils import format_clinic_local
 
 logger = logging.getLogger("dental-receptionist")
-
-_DEFAULT_TZ = "America/Edmonton"
 
 
 def _provider_display_name(provider: Provider) -> str:
@@ -43,10 +41,11 @@ def _patient_display_name(patient: Patient) -> str:
 
 
 def _format_local_date_time(ts: datetime, clinic: Clinic) -> tuple[str, str]:
-    """Format an appointment timestamp into (date_str, time_str) in clinic-local time."""
-    tz = pytz.timezone(clinic.timezone or _DEFAULT_TZ)
-    local = ts.astimezone(tz) if ts.tzinfo else tz.localize(ts)
-    return local.strftime("%Y-%m-%d"), local.strftime("%I:%M %p")
+    """Format an appointment timestamp into (date_str, time_str) in clinic-local time.
+
+    Delegates to services.tz_utils so naive DB values (which are really UTC)
+    are converted properly instead of being stamped as already-local."""
+    return format_clinic_local(ts, clinic)
 
 
 def schedule_booking_notifications(
