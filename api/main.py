@@ -17,6 +17,7 @@ from database.connection import init_db
 # Re-exports — historical home of these helpers. v2 routers and tests
 # import them from api.main; keep the names available here.
 from api.dependencies import get_db, get_clinic_id, get_clinic  # noqa: F401
+from api.dependencies.auth import init_firebase_admin
 from api.serializers import _busy_block_envelope, _to_appointment_detail  # noqa: F401
 
 import logging
@@ -40,6 +41,10 @@ async def lifespan(app: FastAPI):
         logger.info("Database tables ready")
     except Exception as e:
         logger.warning("Database init failed: %s", e)
+    try:
+        init_firebase_admin()
+    except Exception as e:
+        logger.warning("init_firebase_admin failed: %s", e)
     try:
         from database.connection import engine as _engine
         from database.observability import register_sql_events

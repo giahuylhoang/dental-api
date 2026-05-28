@@ -17,6 +17,11 @@ for _var in (
 os.environ["SEND_BOOKING_SMS"] = "false"
 os.environ["SEND_CLINIC_BOOKING_EMAIL"] = "false"
 
+# All tests run with auth disabled by default. Tests that exercise the
+# auth gate set ADMIN_AUTH_BYPASS=false via monkeypatch and provide a
+# token or mock verify_id_token.
+os.environ["ADMIN_AUTH_BYPASS"] = "true"
+
 import sqlalchemy as _sa
 import pytest
 from fastapi.testclient import TestClient
@@ -28,6 +33,7 @@ from sqlalchemy.pool import StaticPool
 from database.connection import Base, get_db
 from database.models import Clinic, DEFAULT_CLINIC_ID
 import database.models  # noqa: F401
+import database.auth  # noqa: F401  -- registers UserClinicMembership with Base
 
 from api.main import app
 from scripts.init_database import seed_market_mall_denture
@@ -62,6 +68,8 @@ def _isolate_notification_env(monkeypatch):
     monkeypatch.setattr(_sms_client, "SMS_DELAY_SECONDS", 0)
     monkeypatch.setattr(_sms_client, "SEND_BOOKING_SMS", False)
     monkeypatch.setattr(_email_client, "SEND_CLINIC_BOOKING_EMAIL", False)
+    monkeypatch.setenv("ADMIN_AUTH_BYPASS", "true")
+    monkeypatch.setattr("api.dependencies.auth.ADMIN_AUTH_BYPASS", True)
 
 
 # Tables whose column types (e.g. pgvector.Vector, PG JSONB) cannot compile on
