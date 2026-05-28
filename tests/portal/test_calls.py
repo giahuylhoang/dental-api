@@ -43,31 +43,79 @@ def test_list_calls_empty(override_portal_user):
     override_portal_user(clinic_ids=["default"])
     r = client.get("/api/portal/clinics/default/calls")
     assert r.status_code == 200
-    assert r.json() == {"items": [], "total": 0}
+    assert r.json() == {"items": [], "total": 0, "next_cursor": None}
 
 
-def test_list_calls_with_data(db_session, override_portal_user):
+def test_list_calls_returns_renamed_fields(db_session, override_portal_user):
     override_portal_user(clinic_ids=["default"])
     db_session.add(CallLog(
-        id="call_1", clinic_id="default", caller_phone="+14035550100",
-        started_at=datetime.now(timezone.utc), outcome="booked",
+        id="call_renamed", clinic_id="default",
+        caller_phone="+14035550100",
+        started_at=datetime(2026, 5, 28, 18, 0, 0, tzinfo=timezone.utc),
+        duration_sec=92,
+        outcome="booked",
     ))
     db_session.commit()
     r = client.get("/api/portal/clinics/default/calls")
     assert r.status_code == 200
-    body = r.json()
-    assert body["total"] == 1
-    assert body["items"][0]["id"] == "call_1"
-    assert body["items"][0]["outcome"] == "booked"
+    item = r.json()["items"][0]
+    assert item["call_id"] == "call_renamed"
+    assert item["caller_e164"] == "+14035550100"
+    assert item["duration_seconds"] == 92
+    assert item["outcome"] == "booked"
+
+
+def test_list_calls_remaps_legacy_outcome(db_session, override_portal_user):
+    override_portal_user(clinic_ids=["default"])
+    db_session.add(CallLog(
+        id="call_legacy_outcome", clinic_id="default",
+        started_at=datetime(2026, 5, 28, 18, 0, 0, tzinfo=timezone.utc),
+        outcome="greeting_triage",
+    ))
+    db_session.commit()
+    r = client.get("/api/portal/clinics/default/calls")
+    item = r.json()["items"][0]
+    assert item["outcome"] == "agent_handled"
+
+
+def test_list_calls_includes_caller_name_from_patient_join(db_session, override_portal_user):
+    from database.models import Patient
+    override_portal_user(clinic_ids=["default"])
+    db_session.add(Patient(
+        id="pat-1", clinic_id="default",
+        first_name="Jane", last_name="Doe", phone="+14035550100",
+    ))
+    db_session.add(CallLog(
+        id="call_join", clinic_id="default", patient_id="pat-1",
+        caller_phone="+14035550100",
+        started_at=datetime(2026, 5, 28, 18, 0, 0, tzinfo=timezone.utc),
+    ))
+    db_session.commit()
+    r = client.get("/api/portal/clinics/default/calls")
+    item = r.json()["items"][0]
+    assert item["caller_name"] == "Jane Doe"
+    assert item["patient_id"] == "pat-1"
+
+
+def test_list_calls_response_has_next_cursor_null(db_session, override_portal_user):
+    override_portal_user(clinic_ids=["default"])
+    db_session.add(CallLog(id="c1", clinic_id="default",
+                           started_at=datetime(2026, 5, 28, 18, 0, 0, tzinfo=timezone.utc)))
+    db_session.commit()
+    r = client.get("/api/portal/clinics/default/calls")
+    assert r.json()["next_cursor"] is None
 
 
 def test_get_one_call(db_session, override_portal_user):
     override_portal_user(clinic_ids=["default"])
-    db_session.add(CallLog(id="call_2", clinic_id="default", started_at=datetime.now(timezone.utc)))
+    db_session.add(CallLog(id="call_2", clinic_id="default",
+                           started_at=datetime(2026, 5, 28, 18, 0, 0, tzinfo=timezone.utc)))
     db_session.commit()
     r = client.get("/api/portal/clinics/default/calls/call_2")
     assert r.status_code == 200
-    assert r.json()["id"] == "call_2"
+    # Task 5 rewrites get_call to return call_id; for now accept either key.
+    body = r.json()
+    assert body.get("call_id", body.get("id")) == "call_2"
 
 
 def test_get_one_call_404(override_portal_user):

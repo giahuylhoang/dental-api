@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from api.dependencies import get_db
-from database.models import CallLog, Clinic
+from database.models import CallLog, Clinic, Patient
 
 router = APIRouter()
 
@@ -147,17 +147,46 @@ class ListCallsResponse(BaseModel):
     total: int
 
 
-@router.get("", response_model=ListCallsResponse)
+def _summary_dict(row: CallLog, patient: Optional[Patient], clinic: Optional[Clinic]) -> Dict[str, Any]:
+    transcript_arr = row.transcript if isinstance(row.transcript, list) else []
+    metadata = row.call_metadata or {}
+    name_parts = [patient.first_name, patient.last_name] if patient else []
+    name = " ".join(p for p in name_parts if p).strip() or None
+    return {
+        "call_id": row.id,
+        "started_at": row.started_at.isoformat() if row.started_at else None,
+        "ended_at": row.ended_at.isoformat() if row.ended_at else None,
+        "duration_seconds": row.duration_sec,
+        "caller_e164": row.caller_phone,
+        "caller_name": name,
+        "patient_id": row.patient_id,
+        "outcome": _normalize_outcome(row.outcome),
+        "language": metadata.get("language"),
+        "transcript_turns": len(transcript_arr),
+        "after_hours": _is_after_hours(row.started_at, clinic),
+        "appointment_id": metadata.get("appointment_id"),
+    }
+
+
+@router.get("")
 def list_calls(
     clinic_id: str,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
-) -> ListCallsResponse:
-    q = db.query(CallLog).filter_by(clinic_id=clinic_id).order_by(CallLog.started_at.desc())
-    total = q.count()
-    items = [CallLogOut.from_row(r) for r in q.limit(limit).offset(offset).all()]
-    return ListCallsResponse(items=items, total=total)
+) -> Dict[str, Any]:
+    clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
+    base_q = db.query(CallLog).filter(CallLog.clinic_id == clinic_id)
+    total = base_q.count()
+    rows = (
+        db.query(CallLog, Patient)
+          .outerjoin(Patient, Patient.id == CallLog.patient_id)
+          .filter(CallLog.clinic_id == clinic_id)
+          .order_by(CallLog.started_at.desc())
+          .limit(limit).offset(offset).all()
+    )
+    items = [_summary_dict(row, patient, clinic) for row, patient in rows]
+    return {"items": items, "total": total, "next_cursor": None}
 
 
 @router.get("/{call_id}", response_model=CallLogOut)
