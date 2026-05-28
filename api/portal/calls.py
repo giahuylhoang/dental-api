@@ -23,7 +23,7 @@ _CANONICAL_OUTCOMES = frozenset({
 })
 
 
-def _normalize_outcome(raw):
+def _normalize_outcome(raw: Optional[str]) -> str:
     if raw is None:
         return "agent_handled"
     if raw in _CANONICAL_OUTCOMES:
