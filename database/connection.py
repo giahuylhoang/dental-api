@@ -56,11 +56,29 @@ if "supa=" in DATABASE_URL:
         parsed.fragment
     ))
 
-# Create engine
-engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
-)
+# Create engine.
+#
+# Pool tuning for Postgres in prod: cap connections so a Cloud Run rollover
+# (two revisions running side-by-side during traffic shift) can't exhaust
+# the database's max_connections. With pool_size=5, max_overflow=10, each
+# Cloud Run instance holds at most 15 connections, so even two instances
+# during a roll stay under 30 — well under our 100-slot ceiling.
+# pool_pre_ping detects connections that died while idle (Cloud SQL idle
+# timeout); pool_recycle proactively closes connections >30 min old so
+# they never reach the server-side timeout. Both keep "stale connection"
+# OperationalErrors out of request handlers.
+_is_sqlite = "sqlite" in DATABASE_URL
+_engine_kwargs: dict = {}
+if _is_sqlite:
+    _engine_kwargs["connect_args"] = {"check_same_thread": False}
+else:
+    _engine_kwargs.update(
+        pool_pre_ping=True,
+        pool_size=5,
+        max_overflow=10,
+        pool_recycle=1800,
+    )
+engine = create_engine(DATABASE_URL, **_engine_kwargs)
 
 # Register SQL observability events (off by default, enable with OBSERVE_SQL=1)
 from database.observability import register_sql_events
