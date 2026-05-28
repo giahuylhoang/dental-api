@@ -76,7 +76,7 @@ def get_portal_user(authorization: str = Header(default="")) -> PortalUser:
 
 def require_clinic_access(
     clinic_id: str,
-    user: "PortalUser" = Depends(get_portal_user),
+    user: PortalUser = Depends(get_portal_user),
     db: Session = Depends(get_db),
 ) -> str:
     """Authorize the bearer of this token for {clinic_id}.
@@ -106,6 +106,10 @@ def require_clinic_access(
     # Fallback to the token claim during cutover. Emit a structured warn
     # so ops can tell when memberships are fully backfilled and the
     # fallback can be removed.
+    # NOTE: email is included for ops triage during cutover only. The
+    # follow-up commit that removes this fallback block should also drop
+    # the email field — see docs/runbooks/2026-05-28-portal-auth-cutover.md
+    # step 5.
     if clinic_id in (user.clinic_ids or []):
         _log.warning(
             "portal_membership_missing uid=%s clinic_id=%s email=%s",

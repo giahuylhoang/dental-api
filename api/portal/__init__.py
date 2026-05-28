@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Depends
 
-from api.portal.deps import PortalUser, get_portal_user, require_clinic_access
+from api.portal.deps import require_clinic_access
 from api.portal import whoami, routing, greeting, calls, schedule, dashboard, patients
 
 
