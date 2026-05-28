@@ -208,3 +208,25 @@ def test_is_after_hours_invalid_timezone_falls_back_to_edmonton():
     started = datetime(2026, 5, 28, 18, 0, 0, tzinfo=timezone.utc)
     # Should not raise; falls back to America/Edmonton (12:00 local → False)
     assert _is_after_hours(started, c) is False
+
+
+def test_is_after_hours_invalid_timezone_logs_warning(caplog):
+    """Silent fallback to Edmonton would mask a clinic mis-configuration —
+    confirm we emit a warn log so ops sees it."""
+    import logging
+    c = _clinic(tz="Not/A_Real_Zone")
+    started = datetime(2026, 5, 28, 18, 0, 0, tzinfo=timezone.utc)
+    with caplog.at_level(logging.WARNING, logger="api.portal.calls"):
+        _is_after_hours(started, c)
+    assert any("invalid timezone" in record.message for record in caplog.records)
+
+
+def test_is_after_hours_naive_datetime_treated_as_utc():
+    """CallLog.started_at can come back from the DB naive on SQLite/legacy PG.
+    astimezone() on a naive datetime would use system-local time, producing
+    a wrong answer in any non-UTC dev environment. Confirm naive inputs are
+    treated as UTC."""
+    naive = datetime(2026, 5, 28, 18, 0, 0)  # would be 12:00 if interpreted as UTC
+    # Same wall-clock value as the UTC-aware version of the inside-hours test,
+    # which we know returns False. Naive must produce the same result.
+    assert _is_after_hours(naive, _clinic()) is False

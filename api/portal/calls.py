@@ -1,8 +1,11 @@
 """GET /api/portal/clinics/{cid}/calls + GET /{call_id} — read-only call log."""
 
-from datetime import datetime, timedelta
+import logging
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+_log = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -91,10 +94,19 @@ def _is_after_hours(started_at: Optional[datetime], clinic: Optional["Clinic"]) 
     end = clinic.working_hour_end
     if start is None or end is None:
         return False
+    # CallLog.started_at column is DateTime(timezone=True) but default=datetime.utcnow
+    # writes naive values; SQLite has no tz storage. astimezone on a naive datetime
+    # treats it as system-local — wrong in dev environments. Coerce to UTC first.
+    if started_at.tzinfo is None:
+        started_at = started_at.replace(tzinfo=timezone.utc)
     tz_name = clinic.timezone or "America/Edmonton"
     try:
         tz = ZoneInfo(tz_name)
     except ZoneInfoNotFoundError:
+        _log.warning(
+            "clinic %s has invalid timezone %r; falling back to America/Edmonton",
+            getattr(clinic, "id", "?"), tz_name,
+        )
         tz = ZoneInfo("America/Edmonton")
     local = started_at.astimezone(tz)
     return not (start <= local.hour < end)
