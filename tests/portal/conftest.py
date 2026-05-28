@@ -43,16 +43,17 @@ def override_portal_user(portal_user_factory, db_session):
     app.dependency_overrides[get_portal_user] = _override
 
     def _seed_memberships(user):
+        # Clear prior rows for this uid before re-seeding so the DB stays in
+        # sync with the most recent _swap intent. Without this, a test that
+        # calls override_portal_user(clinic_ids=["other"]) after the initial
+        # default seed would still have "default" in the DB — silently
+        # weakening any cross-clinic 403 assertion that uses "default" as the
+        # negative case.
+        db_session.query(UserClinicMembership).filter_by(uid=user.uid).delete()
         for cid in user.clinic_ids:
-            exists = (
-                db_session.query(UserClinicMembership)
-                .filter_by(uid=user.uid, clinic_id=cid)
-                .first()
-            )
-            if exists is None:
-                db_session.add(UserClinicMembership(
-                    uid=user.uid, clinic_id=cid, email=user.email or "",
-                ))
+            db_session.add(UserClinicMembership(
+                uid=user.uid, clinic_id=cid, email=user.email or "",
+            ))
         db_session.commit()
 
     # Seed defaults from the initial PortalUser.
