@@ -278,3 +278,91 @@ def test_is_after_hours_naive_datetime_treated_as_utc():
     # Same wall-clock value as the UTC-aware version of the inside-hours test,
     # which we know returns False. Naive must produce the same result.
     assert _is_after_hours(naive, _clinic()) is False
+
+
+def test_get_call_returns_renamed_fields_and_rich_transcript(db_session, override_portal_user):
+    override_portal_user(clinic_ids=["default"])
+    db_session.add(CallLog(
+        id="call_detail", clinic_id="default",
+        caller_phone="+14035550100",
+        started_at=datetime(2026, 5, 28, 5, 41, 0, tzinfo=timezone.utc),
+        duration_sec=28,
+        outcome="ended",
+        transcript=[
+            {"ts": "05:41:00", "role": "assistant", "text": "Hi"},
+            {"ts": "05:41:05", "role": "user", "text": "I want to book"},
+        ],
+        call_metadata={"job_id": "AJ_abc", "agent_version": "v3"},
+    ))
+    db_session.commit()
+    r = client.get("/api/portal/clinics/default/calls/call_detail")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["call_id"] == "call_detail"
+    assert body["caller_e164"] == "+14035550100"
+    assert body["duration_seconds"] == 28
+    assert body["outcome"] == "agent_handled"           # "ended" → remapped
+    assert body["job_id"] == "AJ_abc"
+    assert body["transcript_turns"] == 2
+    assert body["transcript"] == []                     # legacy field, UI ignores
+    assert body["rich_transcript"][0]["speaker"] == "agent"
+    assert body["rich_transcript"][1]["speaker"] == "caller"
+    assert body["rich_transcript"][1]["t"] == 5000
+    assert body["logs"] == []
+    assert body["intents"] == []
+    assert body["errors"] == []
+    assert body["flow_path"] == []                      # no metadata.phase_history
+
+
+def test_get_call_surfaces_flow_path_from_metadata(db_session, override_portal_user):
+    override_portal_user(clinic_ids=["default"])
+    db_session.add(CallLog(
+        id="call_phases", clinic_id="default",
+        started_at=datetime(2026, 5, 28, 5, 41, 0, tzinfo=timezone.utc),
+        call_metadata={
+            "phase_history": ["greeting_triage", "intake", "booking"],
+        },
+    ))
+    db_session.commit()
+    r = client.get("/api/portal/clinics/default/calls/call_phases")
+    assert r.json()["flow_path"] == ["greeting_triage", "intake", "booking"]
+
+
+def test_get_call_enriches_appointment_when_metadata_appointment_id_resolves(
+    db_session, override_portal_user,
+):
+    from database.models import Provider, Appointment, Patient
+    override_portal_user(clinic_ids=["default"])
+    db_session.add(Provider(id=1, clinic_id="default", name="Smith", title="Dr"))
+    db_session.add(Patient(id="pat-9", clinic_id="default", first_name="Joe", last_name="K"))
+    db_session.add(Appointment(
+        id="appt-99", clinic_id="default", patient_id="pat-9", provider_id=1,
+        start_time=datetime(2026, 5, 30, 14, 0, 0),
+        end_time=datetime(2026, 5, 30, 15, 0, 0),
+    ))
+    db_session.add(CallLog(
+        id="call_appt", clinic_id="default", patient_id="pat-9",
+        started_at=datetime(2026, 5, 28, 5, 41, 0, tzinfo=timezone.utc),
+        outcome="booked",
+        call_metadata={"appointment_id": "appt-99"},
+    ))
+    db_session.commit()
+    r = client.get("/api/portal/clinics/default/calls/call_appt")
+    body = r.json()
+    assert body["appointment"]["id"] == "appt-99"
+    assert body["appointment"]["patient_id"] == "pat-9"
+    assert body["patient"]["patient_id"] == "pat-9"
+    assert body["patient"]["first_name"] == "Joe"
+
+
+def test_get_call_appointment_null_when_metadata_missing(db_session, override_portal_user):
+    override_portal_user(clinic_ids=["default"])
+    db_session.add(CallLog(
+        id="call_no_appt", clinic_id="default",
+        started_at=datetime(2026, 5, 28, 5, 41, 0, tzinfo=timezone.utc),
+    ))
+    db_session.commit()
+    r = client.get("/api/portal/clinics/default/calls/call_no_appt")
+    body = r.json()
+    assert body["appointment"] is None
+    assert body["patient"] is None

@@ -2,17 +2,16 @@
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 _log = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from api.dependencies import get_db
-from database.models import CallLog, Clinic, Patient
+from database.models import Appointment, CallLog, Clinic, Patient
 
 router = APIRouter()
 
@@ -112,41 +111,6 @@ def _is_after_hours(started_at: Optional[datetime], clinic: Optional["Clinic"]) 
     return not (start <= local.hour < end)
 
 
-class CallLogOut(BaseModel):
-    id: str
-    clinic_id: str
-    caller_phone: Optional[str] = None
-    patient_id: Optional[str] = None
-    started_at: Optional[str] = None
-    ended_at: Optional[str] = None
-    duration_sec: Optional[int] = None
-    outcome: Optional[str] = None
-    transcript: Optional[Any] = None
-    audio_url: Optional[str] = None
-    metadata: Dict[str, Any] = {}
-
-    @classmethod
-    def from_row(cls, row: CallLog) -> "CallLogOut":
-        return cls(
-            id=row.id,
-            clinic_id=row.clinic_id,
-            caller_phone=row.caller_phone,
-            patient_id=row.patient_id,
-            started_at=row.started_at.isoformat() if row.started_at else None,
-            ended_at=row.ended_at.isoformat() if row.ended_at else None,
-            duration_sec=row.duration_sec,
-            outcome=row.outcome,
-            transcript=row.transcript,
-            audio_url=row.audio_url,
-            metadata=row.call_metadata or {},
-        )
-
-
-class ListCallsResponse(BaseModel):
-    items: List[CallLogOut]
-    total: int
-
-
 def _summary_dict(row: CallLog, patient: Optional[Patient], clinic: Optional[Clinic]) -> Dict[str, Any]:
     transcript_arr = row.transcript if isinstance(row.transcript, list) else []
     metadata = row.call_metadata or {}
@@ -197,9 +161,100 @@ def list_calls(
     return {"items": items, "total": total, "next_cursor": None}
 
 
-@router.get("/{call_id}", response_model=CallLogOut)
-def get_call(clinic_id: str, call_id: str, db: Session = Depends(get_db)) -> CallLogOut:
+def _project_appointment(appt: Optional[Appointment], patient: Optional[Patient]) -> Optional[Dict[str, Any]]:
+    if appt is None:
+        return None
+    patient_name = ""
+    if patient:
+        patient_name = " ".join(p for p in [patient.first_name, patient.last_name] if p).strip()
+    return {
+        "id": appt.id,
+        "patient_id": appt.patient_id,
+        "patient_name": patient_name,
+        "provider": "",  # provider join deferred — UI tolerates empty
+        "time_start": appt.start_time.isoformat() if appt.start_time else None,
+        "time_end": appt.end_time.isoformat() if appt.end_time else None,
+        "procedure": "",
+        "status": (
+            appt.status.value.lower()
+            if hasattr(appt.status, "value") and appt.status is not None
+            else str(appt.status or "booked")
+        ).lower(),
+        "task": "SCHEDULE",
+        "booked_by": "ai",
+        "source_call_id": None,
+    }
+
+
+def _project_patient(patient: Optional[Patient]) -> Optional[Dict[str, Any]]:
+    if patient is None:
+        return None
+    return {
+        "clinic_id": patient.clinic_id,
+        "patient_id": patient.id,
+        "first_name": patient.first_name,
+        "last_name": patient.last_name,
+        "phone_e164": patient.phone,
+        "email": getattr(patient, "email", None),
+        "dob": patient.dob.isoformat() if getattr(patient, "dob", None) else None,
+        "lead_status": "new",
+        "tags": [],
+        "notes": "",
+        "total_calls": 0,
+        "last_call_id": None,
+        "last_outcome": None,
+        "created_at": patient.created_at.isoformat() if getattr(patient, "created_at", None) else None,
+        "updated_at": patient.updated_at.isoformat() if getattr(patient, "updated_at", None) else None,
+        "last_contact_at": None,
+    }
+
+
+def _detail_dict(
+    row: CallLog,
+    patient: Optional[Patient],
+    appointment: Optional[Appointment],
+    clinic: Optional[Clinic],
+) -> Dict[str, Any]:
+    summary = _summary_dict(row, patient, clinic)
+    transcript_arr = row.transcript if isinstance(row.transcript, list) else []
+    metadata = row.call_metadata or {}
+    return {
+        **summary,
+        "room_name": metadata.get("room_name"),
+        "job_id": metadata.get("job_id"),
+        "transcript": [],
+        "rich_transcript": [_project_turn(t, row.started_at) for t in transcript_arr],
+        "intents": [],
+        "logs": [],
+        "flow_path": metadata.get("phase_history") or [],
+        "appointment": _project_appointment(appointment, patient),
+        "patient": _project_patient(patient),
+        "token_usage": metadata.get("token_usage"),
+        "metadata": metadata,
+        "errors": [],
+    }
+
+
+@router.get("/{call_id}")
+def get_call(clinic_id: str, call_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
     row = db.query(CallLog).filter_by(id=call_id, clinic_id=clinic_id).first()
     if row is None:
         raise HTTPException(404, "call_not_found")
-    return CallLogOut.from_row(row)
+    clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
+    patient = None
+    if row.patient_id:
+        # Scope the patient lookup by clinic_id defensively (multi-tenancy).
+        patient = (
+            db.query(Patient)
+              .filter_by(id=row.patient_id, clinic_id=clinic_id)
+              .first()
+        )
+    appt = None
+    appt_id = (row.call_metadata or {}).get("appointment_id")
+    if appt_id:
+        appt = (
+            db.query(Appointment)
+              .filter_by(id=appt_id, clinic_id=clinic_id)
+              .first()
+        )
+    return _detail_dict(row, patient, appt, clinic)
