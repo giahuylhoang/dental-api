@@ -1,5 +1,6 @@
 """GET /api/portal/clinics/{cid}/calls + GET /{call_id} — read-only call log."""
 
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -31,6 +32,38 @@ def _normalize_outcome(raw: Optional[str]) -> str:
     if raw.startswith("routing_gate"):  # forward-compat for new gate variants
         return raw
     return "agent_handled"
+
+
+# ── Transcript projection ──────────────────────────────────────────────
+# Stored shape (legacy):   {ts: "HH:MM:SS", role: "assistant"|"user", text: str}
+# Returned shape (rich):   {t: ms_from_call_start, speaker: "agent"|"caller",
+#                           text, confidence, intents, latency_ms}
+#
+# When the agent later emits real confidence/intents/latency on each turn,
+# this helper passes them through unchanged.
+
+def _project_turn(turn: Dict[str, Any], started_at: datetime) -> Dict[str, Any]:
+    role = turn.get("role")
+    speaker = "agent" if role == "assistant" else "caller"
+    t_ms = 0
+    ts = turn.get("ts")
+    if isinstance(ts, str) and ":" in ts:
+        try:
+            h, m, s = ts.split(":")
+            wall = started_at.replace(hour=int(h), minute=int(m), second=int(s))
+            t_ms = max(0, int((wall - started_at).total_seconds() * 1000))
+        except (ValueError, AttributeError):
+            t_ms = 0
+    return {
+        "t": t_ms,
+        "speaker": speaker,
+        "text": turn.get("text") or turn.get("content") or "",
+        "confidence": turn.get("confidence", 1.0),
+        "intents": turn.get("intents", []),
+        "latency_ms": turn.get("latency_ms", {
+            "stt": 0, "llm": 0, "tool": 0, "tts": 0, "total": 0,
+        }),
+    }
 
 
 class CallLogOut(BaseModel):
