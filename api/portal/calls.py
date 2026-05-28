@@ -178,9 +178,17 @@ def list_calls(
     clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
     base_q = db.query(CallLog).filter(CallLog.clinic_id == clinic_id)
     total = base_q.count()
+    # Patient join is scoped to the same clinic_id so a cross-tenant FK
+    # (data drift / migration error) cannot leak another clinic's caller
+    # name into this response. Project CLAUDE.md requires every query to
+    # filter by clinic_id.
     rows = (
         db.query(CallLog, Patient)
-          .outerjoin(Patient, Patient.id == CallLog.patient_id)
+          .outerjoin(
+              Patient,
+              (Patient.id == CallLog.patient_id)
+              & (Patient.clinic_id == CallLog.clinic_id),
+          )
           .filter(CallLog.clinic_id == clinic_id)
           .order_by(CallLog.started_at.desc())
           .limit(limit).offset(offset).all()
