@@ -78,8 +78,15 @@ def run_backfill(db: Session) -> Dict[str, int]:
 
 def main() -> int:
     db = SessionLocal()
+    summary: Dict[str, int] = {}
     try:
         summary = run_backfill(db)
+    except Exception:
+        # All-or-nothing commit semantics mean a mid-run crash rolls back
+        # everything. Surface a non-zero exit code AND the partial summary
+        # so the operator can see how far we got before re-running.
+        _log.exception("backfill failed; partial summary: %s", summary)
+        return 1
     finally:
         db.close()
     _log.info("backfill complete: %s", summary)
