@@ -2,12 +2,41 @@
 
 from datetime import datetime, timezone
 
+import pytest
 from fastapi.testclient import TestClient
 
 from api.main import app
+from api.portal.calls import _normalize_outcome
 from database.models import CallLog
 
 client = TestClient(app)
+
+
+@pytest.mark.parametrize("stored,expected", [
+    # Canonical outcomes pass through unchanged
+    ("booked", "booked"),
+    ("agent_handled", "agent_handled"),
+    ("transferred", "transferred"),
+    ("voicemail", "voicemail"),
+    ("missed", "missed"),
+    ("error", "error"),
+    # routing_gate_* prefix passthrough (forward-compat)
+    ("routing_gate_transfer", "routing_gate_transfer"),
+    ("routing_gate_hangup", "routing_gate_hangup"),
+    ("routing_gate_anything_new", "routing_gate_anything_new"),
+    # Legacy phase names → agent_handled (uniform remap)
+    ("greeting_triage", "agent_handled"),
+    ("ended", "agent_handled"),
+    ("cancel", "agent_handled"),
+    ("closure", "agent_handled"),
+    ("verification", "agent_handled"),
+    ("intake", "agent_handled"),
+    ("anything_unrecognized", "agent_handled"),
+    # None → agent_handled
+    (None, "agent_handled"),
+])
+def test_normalize_outcome(stored, expected):
+    assert _normalize_outcome(stored) == expected
 
 
 def test_list_calls_empty(override_portal_user):

@@ -12,6 +12,27 @@ from database.models import CallLog
 router = APIRouter()
 
 
+# ── Outcome remap ──────────────────────────────────────────────────────
+# Schema doc (packages/shared/schemas/call_record.py:77) enumerates the
+# canonical outcomes. Legacy rows wrote phase names instead of dispositions.
+# Anything not in the canonical set → 'agent_handled' (uniform remap per
+# 2026-05-28-call-log-shape-fix-design §1).
+_CANONICAL_OUTCOMES = frozenset({
+    "booked", "agent_handled", "transferred", "voicemail", "missed",
+    "routing_gate_transfer", "routing_gate_hangup", "error",
+})
+
+
+def _normalize_outcome(raw):
+    if raw is None:
+        return "agent_handled"
+    if raw in _CANONICAL_OUTCOMES:
+        return raw
+    if raw.startswith("routing_gate"):  # forward-compat for new gate variants
+        return raw
+    return "agent_handled"
+
+
 class CallLogOut(BaseModel):
     id: str
     clinic_id: str
