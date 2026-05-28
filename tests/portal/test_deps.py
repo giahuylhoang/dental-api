@@ -41,6 +41,26 @@ def test_whoami_returns_user_when_override_installed(override_portal_user):
     assert body["role"] == "admin"
 
 
+def test_get_portal_user_does_not_403_when_clinic_ids_claim_missing(monkeypatch):
+    """A user provisioned only via the membership table (no Firebase custom
+    claim yet) must still reach require_clinic_access for the DB lookup.
+    Pre-cutover behavior was to 403 here on missing clinic_ids — that gated
+    out DB-canonical users and broke the soft-fallback design."""
+    from api.portal import deps as portal_deps
+
+    # Stub fb_auth.verify_id_token to return a decoded token without clinic_ids
+    monkeypatch.setattr(portal_deps, "_ensure_app", lambda: None)
+    fake_decoded = {"uid": "u-noclaim", "email": "n@x"}
+    monkeypatch.setattr(
+        portal_deps.fb_auth, "verify_id_token", lambda token: fake_decoded,
+    )
+
+    user = portal_deps.get_portal_user(authorization="Bearer dummy")
+    assert user.uid == "u-noclaim"
+    assert user.clinic_ids == []
+    assert user.role == "readonly"
+
+
 def test_require_clinic_access_with_membership_row_allows(
     db_session, override_portal_user, portal_user_factory,
 ):

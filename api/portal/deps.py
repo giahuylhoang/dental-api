@@ -60,11 +60,15 @@ def get_portal_user(authorization: str = Header(default="")) -> PortalUser:
     except Exception as e:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, f"invalid token: {e}")
 
-    clinic_ids = decoded.get("clinic_ids")
+    # Extract clinic_ids from the token if present (used by require_clinic_access
+    # as a soft-cutover fallback) but do NOT 403 here when absent — the DB-backed
+    # gate in require_clinic_access is the canonical authorization check. Users
+    # provisioned via the membership table without ever receiving custom claims
+    # (e.g. new admin users) must reach require_clinic_access for the DB lookup
+    # to grant access. See docs/superpowers/specs/2026-05-28-admin-portal-auth-design.md.
+    clinic_ids = decoded.get("clinic_ids") or []
     if not clinic_ids and "clinic_id" in decoded:
         clinic_ids = [decoded["clinic_id"]]
-    if not clinic_ids:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "no clinic claim on token")
 
     return PortalUser(
         uid=decoded["uid"],
