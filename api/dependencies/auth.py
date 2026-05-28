@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 
 from database.auth import UserClinicMembership
 from database.connection import get_db
-from database.models import Clinic
+from database.models import Clinic, DEFAULT_CLINIC_ID
 
 
 logger = logging.getLogger(__name__)
@@ -79,7 +79,7 @@ def get_current_uid(
 
 def get_authorized_clinic(
     uid: str = Depends(get_current_uid),
-    x_clinic_id: str = Header(..., alias="X-Clinic-Id"),
+    x_clinic_id: Optional[str] = Header(None, alias="X-Clinic-Id"),
     db: Session = Depends(get_db),
 ) -> Clinic:
     """Resolve and authorize the Clinic referenced by X-Clinic-Id.
@@ -90,6 +90,14 @@ def get_authorized_clinic(
     3. Reject 403 if X-Clinic-Id is not in the allowed set.
     4. Look up the Clinic; 404 if missing.
     """
+    # Legacy compatibility: in bypass mode, fall back to the default clinic
+    # when the caller omits X-Clinic-Id. Non-bypass mode requires the
+    # header explicitly — fail-closed.
+    if ADMIN_AUTH_BYPASS and not x_clinic_id:
+        x_clinic_id = DEFAULT_CLINIC_ID
+    if not x_clinic_id:
+        raise HTTPException(status_code=401, detail="missing_clinic_header")
+
     if ADMIN_AUTH_BYPASS:
         clinic = db.query(Clinic).filter(Clinic.id == x_clinic_id).first()
         if not clinic:
