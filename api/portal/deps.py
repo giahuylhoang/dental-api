@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from typing import List
 
-from fastapi import Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 from pydantic import BaseModel
+from sqlalchemy.exc import OperationalError, ProgrammingError
+from sqlalchemy.orm import Session
+
+from api.dependencies import get_db
+from database.auth.memberships import UserClinicMembership
 
 try:
     import firebase_admin
@@ -15,6 +21,8 @@ try:
 except ImportError:
     _FIREBASE_AVAILABLE = False
 
+
+_log = logging.getLogger("api.portal.deps")
 
 _app_initialized = False
 
@@ -66,8 +74,46 @@ def get_portal_user(authorization: str = Header(default="")) -> PortalUser:
     )
 
 
-def require_clinic_access(clinic_id: str, user: PortalUser) -> str:
-    """Raise 403 if the verified user's claims do not grant this clinic_id."""
-    if clinic_id not in user.clinic_ids:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, f"no_access_to_clinic:{clinic_id}")
-    return clinic_id
+def require_clinic_access(
+    clinic_id: str,
+    user: "PortalUser" = Depends(get_portal_user),
+    db: Session = Depends(get_db),
+) -> str:
+    """Authorize the bearer of this token for {clinic_id}.
+
+    Soft-fallback design: DB membership is canonical; token claim is a
+    temporary safety net during the cutover window. See
+    docs/superpowers/specs/2026-05-28-admin-portal-auth-design.md.
+    """
+    try:
+        row = (
+            db.query(UserClinicMembership)
+            .filter_by(uid=user.uid, clinic_id=clinic_id)
+            .first()
+        )
+    except (OperationalError, ProgrammingError) as exc:
+        # The user_clinic_memberships table is missing — CRM auth plan
+        # migration was not deployed. Fail loud rather than silently
+        # falling back to claims, which would mask a deploy bug.
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "membership table not initialized; deploy CRM auth migration first",
+        ) from exc
+
+    if row is not None:
+        return clinic_id
+
+    # Fallback to the token claim during cutover. Emit a structured warn
+    # so ops can tell when memberships are fully backfilled and the
+    # fallback can be removed.
+    if clinic_id in (user.clinic_ids or []):
+        _log.warning(
+            "portal_membership_missing uid=%s clinic_id=%s email=%s",
+            user.uid, clinic_id, user.email,
+        )
+        return clinic_id
+
+    raise HTTPException(
+        status.HTTP_403_FORBIDDEN,
+        f"no_access_to_clinic:{clinic_id}",
+    )
