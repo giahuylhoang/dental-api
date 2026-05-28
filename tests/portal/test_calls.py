@@ -135,3 +135,34 @@ def test_project_turn_passes_through_real_confidence_intents_latency():
     assert out["confidence"] == 0.42
     assert out["intents"] == [{"name": "booking", "score": 0.9}]
     assert out["latency_ms"]["total"] == 500
+
+
+def test_project_turn_midnight_rollover_does_not_collapse_to_zero():
+    """A call that starts 23:58 and has a turn at 00:03 must place that turn
+    ~5 minutes after start, not back at t=0 (which would happen if we kept
+    the same date and clamped with max(0, ...))."""
+    started = datetime(2026, 5, 28, 23, 58, 0, tzinfo=timezone.utc)
+    turn = {"ts": "00:03:00", "role": "user", "text": "x"}
+    out = _project_turn(turn, started)
+    assert out["t"] == 5 * 60 * 1000  # 5 minutes after start
+
+
+def test_project_turn_partial_latency_merges_with_defaults():
+    """A partial latency dict (e.g. just stt) must be merged into defaults so
+    downstream readers can always rely on all 5 keys being present."""
+    started = datetime(2026, 5, 28, 5, 41, 0, tzinfo=timezone.utc)
+    turn = {"ts": "05:41:00", "role": "user", "text": "x",
+            "latency_ms": {"stt": 100}}
+    out = _project_turn(turn, started)
+    assert out["latency_ms"] == {
+        "stt": 100, "llm": 0, "tool": 0, "tts": 0, "total": 0,
+    }
+
+
+def test_project_turn_fractional_seconds_parse_to_whole_second():
+    """A timestamp with milliseconds like '05:41:28.123' must not collapse
+    the whole turn to t=0; sub-second precision is dropped."""
+    started = datetime(2026, 5, 28, 5, 41, 0, tzinfo=timezone.utc)
+    turn = {"ts": "05:41:28.123", "role": "user", "text": "x"}
+    out = _project_turn(turn, started)
+    assert out["t"] == 28_000

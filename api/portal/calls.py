@@ -1,6 +1,6 @@
 """GET /api/portal/clinics/{cid}/calls + GET /{call_id} — read-only call log."""
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -42,6 +42,9 @@ def _normalize_outcome(raw: Optional[str]) -> str:
 # When the agent later emits real confidence/intents/latency on each turn,
 # this helper passes them through unchanged.
 
+_LATENCY_DEFAULTS = {"stt": 0, "llm": 0, "tool": 0, "tts": 0, "total": 0}
+
+
 def _project_turn(turn: Dict[str, Any], started_at: datetime) -> Dict[str, Any]:
     role = turn.get("role")
     speaker = "agent" if role == "assistant" else "caller"
@@ -50,19 +53,28 @@ def _project_turn(turn: Dict[str, Any], started_at: datetime) -> Dict[str, Any]:
     if isinstance(ts, str) and ":" in ts:
         try:
             h, m, s = ts.split(":")
-            wall = started_at.replace(hour=int(h), minute=int(m), second=int(s))
+            # Drop sub-second portion if present (e.g. "28.123" → 28) so a
+            # millisecond timestamp doesn't collapse the whole turn to t=0.
+            wall = started_at.replace(
+                hour=int(h), minute=int(m), second=int(s.split(".")[0]),
+            )
+            # Roll forward a day when the turn's wall-clock is before
+            # started_at — happens for calls that span midnight.
+            if wall < started_at:
+                wall += timedelta(days=1)
             t_ms = max(0, int((wall - started_at).total_seconds() * 1000))
         except (ValueError, AttributeError):
             t_ms = 0
+    # Merge any partial latency_ms dict into defaults so downstream
+    # readers (UI) can rely on all 5 keys being present.
+    latency = {**_LATENCY_DEFAULTS, **(turn.get("latency_ms") or {})}
     return {
         "t": t_ms,
         "speaker": speaker,
         "text": turn.get("text") or turn.get("content") or "",
         "confidence": turn.get("confidence", 1.0),
         "intents": turn.get("intents", []),
-        "latency_ms": turn.get("latency_ms", {
-            "stt": 0, "llm": 0, "tool": 0, "tts": 0, "total": 0,
-        }),
+        "latency_ms": latency,
     }
 
 
