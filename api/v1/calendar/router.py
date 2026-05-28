@@ -10,7 +10,7 @@ from typing import Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from api.dependencies import get_clinic, get_db
+from api.dependencies import get_authorized_clinic, get_db
 from database.models import (
     Appointment, AppointmentStatus, Clinic, Patient, Provider, Service,
 )
@@ -35,7 +35,7 @@ async def get_calendar_slots(
     provider_name: Optional[str] = Query(None, description="Provider name for filtering"),
     slot_minutes: int = Query(30, description="Slot duration in minutes"),
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     """
     Get available appointment slots for a datetime range (computed from database).
@@ -65,7 +65,7 @@ async def list_calendar_events(
     start: Optional[str] = Query(None, description="ISO start of range (inclusive)"),
     end: Optional[str] = Query(None, description="ISO end of range (exclusive)"),
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     """List appointments in [start, end) as FullCalendar-style event objects."""
     q = db.query(Appointment).filter(Appointment.clinic_id == clinic.id)
@@ -98,7 +98,7 @@ async def create_calendar_event(
     request: AppointmentCreateRequest,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     """Create appointment in database (DB is source of truth)."""
     # 0. Validate datetime formats BEFORE creating appointment

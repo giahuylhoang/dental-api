@@ -19,7 +19,7 @@ from database.v1_1.models import ToothChartEntry, DentureCaseImplant
 from database.v1_1.lifecycle import (
     get_status, set_status, promote_if_complete, PATIENT_STATUSES,
 )
-from api.main import get_clinic
+from api.dependencies import get_authorized_clinic
 
 router = APIRouter(prefix="/api/v2/clinical", tags=["clinical"])
 
@@ -67,7 +67,7 @@ def _split_name(full: str) -> tuple[str, Optional[str]]:
 def quick_book_patient(
     body: QuickBookIn,
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     """Create (or reuse) a phone-booking patient with status='pending'.
 
@@ -125,7 +125,7 @@ def quick_book_patient(
 def get_patient_status(
     patient_id: str,
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     p = db.query(Patient).filter(Patient.id == patient_id, Patient.clinic_id == clinic.id).first()
     if not p:
@@ -138,7 +138,7 @@ def set_patient_status(
     patient_id: str,
     body: PatientStatusIn,
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     if body.status not in PATIENT_STATUSES:
         raise HTTPException(status_code=400, detail=f"invalid status; expected one of {list(PATIENT_STATUSES)}")
@@ -154,7 +154,7 @@ def set_patient_status(
 def promote_patient(
     patient_id: str,
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     """Auto-promote pending → active if all required fields are now present."""
     p = db.query(Patient).filter(Patient.id == patient_id, Patient.clinic_id == clinic.id).first()
@@ -364,7 +364,7 @@ def _get_denture_case(case_id: str, clinic: Clinic, db: Session) -> DentureCase:
 # ---------------------------------------------------------------------------
 
 @router.get("/patients/{patient_id}/medical-history", response_model=Optional[MedicalHistoryOut])
-def get_medical_history(patient_id: str, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def get_medical_history(patient_id: str, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     _get_patient(patient_id, clinic, db)
     return db.query(PatientMedicalHistory).filter(
         PatientMedicalHistory.patient_id == patient_id,
@@ -373,7 +373,7 @@ def get_medical_history(patient_id: str, clinic: Clinic = Depends(get_clinic), d
 
 
 @router.post("/patients/{patient_id}/medical-history", response_model=MedicalHistoryOut)
-def upsert_medical_history(patient_id: str, body: MedicalHistoryIn, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def upsert_medical_history(patient_id: str, body: MedicalHistoryIn, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     _get_patient(patient_id, clinic, db)
     existing = db.query(PatientMedicalHistory).filter(
         PatientMedicalHistory.patient_id == patient_id,
@@ -394,7 +394,7 @@ def upsert_medical_history(patient_id: str, body: MedicalHistoryIn, clinic: Clin
 
 
 @router.get("/patients/{patient_id}/insurance", response_model=List[InsuranceOut])
-def list_insurance(patient_id: str, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def list_insurance(patient_id: str, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     _get_patient(patient_id, clinic, db)
     return db.query(PatientInsurance).filter(
         PatientInsurance.patient_id == patient_id,
@@ -403,7 +403,7 @@ def list_insurance(patient_id: str, clinic: Clinic = Depends(get_clinic), db: Se
 
 
 @router.post("/patients/{patient_id}/insurance", response_model=InsuranceOut, status_code=201)
-def add_insurance(patient_id: str, body: InsuranceIn, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def add_insurance(patient_id: str, body: InsuranceIn, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     _get_patient(patient_id, clinic, db)
     obj = PatientInsurance(clinic_id=clinic.id, patient_id=patient_id, **body.model_dump())
     db.add(obj)
@@ -413,7 +413,7 @@ def add_insurance(patient_id: str, body: InsuranceIn, clinic: Clinic = Depends(g
 
 
 @router.get("/patients/{patient_id}/consents", response_model=List[ConsentOut])
-def list_consents(patient_id: str, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def list_consents(patient_id: str, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     _get_patient(patient_id, clinic, db)
     return db.query(PatientConsent).filter(
         PatientConsent.patient_id == patient_id,
@@ -422,7 +422,7 @@ def list_consents(patient_id: str, clinic: Clinic = Depends(get_clinic), db: Ses
 
 
 @router.post("/patients/{patient_id}/consents", response_model=ConsentOut, status_code=201)
-def add_consent(patient_id: str, body: ConsentIn, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def add_consent(patient_id: str, body: ConsentIn, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     _get_patient(patient_id, clinic, db)
     obj = PatientConsent(clinic_id=clinic.id, patient_id=patient_id, **body.model_dump())
     db.add(obj)
@@ -432,7 +432,7 @@ def add_consent(patient_id: str, body: ConsentIn, clinic: Clinic = Depends(get_c
 
 
 @router.get("/patients/{patient_id}/documents", response_model=List[DocumentOut])
-def list_documents(patient_id: str, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def list_documents(patient_id: str, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     _get_patient(patient_id, clinic, db)
     return db.query(Document).filter(
         Document.patient_id == patient_id,
@@ -441,7 +441,7 @@ def list_documents(patient_id: str, clinic: Clinic = Depends(get_clinic), db: Se
 
 
 @router.post("/patients/{patient_id}/documents", response_model=DocumentOut, status_code=201)
-def add_document(patient_id: str, body: DocumentIn, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def add_document(patient_id: str, body: DocumentIn, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     _get_patient(patient_id, clinic, db)
     # Dedup on sha256
     existing = db.query(Document).filter(
@@ -462,7 +462,7 @@ def add_document(patient_id: str, body: DocumentIn, clinic: Clinic = Depends(get
 # ---------------------------------------------------------------------------
 
 @router.post("/notes", response_model=NoteOut, status_code=201)
-def create_note(body: NoteIn, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def create_note(body: NoteIn, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     _get_patient(body.patient_id, clinic, db)
     obj = ClinicalNote(clinic_id=clinic.id, **body.model_dump())
     db.add(obj)
@@ -472,7 +472,7 @@ def create_note(body: NoteIn, clinic: Clinic = Depends(get_clinic), db: Session 
 
 
 @router.patch("/notes/{note_id}", response_model=NoteOut)
-def patch_note(note_id: str, body: NotePatch, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def patch_note(note_id: str, body: NotePatch, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     note = db.query(ClinicalNote).filter(
         ClinicalNote.id == note_id,
         ClinicalNote.clinic_id == clinic.id,
@@ -490,7 +490,7 @@ def patch_note(note_id: str, body: NotePatch, clinic: Clinic = Depends(get_clini
 
 
 @router.post("/notes/{note_id}/lock", response_model=NoteOut)
-def lock_note(note_id: str, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def lock_note(note_id: str, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     note = db.query(ClinicalNote).filter(
         ClinicalNote.id == note_id,
         ClinicalNote.clinic_id == clinic.id,
@@ -504,7 +504,7 @@ def lock_note(note_id: str, clinic: Clinic = Depends(get_clinic), db: Session = 
 
 
 @router.post("/notes/{note_id}/amend", response_model=NoteOut, status_code=201)
-def amend_note(note_id: str, body: NotePatch, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def amend_note(note_id: str, body: NotePatch, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     original = db.query(ClinicalNote).filter(
         ClinicalNote.id == note_id,
         ClinicalNote.clinic_id == clinic.id,
@@ -532,7 +532,7 @@ def amend_note(note_id: str, body: NotePatch, clinic: Clinic = Depends(get_clini
 
 
 @router.get("/notes", response_model=List[NoteOut])
-def list_notes(patient_id: Optional[str] = None, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def list_notes(patient_id: Optional[str] = None, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     q = db.query(ClinicalNote).filter(ClinicalNote.clinic_id == clinic.id)
     if patient_id:
         q = q.filter(ClinicalNote.patient_id == patient_id)
@@ -545,7 +545,7 @@ def list_notes(patient_id: Optional[str] = None, clinic: Clinic = Depends(get_cl
 
 @router.get("/patients/{patient_id}/denture-cases", response_model=List[DentureCaseOut])
 def list_denture_cases_for_patient(
-    patient_id: str, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)
+    patient_id: str, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)
 ):
     _get_patient(patient_id, clinic, db)
     return (
@@ -557,7 +557,7 @@ def list_denture_cases_for_patient(
 
 
 @router.post("/denture-cases", response_model=DentureCaseOut, status_code=201)
-def create_denture_case(body: DentureCaseIn, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def create_denture_case(body: DentureCaseIn, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     _get_patient(body.patient_id, clinic, db)
     obj = DentureCase(
         clinic_id=clinic.id,
@@ -575,12 +575,12 @@ def create_denture_case(body: DentureCaseIn, clinic: Clinic = Depends(get_clinic
 
 
 @router.get("/denture-cases/{case_id}", response_model=DentureCaseOut)
-def get_denture_case(case_id: str, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def get_denture_case(case_id: str, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     return _get_denture_case(case_id, clinic, db)
 
 
 @router.post("/denture-cases/{case_id}/advance", response_model=DentureCaseOut)
-def advance_denture_case(case_id: str, body: DentureCaseAdvance, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def advance_denture_case(case_id: str, body: DentureCaseAdvance, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     case = _get_denture_case(case_id, clinic, db)
     if case.status == "closed":
         raise HTTPException(status_code=400, detail="Cannot advance a closed case")
@@ -603,7 +603,7 @@ def advance_denture_case(case_id: str, body: DentureCaseAdvance, clinic: Clinic 
 
 
 @router.post("/denture-cases/{case_id}/close", response_model=DentureCaseOut)
-def close_denture_case(case_id: str, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def close_denture_case(case_id: str, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     case = _get_denture_case(case_id, clinic, db)
     case.status = "closed"
     case.closed_at = datetime.utcnow()
@@ -618,7 +618,7 @@ def list_denture_cases(
     patient_id: Optional[str] = None,
     status: Optional[str] = None,
     stage: Optional[str] = None,
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
     db: Session = Depends(get_db),
 ):
     q = db.query(DentureCase).filter(DentureCase.clinic_id == clinic.id)
@@ -651,7 +651,7 @@ def upload_document(
     file: UploadFile = File(...),
     kind: str = Form(...),
     patient_id: str = Form(...),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
     db: Session = Depends(get_db),
 ):
     _get_patient(patient_id, clinic, db)
@@ -739,7 +739,7 @@ def _build_tooth_chart(rows: list) -> List[ToothChartEntryOut]:
 @router.get("/patients/{patient_id}/tooth-chart", response_model=List[ToothChartEntryOut])
 def get_tooth_chart(
     patient_id: str,
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
     db: Session = Depends(get_db),
 ):
     _get_patient(patient_id, clinic, db)
@@ -754,7 +754,7 @@ def get_tooth_chart(
 def upsert_tooth_chart(
     patient_id: str,
     body: List[ToothChartEntryIn],
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
     db: Session = Depends(get_db),
 ):
     _get_patient(patient_id, clinic, db)
@@ -797,7 +797,7 @@ def update_insurance(
     patient_id: str,
     insurance_id: str,
     body: InsuranceIn,
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
     db: Session = Depends(get_db),
 ):
     _get_patient(patient_id, clinic, db)
@@ -819,7 +819,7 @@ def update_insurance(
 def delete_insurance(
     patient_id: str,
     insurance_id: str,
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
     db: Session = Depends(get_db),
 ):
     _get_patient(patient_id, clinic, db)
@@ -864,7 +864,7 @@ class ImplantOut(BaseModel):
 @router.get("/denture-cases/{case_id}/implants", response_model=List[ImplantOut])
 def list_implants(
     case_id: str,
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
     db: Session = Depends(get_db),
 ):
     _get_denture_case(case_id, clinic, db)
@@ -877,7 +877,7 @@ def list_implants(
 def create_implant(
     case_id: str,
     body: ImplantIn,
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
     db: Session = Depends(get_db),
 ):
     _get_denture_case(case_id, clinic, db)
@@ -911,7 +911,7 @@ from database.models import Appointment
 @router.get("/appointments/{appointment_id}")
 def get_appointment_v2(
     appointment_id: str,
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
     db: Session = Depends(get_db),
 ):
     appt = db.query(Appointment).filter(

@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from database.connection import get_db
 from database.models import Clinic, Patient
 from database.ops.models import Communication
-from api.main import get_clinic
+from api.dependencies import get_authorized_clinic
 from clients.sms_client import _send_sms_sync, SEND_BOOKING_SMS, send_whatsapp
 
 router = APIRouter(prefix="/api/v2/communications", tags=["v2-communications"])
@@ -66,7 +66,7 @@ def _send_patient_message(channel: str, patient: Patient, body: str) -> bool:
 
 
 @router.post("/send", status_code=201)
-def send_communication(body: SendIn, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def send_communication(body: SendIn, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     patient = db.query(Patient).filter(Patient.id == body.patient_id, Patient.clinic_id == clinic.id).first()
     if not patient:
         raise HTTPException(404, "Patient not found")
@@ -99,7 +99,7 @@ def send_communication(body: SendIn, clinic: Clinic = Depends(get_clinic), db: S
 def list_communications(
     patient_id: Optional[str] = Query(None),
     channel: Optional[str] = Query(None),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
     db: Session = Depends(get_db),
 ):
     q = db.query(Communication).filter(Communication.clinic_id == clinic.id)
@@ -111,7 +111,7 @@ def list_communications(
 
 
 @router.patch("/threads/{thread_key}/read")
-def mark_thread_read(thread_key: str, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def mark_thread_read(thread_key: str, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     now = datetime.utcnow()
     rows = (
         db.query(Communication)

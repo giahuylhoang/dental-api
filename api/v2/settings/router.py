@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from database.connection import get_db
 from database.models import Clinic
-from api.main import get_clinic
+from api.dependencies import get_authorized_clinic
 from api.caching import add_cache_headers, check_etag
 
 router = APIRouter(prefix="/api/v2/settings", tags=["v2-settings"])
@@ -54,7 +54,7 @@ def _clinic_to_config(clinic: Clinic) -> dict:
 
 
 @router.get("/clinic", response_model=ClinicConfigOut)
-def get_clinic_config(request: Request, response: Response, clinic: Clinic = Depends(get_clinic)):
+def get_clinic_config(request: Request, response: Response, clinic: Clinic = Depends(get_authorized_clinic)):
     data = _clinic_to_config(clinic)
     etag = add_cache_headers(response, data)
     if check_etag(request, etag):
@@ -65,7 +65,7 @@ def get_clinic_config(request: Request, response: Response, clinic: Clinic = Dep
 @router.put("/clinic", response_model=ClinicConfigOut)
 def update_clinic_config(
     body: ClinicConfigPatch,
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
     db: Session = Depends(get_db),
 ):
     for field, value in body.model_dump(exclude_unset=True).items():
@@ -76,7 +76,7 @@ def update_clinic_config(
 
 
 @router.get("/integrations")
-def get_integrations(request: Request, response: Response, clinic: Clinic = Depends(get_clinic)):
+def get_integrations(request: Request, response: Response, clinic: Clinic = Depends(get_authorized_clinic)):
     # Per-clinic flags could be stored in clinic row or a separate table.
     # For now, fall back to env defaults for all clinics.
     data = {

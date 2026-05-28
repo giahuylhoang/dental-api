@@ -27,7 +27,7 @@ from database.ops.ai_config import (
     ServiceAiBookable,
     ClinicKnowledgeDoc,
 )
-from api.main import get_clinic
+from api.dependencies import get_authorized_clinic
 from api.caching import add_cache_headers, check_etag
 
 router = APIRouter(prefix="/ai", tags=["v2-settings-ai"])
@@ -66,7 +66,7 @@ def get_voice(
     request: Request,
     response: Response,
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     row = _voice_or_create(db, clinic.id)
     data = {
@@ -85,7 +85,7 @@ def get_voice(
 def put_voice(
     body: VoicePatch,
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     row = _voice_or_create(db, clinic.id)
     for field, value in body.model_dump(exclude_unset=True).items():
@@ -136,7 +136,7 @@ def _disclosure_to_out(row: ClinicAiDisclosure) -> DisclosureOut:
 @router.get("/disclosure", response_model=DisclosureOut)
 def get_disclosure(
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     return _disclosure_to_out(_disclosure_or_create(db, clinic.id))
 
@@ -145,7 +145,7 @@ def get_disclosure(
 def put_disclosure(
     body: DisclosurePatch,
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     row = _disclosure_or_create(db, clinic.id)
     updates = body.model_dump(exclude_unset=True)
@@ -177,7 +177,7 @@ class ServiceBookablePatch(BaseModel):
 @router.get("/services-bookable", response_model=List[ServiceBookableOut])
 def list_services_bookable(
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     services = (
         db.query(Service)
@@ -208,7 +208,7 @@ def put_service_bookable(
     service_id: int,
     body: ServiceBookablePatch,
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     svc = (
         db.query(Service)
@@ -291,7 +291,7 @@ def _doc_to_full(row: ClinicKnowledgeDoc) -> KnowledgeDoc:
 @router.get("/knowledge", response_model=List[KnowledgeListItem])
 def list_knowledge(
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     rows = (
         db.query(ClinicKnowledgeDoc)
@@ -314,7 +314,7 @@ def list_knowledge(
 def get_knowledge(
     filename: str,
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     row = (
         db.query(ClinicKnowledgeDoc)
@@ -333,7 +333,7 @@ def get_knowledge(
 def create_knowledge(
     body: KnowledgeCreate,
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     existing = (
         db.query(ClinicKnowledgeDoc)
@@ -366,7 +366,7 @@ def update_knowledge(
     filename: str,
     body: KnowledgeUpdate,
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     row = (
         db.query(ClinicKnowledgeDoc)
@@ -393,7 +393,7 @@ def update_knowledge(
 def delete_knowledge(
     filename: str,
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     row = (
         db.query(ClinicKnowledgeDoc)

@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from database.connection import get_db
 from database.models import Clinic
 from database.ops.models import Invoice, InvoiceLine, Payment
-from api.main import get_clinic
+from api.dependencies import get_authorized_clinic
 
 router = APIRouter(prefix="/api/v2/billing", tags=["v2-billing"])
 
@@ -76,7 +76,7 @@ def _invoice_out(inv: Invoice) -> dict:
 
 
 @router.post("/invoices", status_code=201)
-def create_invoice(body: InvoiceIn, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def create_invoice(body: InvoiceIn, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     subtotal = Decimal("0")
     line_objs = []
     for i, line in enumerate(body.lines):
@@ -120,7 +120,7 @@ def create_invoice(body: InvoiceIn, clinic: Clinic = Depends(get_clinic), db: Se
 def list_invoices(
     patient_id: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
     db: Session = Depends(get_db),
 ):
     q = db.query(Invoice).filter(Invoice.clinic_id == clinic.id)
@@ -134,7 +134,7 @@ def list_invoices(
 @router.get("/invoices/{inv_id}")
 def get_invoice(
     inv_id: str,
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
     db: Session = Depends(get_db),
 ):
     inv = db.query(Invoice).filter(Invoice.id == inv_id, Invoice.clinic_id == clinic.id).first()
@@ -144,7 +144,7 @@ def get_invoice(
 
 
 @router.post("/invoices/{inv_id}/issue", status_code=200)
-def issue_invoice(inv_id: str, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def issue_invoice(inv_id: str, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     inv = db.query(Invoice).filter(Invoice.id == inv_id, Invoice.clinic_id == clinic.id).first()
     if not inv:
         raise HTTPException(404, "Invoice not found")
@@ -160,7 +160,7 @@ def issue_invoice(inv_id: str, clinic: Clinic = Depends(get_clinic), db: Session
 
 
 @router.post("/invoices/{inv_id}/payments", status_code=201)
-def record_payment(inv_id: str, body: PaymentIn, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def record_payment(inv_id: str, body: PaymentIn, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     inv = db.query(Invoice).filter(Invoice.id == inv_id, Invoice.clinic_id == clinic.id).first()
     if not inv:
         raise HTTPException(404, "Invoice not found")
@@ -189,7 +189,7 @@ def record_payment(inv_id: str, body: PaymentIn, clinic: Clinic = Depends(get_cl
 
 
 @router.post("/invoices/{inv_id}/void", status_code=200)
-def void_invoice(inv_id: str, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def void_invoice(inv_id: str, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     inv = db.query(Invoice).filter(Invoice.id == inv_id, Invoice.clinic_id == clinic.id).first()
     if not inv:
         raise HTTPException(404, "Invoice not found")
@@ -208,7 +208,7 @@ class FromPlanIn(BaseModel):
 
 
 @router.post("/invoices/from-plan", status_code=201)
-def create_invoice_from_plan(body: FromPlanIn, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def create_invoice_from_plan(body: FromPlanIn, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     from database.clinical.models import TreatmentPlan, TreatmentPlanItem
     plan = db.query(TreatmentPlan).filter(
         TreatmentPlan.id == body.treatment_plan_id,

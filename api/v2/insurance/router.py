@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from database.connection import get_db
 from database.models import Clinic
 from database.ops.models import InsuranceClaim, ClaimEvent
-from api.main import get_clinic
+from api.dependencies import get_authorized_clinic
 
 router = APIRouter(prefix="/api/v2/insurance", tags=["v2-insurance"])
 
@@ -60,7 +60,7 @@ class MarkPaidIn(BaseModel):
 
 
 @router.post("/claims", status_code=201)
-def create_claim(body: ClaimIn, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def create_claim(body: ClaimIn, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     claim = InsuranceClaim(
         clinic_id=clinic.id,
         invoice_id=body.invoice_id,
@@ -79,7 +79,7 @@ def create_claim(body: ClaimIn, clinic: Clinic = Depends(get_clinic), db: Sessio
 def list_claims(
     patient_id: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
     db: Session = Depends(get_db),
 ):
     q = db.query(InsuranceClaim).filter(InsuranceClaim.clinic_id == clinic.id)
@@ -89,7 +89,7 @@ def list_claims(
 
 
 @router.post("/claims/{claim_id}/submit", status_code=200)
-def submit_claim(claim_id: str, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def submit_claim(claim_id: str, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     claim = db.query(InsuranceClaim).filter(InsuranceClaim.id == claim_id, InsuranceClaim.clinic_id == clinic.id).first()
     if not claim:
         raise HTTPException(404, "Claim not found")
@@ -105,7 +105,7 @@ def submit_claim(claim_id: str, clinic: Clinic = Depends(get_clinic), db: Sessio
 
 
 @router.post("/claims/{claim_id}/adjudicate", status_code=200)
-def adjudicate_claim(claim_id: str, body: AdjudicateIn, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def adjudicate_claim(claim_id: str, body: AdjudicateIn, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     claim = db.query(InsuranceClaim).filter(InsuranceClaim.id == claim_id, InsuranceClaim.clinic_id == clinic.id).first()
     if not claim:
         raise HTTPException(404, "Claim not found")
@@ -127,7 +127,7 @@ def adjudicate_claim(claim_id: str, body: AdjudicateIn, clinic: Clinic = Depends
 
 
 @router.post("/claims/{claim_id}/mark-paid", status_code=200)
-def mark_paid(claim_id: str, body: MarkPaidIn, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def mark_paid(claim_id: str, body: MarkPaidIn, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     claim = db.query(InsuranceClaim).filter(InsuranceClaim.id == claim_id, InsuranceClaim.clinic_id == clinic.id).first()
     if not claim:
         raise HTTPException(404, "Claim not found")

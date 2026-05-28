@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from database.connection import get_db
 from database.models import Clinic
 from database.clinical.models import LabVendor, LabCase, LabCaseEvent, DentureCase
-from api.main import get_clinic
+from api.dependencies import get_authorized_clinic
 from clients.lab_case_numbering import next_lab_case_number
 
 router = APIRouter(prefix="/api/v2/lab", tags=["lab"])
@@ -100,12 +100,12 @@ def _add_event(db: Session, lab_case_id: str, kind: str, payload: dict = None):
 # ---------------------------------------------------------------------------
 
 @router.get("/vendors", response_model=List[VendorOut])
-def list_vendors(clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def list_vendors(clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     return db.query(LabVendor).filter(LabVendor.clinic_id == clinic.id).all()
 
 
 @router.post("/vendors", response_model=VendorOut, status_code=201)
-def create_vendor(body: VendorIn, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def create_vendor(body: VendorIn, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     obj = LabVendor(clinic_id=clinic.id, **body.model_dump())
     db.add(obj)
     db.commit()
@@ -114,7 +114,7 @@ def create_vendor(body: VendorIn, clinic: Clinic = Depends(get_clinic), db: Sess
 
 
 @router.put("/vendors/{vendor_id}", response_model=VendorOut)
-def update_vendor(vendor_id: str, body: VendorIn, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def update_vendor(vendor_id: str, body: VendorIn, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     v = _get_vendor(vendor_id, clinic, db)
     for k, val in body.model_dump(exclude_unset=True).items():
         setattr(v, k, val)
@@ -124,7 +124,7 @@ def update_vendor(vendor_id: str, body: VendorIn, clinic: Clinic = Depends(get_c
 
 
 @router.delete("/vendors/{vendor_id}", status_code=204)
-def delete_vendor(vendor_id: str, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def delete_vendor(vendor_id: str, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     v = _get_vendor(vendor_id, clinic, db)
     db.delete(v)
     db.commit()
@@ -135,7 +135,7 @@ def delete_vendor(vendor_id: str, clinic: Clinic = Depends(get_clinic), db: Sess
 # ---------------------------------------------------------------------------
 
 @router.post("/cases", response_model=LabCaseOut, status_code=201)
-def create_lab_case(body: LabCaseIn, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def create_lab_case(body: LabCaseIn, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     # Verify denture case belongs to clinic
     dc = db.query(DentureCase).filter(
         DentureCase.id == body.denture_case_id,
@@ -161,7 +161,7 @@ class StatusPatchIn(BaseModel):
 def patch_lab_case_status(
     case_id: str,
     body: StatusPatchIn,
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
     db: Session = Depends(get_db),
 ):
     """Generic status setter — used by the kanban drag-and-drop."""
@@ -185,7 +185,7 @@ def patch_lab_case_status(
 
 
 @router.post("/cases/{case_id}/send", response_model=LabCaseOut)
-def send_lab_case(case_id: str, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def send_lab_case(case_id: str, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     c = _get_lab_case(case_id, clinic, db)
     c.status = "sent"
     c.sent_at = c.sent_at or datetime.utcnow()
@@ -197,7 +197,7 @@ def send_lab_case(case_id: str, clinic: Clinic = Depends(get_clinic), db: Sessio
 
 
 @router.post("/cases/{case_id}/return", response_model=LabCaseOut)
-def return_lab_case(case_id: str, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def return_lab_case(case_id: str, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     c = _get_lab_case(case_id, clinic, db)
     c.status = "returned"
     c.returned_at = datetime.utcnow()
@@ -209,7 +209,7 @@ def return_lab_case(case_id: str, clinic: Clinic = Depends(get_clinic), db: Sess
 
 
 @router.post("/cases/{case_id}/remake", response_model=LabCaseOut, status_code=201)
-def remake_lab_case(case_id: str, body: RemakeIn, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def remake_lab_case(case_id: str, body: RemakeIn, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     original = _get_lab_case(case_id, clinic, db)
     original.status = "remake"
     original.updated_at = datetime.utcnow()
@@ -234,7 +234,7 @@ def list_lab_cases(
     status: Optional[str] = None,
     vendor_id: Optional[str] = None,
     denture_case_id: Optional[str] = None,
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
     db: Session = Depends(get_db),
 ):
     q = db.query(LabCase).filter(LabCase.clinic_id == clinic.id)

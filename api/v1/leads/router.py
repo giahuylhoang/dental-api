@@ -6,7 +6,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from api.dependencies import get_clinic, get_db
+from api.dependencies import get_authorized_clinic, get_db
 from database.models import Clinic, Lead, LeadStatus
 
 from api.v1.leads.schemas import (
@@ -25,7 +25,7 @@ router = APIRouter(prefix="/api/leads", tags=["leads"])
 async def create_lead(
     lead_data: LeadCreateRequest,
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     """Create new lead."""
     try:
@@ -46,7 +46,7 @@ async def list_leads(
     status: Optional[str] = Query(None, description="Filter by status"),
     source: Optional[str] = Query(None, description="Filter by source"),
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     """List leads with optional filters."""
     query = db.query(Lead).filter(Lead.clinic_id == clinic.id)
@@ -66,7 +66,7 @@ async def list_leads(
 async def get_lead(
     lead_id: str,
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     """Get lead by ID."""
     lead = db.query(Lead).filter(Lead.id == lead_id, Lead.clinic_id == clinic.id).first()
@@ -80,7 +80,7 @@ async def update_lead(
     lead_id: str,
     lead_data: LeadUpdateRequest,
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     """Update lead."""
     lead = db.query(Lead).filter(Lead.id == lead_id, Lead.clinic_id == clinic.id).first()
@@ -114,7 +114,7 @@ async def update_lead_status(
     lead_id: str,
     request: LeadStatusUpdateRequest,
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     """Update lead status."""
     try:

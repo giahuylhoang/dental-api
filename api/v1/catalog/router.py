@@ -8,7 +8,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from api.dependencies import get_clinic, get_db
+from api.dependencies import get_authorized_clinic, get_db
 from database.models import Clinic, Service
 
 router = APIRouter(prefix="/api/services", tags=["services"])
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api/services", tags=["services"])
 async def list_services(
     name: Optional[str] = Query(None, description="Filter by service name"),
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     """List all services."""
     query = db.query(Service).filter(Service.clinic_id == clinic.id)
@@ -38,7 +38,7 @@ async def list_services(
 async def get_service(
     service_id: int,
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     """Get service by ID."""
     service = db.query(Service).filter(Service.id == service_id, Service.clinic_id == clinic.id).first()

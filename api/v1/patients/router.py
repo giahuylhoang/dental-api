@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from api.dependencies import get_clinic, get_db
+from api.dependencies import get_authorized_clinic, get_db
 from database.models import Clinic, Patient
 
 from api.v1.patients.schemas import (
@@ -36,7 +36,7 @@ async def list_patients(
     phone: Optional[str] = Query(None),
     email: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     """List patients with optional filters."""
     query = db.query(Patient).filter(Patient.clinic_id == clinic.id)
@@ -52,7 +52,7 @@ async def list_patients(
 async def verify_patient(
     request: PatientVerifyRequest,
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     """
     Verify patient identity by phone number and date of birth.
@@ -122,7 +122,7 @@ async def verify_patient(
 async def get_patient(
     patient_id: str,
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     """Get patient by ID."""
     patient = db.query(Patient).filter(Patient.id == patient_id, Patient.clinic_id == clinic.id).first()
@@ -135,7 +135,7 @@ async def get_patient(
 async def create_patient(
     patient_data: PatientCreateRequest,
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     """Create new patient."""
     try:
@@ -167,7 +167,7 @@ async def update_patient(
     patient_id: str,
     patient_data: dict,
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     """Update patient."""
     patient = db.query(Patient).filter(Patient.id == patient_id, Patient.clinic_id == clinic.id).first()
@@ -196,7 +196,7 @@ def crm_rollup(
     patient_id: str,
     body: CRMRollupBody,
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     """Update CRM-only columns on a Patient (identity fields are not accepted)."""
     p = db.query(Patient).filter_by(id=patient_id, clinic_id=clinic.id).first()

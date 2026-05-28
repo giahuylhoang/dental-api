@@ -5,7 +5,7 @@ from typing import List, Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 
-from api.dependencies import get_clinic, get_db
+from api.dependencies import get_authorized_clinic, get_db
 from api.serializers import _to_appointment_detail
 from database.models import (
     Appointment, AppointmentStatus, Clinic, Patient, Provider, Service,
@@ -41,7 +41,7 @@ async def list_appointments(
     provider_name: Optional[str] = Query(None, description="Filter by provider name"),
     patient_name: Optional[str] = Query(None, description="Filter by patient name (searches first_name and last_name)"),
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     """
     List appointments with comprehensive filtering options.
@@ -165,7 +165,7 @@ async def delete_appointments_by_date_endpoint(
     date: str,
     dry_run: bool = Query(False, description="If true, only preview without deleting"),
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     """
     Delete all appointments for a specific date from database.
@@ -256,7 +256,7 @@ async def delete_appointments_by_date_endpoint(
 async def get_appointment(
     appointment_id: str,
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     """Get appointment by ID."""
     appointment = (
@@ -275,7 +275,7 @@ async def create_appointment(
     request: AppointmentCreateRequest,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     """Create appointment (also creates calendar event)."""
     # Lazy import: Task 11 will move create_calendar_event into the v1 calendar
@@ -293,7 +293,7 @@ async def update_appointment(
     appointment_id: str,
     updates: dict,
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     """Update appointment in database."""
     appointment = (
@@ -327,7 +327,7 @@ async def update_appointment(
 async def delete_appointment(
     appointment_id: str,
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     """
     Delete appointment permanently from database.
@@ -358,7 +358,7 @@ async def cancel_appointment(
     appointment_id: str,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     """
     Cancel appointment (marks as CANCELLED but keeps record).
@@ -398,7 +398,7 @@ async def update_appointment_status(
     appointment_id: str,
     request: AppointmentStatusUpdateRequest,
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     """Update appointment status in database."""
     try:
@@ -433,7 +433,7 @@ async def reschedule_appointment(
     request: AppointmentCreateRequest,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     """
     Reschedule an existing appointment.

@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from api.dependencies import get_clinic, get_db
+from api.dependencies import get_authorized_clinic, get_db
 from database.models import Clinic, Provider
 
 router = APIRouter(prefix="/api", tags=["providers"])
@@ -10,7 +10,7 @@ router = APIRouter(prefix="/api", tags=["providers"])
 
 @router.get("/doctors")
 async def list_doctors_alias(
-    db: Session = Depends(get_db), clinic: Clinic = Depends(get_clinic)
+    db: Session = Depends(get_db), clinic: Clinic = Depends(get_authorized_clinic)
 ):
     """Legacy alias — frontend code that hasn't migrated to /api/providers."""
     providers = db.query(Provider).filter(Provider.clinic_id == clinic.id).all()
@@ -28,7 +28,7 @@ async def list_doctors_alias(
 @router.get("/providers")
 async def list_providers(
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     """List all active providers."""
     providers = db.query(Provider).filter(
@@ -50,7 +50,7 @@ async def list_providers(
 async def get_provider(
     provider_id: int,
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     """Get provider by ID."""
     provider = db.query(Provider).filter(

@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from database.connection import get_db
 from database.models import Clinic, Patient
 from database.clinical.models import TreatmentPlan, TreatmentPlanItem, Procedure
-from api.main import get_clinic
+from api.dependencies import get_authorized_clinic
 
 # No prefix here - will be set when including in main.py
 router = APIRouter(tags=["treatment-plans"])
@@ -116,7 +116,7 @@ def _resolve_items(items_in: List[PlanItemIn], clinic_id: str, plan_id: str, db:
 # ---------------------------------------------------------------------------
 
 @router.post("", response_model=PlanOut, status_code=201)
-def create_plan(body: PlanIn, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def create_plan(body: PlanIn, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     patient = db.query(Patient).filter(
         Patient.id == body.patient_id,
         Patient.clinic_id == clinic.id,
@@ -143,12 +143,12 @@ def create_plan(body: PlanIn, clinic: Clinic = Depends(get_clinic), db: Session 
 
 
 @router.get("/{plan_id}", response_model=PlanOut)
-def get_plan(plan_id: str, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def get_plan(plan_id: str, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     return _get_plan(plan_id, clinic, db)
 
 
 @router.patch("/{plan_id}/items", response_model=PlanOut)
-def replace_items(plan_id: str, items_in: List[PlanItemIn], clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def replace_items(plan_id: str, items_in: List[PlanItemIn], clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     plan = _get_plan(plan_id, clinic, db)
     # Delete existing items
     db.query(TreatmentPlanItem).filter(TreatmentPlanItem.plan_id == plan.id).delete()
@@ -181,22 +181,22 @@ def _transition(plan_id: str, new_status: str, ts_field: Optional[str], clinic: 
 
 
 @router.post("/{plan_id}/present", response_model=PlanOut)
-def present_plan(plan_id: str, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def present_plan(plan_id: str, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     return _transition(plan_id, "presented", "presented_at", clinic, db)
 
 
 @router.post("/{plan_id}/accept", response_model=PlanOut)
-def accept_plan(plan_id: str, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def accept_plan(plan_id: str, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     return _transition(plan_id, "accepted", "accepted_at", clinic, db)
 
 
 @router.post("/{plan_id}/decline", response_model=PlanOut)
-def decline_plan(plan_id: str, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def decline_plan(plan_id: str, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     return _transition(plan_id, "declined", "declined_at", clinic, db)
 
 
 @router.post("/{plan_id}/complete", response_model=PlanOut)
-def complete_plan(plan_id: str, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def complete_plan(plan_id: str, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     return _transition(plan_id, "completed", None, clinic, db)
 
 
@@ -204,7 +204,7 @@ def complete_plan(plan_id: str, clinic: Clinic = Depends(get_clinic), db: Sessio
 def list_plans(
     patient_id: Optional[str] = None,
     status: Optional[str] = None,
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
     db: Session = Depends(get_db),
 ):
     q = db.query(TreatmentPlan).filter(TreatmentPlan.clinic_id == clinic.id)

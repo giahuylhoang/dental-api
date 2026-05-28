@@ -7,7 +7,7 @@ exists now so dental-api is ready to receive.
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from api.dependencies import get_clinic, get_db
+from api.dependencies import get_authorized_clinic, get_db
 from api.v1.calls.schemas import CallRecordIn
 from database.models import CallLog, Clinic
 
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api/calls", tags=["calls"])
 def post_call(
     body: CallRecordIn,
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
     """Upsert a call log row by id.
 

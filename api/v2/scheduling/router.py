@@ -18,7 +18,7 @@ from database.ops.models import (
     Operatory, AppointmentResource, AppointmentRecurrence,
     AppointmentReminder, WaitlistEntry, RecallRule, Recall,
 )
-from api.main import get_clinic
+from api.dependencies import get_authorized_clinic
 
 router = APIRouter(prefix="/api/v2/scheduling", tags=["v2-scheduling"])
 
@@ -102,12 +102,12 @@ class OperatoryOut(BaseModel):
 
 
 @router.get("/operatories", response_model=List[OperatoryOut])
-def list_operatories(clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def list_operatories(clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     return db.query(Operatory).filter(Operatory.clinic_id == clinic.id).all()
 
 
 @router.post("/operatories", response_model=OperatoryOut, status_code=201)
-def create_operatory(body: OperatoryIn, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def create_operatory(body: OperatoryIn, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     op = Operatory(clinic_id=clinic.id, **body.model_dump())
     db.add(op)
     db.commit()
@@ -116,7 +116,7 @@ def create_operatory(body: OperatoryIn, clinic: Clinic = Depends(get_clinic), db
 
 
 @router.put("/operatories/{op_id}", response_model=OperatoryOut)
-def update_operatory(op_id: str, body: OperatoryIn, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def update_operatory(op_id: str, body: OperatoryIn, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     op = db.query(Operatory).filter(Operatory.id == op_id, Operatory.clinic_id == clinic.id).first()
     if not op:
         raise HTTPException(404, "Operatory not found")
@@ -128,7 +128,7 @@ def update_operatory(op_id: str, body: OperatoryIn, clinic: Clinic = Depends(get
 
 
 @router.delete("/operatories/{op_id}", status_code=204)
-def delete_operatory(op_id: str, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def delete_operatory(op_id: str, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     op = db.query(Operatory).filter(Operatory.id == op_id, Operatory.clinic_id == clinic.id).first()
     if not op:
         raise HTTPException(404, "Operatory not found")
@@ -246,7 +246,7 @@ def _serialize_block(block: ProviderBusyBlock) -> BusyBlockOut:
 @router.get("/busy-blocks", response_model=List[BusyBlockOut])
 def list_busy_blocks(
     provider_id: Optional[int] = Query(default=None),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
     db: Session = Depends(get_db),
 ):
     q = db.query(ProviderBusyBlock).filter(ProviderBusyBlock.clinic_id == clinic.id)
@@ -264,7 +264,7 @@ def list_busy_blocks(
 @router.post("/busy-blocks", response_model=BusyBlockOut, status_code=201)
 def create_busy_block(
     body: BusyBlockIn,
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
     db: Session = Depends(get_db),
 ):
     provider = db.query(Provider).filter(
@@ -294,7 +294,7 @@ def create_busy_block(
 def update_busy_block(
     block_id: int,
     body: BusyBlockUpdate,
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
     db: Session = Depends(get_db),
 ):
     block = db.query(ProviderBusyBlock).filter(
@@ -367,7 +367,7 @@ def update_busy_block(
 @router.delete("/busy-blocks/{block_id}", status_code=204)
 def delete_busy_block(
     block_id: int,
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
     db: Session = Depends(get_db),
 ):
     block = db.query(ProviderBusyBlock).filter(
@@ -404,7 +404,7 @@ class V2AppointmentOut(BaseModel):
 
 
 @router.post("/appointments", response_model=V2AppointmentOut, status_code=201)
-def create_v2_appointment(body: V2AppointmentIn, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def create_v2_appointment(body: V2AppointmentIn, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     start = _parse_dt(body.start_time)
     end = _parse_dt(body.end_time)
 
@@ -508,7 +508,7 @@ def create_v2_appointment(body: V2AppointmentIn, clinic: Clinic = Depends(get_cl
 def cancel_v2_appointment(
     apt_id: str,
     cascade: bool = Query(False),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
     db: Session = Depends(get_db),
 ):
     apt = db.query(Appointment).filter(Appointment.id == apt_id, Appointment.clinic_id == clinic.id).first()
@@ -544,7 +544,7 @@ def cancel_v2_appointment(
 def reschedule_v2_appointment(
     apt_id: str,
     body: RescheduleRequest,
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
     db: Session = Depends(get_db),
 ):
     apt = db.query(Appointment).filter(Appointment.id == apt_id, Appointment.clinic_id == clinic.id).first()
@@ -591,7 +591,7 @@ def get_calendar(
     end: str = Query(...),
     provider_id: Optional[int] = Query(None),
     operatory_id: Optional[str] = Query(None),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
     db: Session = Depends(get_db),
 ):
     start_dt = _parse_dt(start)
@@ -657,7 +657,7 @@ class WaitlistOut(BaseModel):
 
 
 @router.post("/waitlist", response_model=WaitlistOut, status_code=201)
-def add_to_waitlist(body: WaitlistIn, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def add_to_waitlist(body: WaitlistIn, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     entry = WaitlistEntry(
         clinic_id=clinic.id,
         patient_id=body.patient_id,
@@ -674,7 +674,7 @@ def add_to_waitlist(body: WaitlistIn, clinic: Clinic = Depends(get_clinic), db: 
 
 
 @router.get("/waitlist", response_model=List[WaitlistOut])
-def list_waitlist(clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def list_waitlist(clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     return db.query(WaitlistEntry).filter(
         WaitlistEntry.clinic_id == clinic.id,
         WaitlistEntry.status == "open",
@@ -682,7 +682,7 @@ def list_waitlist(clinic: Clinic = Depends(get_clinic), db: Session = Depends(ge
 
 
 @router.delete("/waitlist/{entry_id}", status_code=204)
-def delete_waitlist_entry(entry_id: str, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def delete_waitlist_entry(entry_id: str, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     entry = db.query(WaitlistEntry).filter(WaitlistEntry.id == entry_id, WaitlistEntry.clinic_id == clinic.id).first()
     if not entry:
         raise HTTPException(404, "Waitlist entry not found")
@@ -695,7 +695,7 @@ def fill_waitlist_entry(
     entry_id: str,
     slot_start: str = Query(...),
     slot_end: str = Query(...),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
     db: Session = Depends(get_db),
 ):
     """Fill the highest-priority open waitlist entry whose window overlaps the slot."""
@@ -743,7 +743,7 @@ class RecallRuleOut(BaseModel):
 
 
 @router.post("/recall-rules", response_model=RecallRuleOut, status_code=201)
-def create_recall_rule(body: RecallRuleIn, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def create_recall_rule(body: RecallRuleIn, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     rule = RecallRule(clinic_id=clinic.id, **body.model_dump())
     db.add(rule)
     db.commit()
@@ -752,12 +752,12 @@ def create_recall_rule(body: RecallRuleIn, clinic: Clinic = Depends(get_clinic),
 
 
 @router.get("/recall-rules", response_model=List[RecallRuleOut])
-def list_recall_rules(clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def list_recall_rules(clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     return db.query(RecallRule).filter(RecallRule.clinic_id == clinic.id).all()
 
 
 @router.put("/recall-rules/{rule_id}", response_model=RecallRuleOut)
-def update_recall_rule(rule_id: str, body: RecallRuleIn, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def update_recall_rule(rule_id: str, body: RecallRuleIn, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     rule = db.query(RecallRule).filter(RecallRule.id == rule_id, RecallRule.clinic_id == clinic.id).first()
     if not rule:
         raise HTTPException(404, "Recall rule not found")
@@ -769,7 +769,7 @@ def update_recall_rule(rule_id: str, body: RecallRuleIn, clinic: Clinic = Depend
 
 
 @router.delete("/recall-rules/{rule_id}", status_code=204)
-def delete_recall_rule(rule_id: str, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def delete_recall_rule(rule_id: str, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     rule = db.query(RecallRule).filter(RecallRule.id == rule_id, RecallRule.clinic_id == clinic.id).first()
     if not rule:
         raise HTTPException(404, "Recall rule not found")
@@ -780,7 +780,7 @@ def delete_recall_rule(rule_id: str, clinic: Clinic = Depends(get_clinic), db: S
 @router.get("/recalls")
 def list_recalls(
     status: Optional[str] = Query(None),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
     db: Session = Depends(get_db),
 ):
     q = db.query(Recall).filter(Recall.clinic_id == clinic.id)

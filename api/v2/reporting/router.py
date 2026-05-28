@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from api.main import get_clinic
+from api.dependencies import get_authorized_clinic
 from database.connection import get_db
 from database.clinical.models import LabCase, LabVendor
 from database.models import Appointment, AppointmentStatus, Clinic, Provider
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api/v2/reporting", tags=["v2-reporting"])
 
 
 @router.get("/kpi")
-def get_kpi(clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def get_kpi(clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     """Top-line KPIs for the dashboard."""
     now = datetime.utcnow()
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
@@ -91,7 +91,7 @@ def get_kpi(clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db))
 
 @router.get("/production-by-provider")
 def production_by_provider(
-    clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)
+    clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)
 ):
     """Total production per provider this month, joined via appointment.provider_id."""
     now = datetime.utcnow()
@@ -141,7 +141,7 @@ def production_by_provider(
 
 @router.get("/remake-rate-by-lab")
 def remake_rate_by_lab(
-    clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)
+    clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)
 ):
     """Per lab vendor: total cases + ratio of remakes."""
     rows = (

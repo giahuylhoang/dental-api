@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from database.connection import get_db
 from database.models import Clinic, Lead, LeadStatus, Patient, DEFAULT_CLINIC_ID
 from database.ops.models import LeadEvent, MarketingCampaign
-from api.main import get_clinic
+from api.dependencies import get_authorized_clinic
 
 router = APIRouter(prefix="/api/v2/crm", tags=["v2-crm"])
 
@@ -63,7 +63,7 @@ def _lead_out(lead: Lead) -> dict:
 def list_leads(
     status: Optional[str] = Query(None),
     owner_id: Optional[str] = Query(None),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
     db: Session = Depends(get_db),
 ):
     q = db.query(Lead).filter(Lead.clinic_id == clinic.id)
@@ -75,7 +75,7 @@ def list_leads(
 
 
 @router.post("/leads", status_code=201)
-def create_lead(body: LeadCreateIn, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def create_lead(body: LeadCreateIn, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     name = f"{body.first_name} {body.last_name}".strip()
     lead = Lead(
         clinic_id=clinic.id,
@@ -94,7 +94,7 @@ def create_lead(body: LeadCreateIn, clinic: Clinic = Depends(get_clinic), db: Se
 @router.get("/leads/{lead_id}")
 def get_lead(
     lead_id: str,
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
     db: Session = Depends(get_db),
 ):
     lead = db.query(Lead).filter(Lead.id == lead_id, Lead.clinic_id == clinic.id).first()
@@ -104,7 +104,7 @@ def get_lead(
 
 
 @router.put("/leads/{lead_id}", status_code=200)
-def update_lead(lead_id: str, body: LeadUpdateIn, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def update_lead(lead_id: str, body: LeadUpdateIn, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     lead = db.query(Lead).filter(Lead.id == lead_id, Lead.clinic_id == clinic.id).first()
     if not lead:
         raise HTTPException(404, "Lead not found")
@@ -143,7 +143,7 @@ class ActivityIn(BaseModel):
 
 
 @router.post("/leads/{lead_id}/activities", status_code=201)
-def create_activity(lead_id: str, body: ActivityIn, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def create_activity(lead_id: str, body: ActivityIn, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     lead = db.query(Lead).filter(Lead.id == lead_id, Lead.clinic_id == clinic.id).first()
     if not lead:
         raise HTTPException(404, "Lead not found")
@@ -164,7 +164,7 @@ def create_activity(lead_id: str, body: ActivityIn, clinic: Clinic = Depends(get
 
 
 @router.get("/leads/{lead_id}/activities")
-def list_activities(lead_id: str, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def list_activities(lead_id: str, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     lead = db.query(Lead).filter(Lead.id == lead_id, Lead.clinic_id == clinic.id).first()
     if not lead:
         raise HTTPException(404, "Lead not found")
@@ -199,7 +199,7 @@ class ConvertIn(BaseModel):
 def convert_lead(
     lead_id: str,
     body: Optional[ConvertIn] = None,
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
     db: Session = Depends(get_db),
 ):
     if body is None:
@@ -268,7 +268,7 @@ class LeadEventIn(BaseModel):
 
 
 @router.post("/leads/{lead_id}/events", status_code=201)
-def create_lead_event(lead_id: str, body: LeadEventIn, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def create_lead_event(lead_id: str, body: LeadEventIn, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     lead = db.query(Lead).filter(Lead.id == lead_id, Lead.clinic_id == clinic.id).first()
     if not lead:
         raise HTTPException(404, "Lead not found")
@@ -280,7 +280,7 @@ def create_lead_event(lead_id: str, body: LeadEventIn, clinic: Clinic = Depends(
 
 
 @router.get("/leads/{lead_id}/events")
-def list_lead_events(lead_id: str, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def list_lead_events(lead_id: str, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     lead = db.query(Lead).filter(Lead.id == lead_id, Lead.clinic_id == clinic.id).first()
     if not lead:
         raise HTTPException(404, "Lead not found")
@@ -316,7 +316,7 @@ def _campaign_out(c: MarketingCampaign) -> dict:
 
 
 @router.post("/marketing-campaigns", status_code=201)
-def create_campaign(body: CampaignIn, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def create_campaign(body: CampaignIn, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     schedule_at = None
     if body.schedule_at:
         from api.v2.scheduling.router import _parse_dt
@@ -338,13 +338,13 @@ def create_campaign(body: CampaignIn, clinic: Clinic = Depends(get_clinic), db: 
 
 
 @router.get("/marketing-campaigns")
-def list_campaigns(clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def list_campaigns(clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     campaigns = db.query(MarketingCampaign).filter(MarketingCampaign.clinic_id == clinic.id).all()
     return [_campaign_out(c) for c in campaigns]
 
 
 @router.post("/marketing-campaigns/{campaign_id}/send", status_code=200)
-def send_campaign(campaign_id: str, clinic: Clinic = Depends(get_clinic), db: Session = Depends(get_db)):
+def send_campaign(campaign_id: str, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     campaign = db.query(MarketingCampaign).filter(
         MarketingCampaign.id == campaign_id, MarketingCampaign.clinic_id == clinic.id
     ).first()
