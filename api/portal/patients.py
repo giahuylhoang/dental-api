@@ -17,19 +17,14 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from api.dependencies import get_db
+from api.portal._shared import LEAD_STATUS_TO_FE, LeadStatusInput
 from database.models import Patient
 
 router = APIRouter()
 
 
-# Patient.lead_status_crm column carries CRM-side values that don't all align
-# with the frontend's LeadStatus union. Whitelist the ones that do; alias
-# 'won' to 'completed' and 'archived' to 'lost'; default unknown to 'new'.
-_LEAD_STATUS_TO_FE = {
-    "new": "new", "contacted": "contacted", "booked": "booked",
-    "completed": "completed", "lost": "lost",
-    "won": "completed", "archived": "lost",
-}
+# Re-export under the old private name so any external import keeps working.
+_LEAD_STATUS_TO_FE = LEAD_STATUS_TO_FE
 
 
 def _serialize_patient(p: Patient) -> Dict[str, Any]:
@@ -62,11 +57,14 @@ class PatientCreate(BaseModel):
     phone: Optional[str] = None
     dob: Optional[date] = None
     email: Optional[str] = None
-    # CRM fields accept both legacy and FE-aligned names.
+    # CRM fields accept both legacy and FE-aligned names. lead_status uses
+    # the Literal whitelist so out-of-vocabulary values 422 at the Pydantic
+    # boundary (otherwise the DB would silently store garbage that reads
+    # then coerce back to "new").
     crm_notes: Optional[str] = None
     notes: Optional[str] = None
-    lead_status_crm: Optional[str] = None
-    lead_status: Optional[str] = None
+    lead_status_crm: Optional[LeadStatusInput] = None
+    lead_status: Optional[LeadStatusInput] = None
 
 
 class PatientCRMUpdate(BaseModel):
@@ -74,12 +72,13 @@ class PatientCRMUpdate(BaseModel):
 
     Accepts BOTH the legacy column names (lead_status_crm, crm_tags, crm_notes)
     and the FE-aligned names (lead_status, tags, notes). When both are given,
-    the FE-aligned name wins.
+    the FE-aligned name wins. lead_status uses the Literal whitelist so
+    out-of-vocabulary values 422 at the Pydantic boundary.
     """
-    lead_status_crm: Optional[str] = None
-    lead_status: Optional[str] = None
-    crm_tags: Optional[Any] = None
-    tags: Optional[Any] = None
+    lead_status_crm: Optional[LeadStatusInput] = None
+    lead_status: Optional[LeadStatusInput] = None
+    crm_tags: Optional[List[Any]] = None
+    tags: Optional[List[Any]] = None
     crm_notes: Optional[str] = None
     notes: Optional[str] = None
     last_contact_at: Optional[datetime] = None

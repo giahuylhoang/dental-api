@@ -9,6 +9,7 @@ PUT accepts the same shape and writes back to all three sources.
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends
@@ -16,7 +17,6 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from api.dependencies import get_db
-from api.portal.deps import PortalUser, get_portal_user
 from database.models import Clinic, ClinicRouting
 from database.v1_1.models import ClinicClosure
 
@@ -87,8 +87,9 @@ def put_routing(
     clinic_id: str,
     body: RoutingConfigBody,
     db: Session = Depends(get_db),
-    user: PortalUser = Depends(get_portal_user),
 ) -> Dict[str, Any]:
+    # Authorization is enforced by the router-level Depends(require_clinic_access)
+    # in api/portal/__init__.py; no need to re-thread the user here.
     # Upsert ClinicRouting
     config = db.query(ClinicRouting).filter_by(clinic_id=clinic_id).first()
     if config is None:
@@ -108,13 +109,14 @@ def put_routing(
     if clinic is not None and body.timezone:
         clinic.timezone = body.timezone
 
-    # Replace single-day holiday closures
+    # Replace single-day holiday closures. De-dup the incoming list so an
+    # accidental ["2026-12-25", "2026-12-25"] doesn't insert duplicate rows
+    # (the underlying table has no uniqueness constraint).
     db.query(ClinicClosure).filter_by(clinic_id=clinic_id, kind="holiday").filter(
         ClinicClosure.end_date.is_(None)
     ).delete(synchronize_session=False)
-    for ymd in body.holidays:
+    for ymd in set(body.holidays):
         try:
-            from datetime import date
             d = date.fromisoformat(ymd)
         except ValueError:
             continue

@@ -136,3 +136,35 @@ def test_delete_soft_deletes_via_archived(override_portal_user, db_session):
     assert r.status_code == 200
     # 'archived' maps to FE 'lost' via the whitelist
     assert r.json()["lead_status"] == "lost"
+
+
+def test_patch_rejects_unknown_lead_status(override_portal_user, db_session):
+    """Pydantic Literal whitelist 422s out-of-vocabulary values so the column
+    never holds garbage that the read path then silently coerces back."""
+    override_portal_user(clinic_ids=["default"])
+    db_session.add(Patient(id="p-bad-lead", clinic_id="default"))
+    db_session.commit()
+    r = client.patch("/api/portal/clinics/default/patients/p-bad-lead", json={
+        "lead_status": "banana",
+    })
+    assert r.status_code == 422
+
+
+def test_post_rejects_unknown_lead_status(override_portal_user):
+    override_portal_user(clinic_ids=["default"])
+    r = client.post("/api/portal/clinics/default/patients", json={
+        "first_name": "X", "lead_status": "banana",
+    })
+    assert r.status_code == 422
+
+
+def test_patch_rejects_non_list_tags(override_portal_user, db_session):
+    """tags is List[Any] — a bare string at the body would be silently stored
+    as JSONB string and break the read path. 422 instead."""
+    override_portal_user(clinic_ids=["default"])
+    db_session.add(Patient(id="p-bad-tags", clinic_id="default"))
+    db_session.commit()
+    r = client.patch("/api/portal/clinics/default/patients/p-bad-tags", json={
+        "tags": "not-a-list",
+    })
+    assert r.status_code == 422

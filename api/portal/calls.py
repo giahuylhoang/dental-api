@@ -205,14 +205,8 @@ def _project_appointment(appt: Optional[Appointment], patient: Optional[Patient]
     }
 
 
-# Patient.lead_status_crm carries CRM-side enum values that don't all align
-# with the frontend's LeadStatus union. Whitelist the ones that do; everything
-# else defaults to 'new'. 'won' maps to 'completed' which is the closest FE term.
-_LEAD_STATUS_TO_FE = {
-    "new": "new", "contacted": "contacted", "booked": "booked",
-    "completed": "completed", "lost": "lost",
-    "won": "completed", "archived": "lost",
-}
+# Shared whitelist — see api/portal/_shared.py.
+from api.portal._shared import LEAD_STATUS_TO_FE as _LEAD_STATUS_TO_FE  # noqa: E402
 
 
 def _project_patient(patient: Optional[Patient]) -> Optional[Dict[str, Any]]:
