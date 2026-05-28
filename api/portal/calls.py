@@ -2,13 +2,14 @@
 
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from api.dependencies import get_db
-from database.models import CallLog
+from database.models import CallLog, Clinic
 
 router = APIRouter()
 
@@ -76,6 +77,27 @@ def _project_turn(turn: Dict[str, Any], started_at: datetime) -> Dict[str, Any]:
         "intents": turn.get("intents", []),
         "latency_ms": latency,
     }
+
+
+# ── After-hours computation ────────────────────────────────────────────
+# Compares the call's start (UTC) against the clinic's working hours in
+# the clinic-local timezone. All "fall back to safe defaults" cases return
+# False — the goal is informational, not load-bearing.
+
+def _is_after_hours(started_at: Optional[datetime], clinic: Optional["Clinic"]) -> bool:
+    if not started_at or clinic is None:
+        return False
+    start = clinic.working_hour_start
+    end = clinic.working_hour_end
+    if start is None or end is None:
+        return False
+    tz_name = clinic.timezone or "America/Edmonton"
+    try:
+        tz = ZoneInfo(tz_name)
+    except ZoneInfoNotFoundError:
+        tz = ZoneInfo("America/Edmonton")
+    local = started_at.astimezone(tz)
+    return not (start <= local.hour < end)
 
 
 class CallLogOut(BaseModel):

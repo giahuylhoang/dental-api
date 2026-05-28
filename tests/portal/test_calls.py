@@ -6,8 +6,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api.main import app
-from api.portal.calls import _normalize_outcome, _project_turn
-from database.models import CallLog
+from api.portal.calls import _is_after_hours, _normalize_outcome, _project_turn
+from database.models import CallLog, Clinic
 
 client = TestClient(app)
 
@@ -166,3 +166,45 @@ def test_project_turn_fractional_seconds_parse_to_whole_second():
     turn = {"ts": "05:41:28.123", "role": "user", "text": "x"}
     out = _project_turn(turn, started)
     assert out["t"] == 28_000
+
+
+def _clinic(tz="America/Edmonton", start=9, end=17):
+    return Clinic(
+        id="x", name="X", timezone=tz,
+        working_hour_start=start, working_hour_end=end,
+    )
+
+
+def test_is_after_hours_inside_business_hours_false():
+    # 18:00 UTC = 12:00 local (Edmonton is UTC-6 in DST). Inside 9–17.
+    started = datetime(2026, 5, 28, 18, 0, 0, tzinfo=timezone.utc)
+    assert _is_after_hours(started, _clinic()) is False
+
+
+def test_is_after_hours_outside_business_hours_true():
+    # 04:00 UTC = 22:00 previous day local. Outside 9–17.
+    started = datetime(2026, 5, 28, 4, 0, 0, tzinfo=timezone.utc)
+    assert _is_after_hours(started, _clinic()) is True
+
+
+def test_is_after_hours_no_clinic_returns_false():
+    started = datetime(2026, 5, 28, 4, 0, 0, tzinfo=timezone.utc)
+    assert _is_after_hours(started, None) is False
+
+
+def test_is_after_hours_no_started_at_returns_false():
+    assert _is_after_hours(None, _clinic()) is False
+
+
+def test_is_after_hours_missing_working_hours_returns_false():
+    c = _clinic()
+    c.working_hour_start = None
+    started = datetime(2026, 5, 28, 4, 0, 0, tzinfo=timezone.utc)
+    assert _is_after_hours(started, c) is False
+
+
+def test_is_after_hours_invalid_timezone_falls_back_to_edmonton():
+    c = _clinic(tz="Not/A_Real_Zone")
+    started = datetime(2026, 5, 28, 18, 0, 0, tzinfo=timezone.utc)
+    # Should not raise; falls back to America/Edmonton (12:00 local → False)
+    assert _is_after_hours(started, c) is False
