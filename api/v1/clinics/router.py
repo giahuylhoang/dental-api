@@ -4,7 +4,13 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from api.dependencies import get_clinic, get_db
+from api.dependencies import (
+    get_authorized_clinic,
+    get_current_uid,
+    get_db,
+    get_internal_caller,
+)
+from database.auth import UserClinicMembership
 from database.models import Clinic
 
 from api.v1.clinics.resolver import (
@@ -27,14 +33,27 @@ router = APIRouter(prefix="/api/clinics", tags=["clinics"])
 
 
 @router.get("", response_model=ClinicsListResponse)
-async def list_clinics(db: Session = Depends(get_db)):
-    """Return every clinic in the database (id + name + timezone).
+async def list_clinics(
+    uid: str = Depends(get_current_uid),
+    db: Session = Depends(get_db),
+):
+    """Return the caller's authorized clinics.
 
-    Unscoped on purpose — the CRM/admin sidebar uses this to populate the
-    clinic switcher before any X-Clinic-Id has been picked. Clinic IDs and
-    names are not secrets; per-clinic data is still gated by the
-    X-Clinic-Id header on every other endpoint."""
-    rows = db.query(Clinic).order_by(Clinic.name).all()
+    Drives the CRM/admin sidebar switcher. In bypass mode (dev/tests with
+    ADMIN_AUTH_BYPASS=true) returns every clinic in the DB — uid is the
+    dev-skip placeholder and has no memberships.
+    """
+    from api.dependencies.auth import ADMIN_AUTH_BYPASS
+    if ADMIN_AUTH_BYPASS:
+        rows = db.query(Clinic).order_by(Clinic.name).all()
+    else:
+        rows = (
+            db.query(Clinic)
+            .join(UserClinicMembership, UserClinicMembership.clinic_id == Clinic.id)
+            .filter(UserClinicMembership.uid == uid)
+            .order_by(Clinic.name)
+            .all()
+        )
     return {"clinics": [ClinicSummary.model_validate(r) for r in rows]}
 
 
@@ -64,8 +83,8 @@ async def create_clinic(
 
 
 @router.get("/me", response_model=ClinicResponse)
-async def get_clinic_me(clinic: Clinic = Depends(get_clinic)):
-    """Get current clinic config (from X-Clinic-Id header)."""
+async def get_clinic_me(clinic: Clinic = Depends(get_authorized_clinic)):
+    """Get current clinic config (from X-Clinic-Id, authorized via uid+membership)."""
     return ClinicResponse.model_validate(clinic)
 
 
@@ -73,9 +92,9 @@ async def get_clinic_me(clinic: Clinic = Depends(get_clinic)):
 async def patch_clinic_me(
     request: ClinicUpdateRequest,
     db: Session = Depends(get_db),
-    clinic: Clinic = Depends(get_clinic),
+    clinic: Clinic = Depends(get_authorized_clinic),
 ):
-    """Update current clinic fields (from X-Clinic-Id)."""
+    """Update current clinic fields (from X-Clinic-Id, authorized via uid+membership)."""
     updates = request.model_dump(exclude_unset=True)
     for key, value in updates.items():
         if hasattr(clinic, key):
@@ -86,7 +105,11 @@ async def patch_clinic_me(
     return ClinicResponse.model_validate(clinic)
 
 
-@router.get("/by-did/{did:path}", response_model=ClinicByDidResponse)
+@router.get(
+    "/by-did/{did:path}",
+    response_model=ClinicByDidResponse,
+    dependencies=[Depends(get_internal_caller)],
+)
 async def get_clinic_by_did(did: str, db: Session = Depends(get_db)):
     """Reverse-index a dialed DID to its owning clinic_id (404 if none)."""
     clinic_id = resolve_clinic_id_for_did(db, did)
@@ -95,7 +118,11 @@ async def get_clinic_by_did(did: str, db: Session = Depends(get_db)):
     return {"clinic_id": clinic_id}
 
 
-@router.get("/{clinic_id}/config", response_model=ClinicConfigResponse)
+@router.get(
+    "/{clinic_id}/config",
+    response_model=ClinicConfigResponse,
+    dependencies=[Depends(get_internal_caller)],
+)
 async def get_clinic_config(clinic_id: str, db: Session = Depends(get_db)):
     """Return the fully merged clinic config (practice_type defaults + overrides + routing)."""
     cfg = resolve_clinic_config(db, clinic_id)
@@ -104,7 +131,11 @@ async def get_clinic_config(clinic_id: str, db: Session = Depends(get_db)):
     return cfg
 
 
-@router.get("/{clinic_id}/routing", response_model=ClinicRoutingResponse)
+@router.get(
+    "/{clinic_id}/routing",
+    response_model=ClinicRoutingResponse,
+    dependencies=[Depends(get_internal_caller)],
+)
 async def get_clinic_routing_endpoint(clinic_id: str, db: Session = Depends(get_db)):
     """Routing-only payload for the routing_webhook. ~10x smaller than /config."""
     routing = resolve_clinic_routing(db, clinic_id)

@@ -935,3 +935,33 @@ def test_create_appointment_booking_email_env_overrides_clinic_recipient(
 
     assert len(email_log) == 1
     assert email_log[0][0] == "wins@example.com"
+
+
+def test_list_clinics_returns_only_user_memberships(client, db_session, monkeypatch):
+    """In non-bypass mode, GET /api/clinics returns only memberships' clinics."""
+    from database.models import Clinic
+    from database.auth import UserClinicMembership
+    monkeypatch.setattr("api.dependencies.auth.ADMIN_AUTH_BYPASS", False)
+
+    # Seed two clinics
+    db_session.add(Clinic(id="market-mall-denture", name="Market Mall"))
+    db_session.add(Clinic(id="northeast-denture-clinic", name="North East"))
+    # User belongs to only one
+    db_session.add(UserClinicMembership(
+        uid="user-x", clinic_id="market-mall-denture", email="x@x.com",
+    ))
+    db_session.commit()
+
+    # Mock token verification to return our uid
+    from unittest.mock import patch
+    with patch(
+        "api.dependencies.auth.firebase_auth.verify_id_token",
+        return_value={"uid": "user-x"},
+    ):
+        resp = client.get(
+            "/api/clinics",
+            headers={"Authorization": "Bearer fake"},
+        )
+    assert resp.status_code == 200
+    ids = [c["id"] for c in resp.json()["clinics"]]
+    assert ids == ["market-mall-denture"]
