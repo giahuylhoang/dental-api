@@ -2,6 +2,7 @@
 
 import logging
 
+import pytest
 from fastapi.testclient import TestClient
 
 from api.main import app
@@ -9,6 +10,20 @@ from api.portal.deps import get_portal_user
 from database.auth.memberships import UserClinicMembership
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def _cleanup_portal_user_override():
+    """Pop any `get_portal_user` override after each test.
+
+    Tests that manually install `app.dependency_overrides[get_portal_user]`
+    (instead of going through the `override_portal_user` fixture) would
+    otherwise leak the override into the next test in the module — masking
+    `test_whoami_returns_401_without_token` under randomized order and
+    leaking into other portal test modules in the same pytest session.
+    """
+    yield
+    app.dependency_overrides.pop(get_portal_user, None)
 
 
 def test_whoami_returns_401_without_token():
