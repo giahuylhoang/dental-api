@@ -366,3 +366,58 @@ def test_get_call_appointment_null_when_metadata_missing(db_session, override_po
     body = r.json()
     assert body["appointment"] is None
     assert body["patient"] is None
+
+
+def test_get_call_maps_scheduled_appointment_status_to_booked(
+    db_session, override_portal_user,
+):
+    """The DB writes appointments as SCHEDULED by default, but the frontend
+    AppointmentRecord.status union only accepts booked/cancelled/rescheduled/
+    pending_human_review. Confirm the enum mapping surfaces "booked"."""
+    from database.models import Patient, Provider, Appointment, AppointmentStatus
+    override_portal_user(clinic_ids=["default"])
+    db_session.add(Provider(id=10, clinic_id="default", name="Smith", title="Dr"))
+    db_session.add(Patient(id="pat-10", clinic_id="default", first_name="P"))
+    db_session.add(Appointment(
+        id="appt-sched", clinic_id="default", patient_id="pat-10", provider_id=10,
+        start_time=datetime(2026, 5, 30, 14, 0, 0),
+        end_time=datetime(2026, 5, 30, 15, 0, 0),
+        status=AppointmentStatus.SCHEDULED,
+    ))
+    db_session.add(CallLog(
+        id="call_sched", clinic_id="default", patient_id="pat-10",
+        started_at=datetime(2026, 5, 28, 5, 41, 0, tzinfo=timezone.utc),
+        call_metadata={"appointment_id": "appt-sched"},
+    ))
+    db_session.commit()
+    r = client.get("/api/portal/clinics/default/calls/call_sched")
+    assert r.json()["appointment"]["status"] == "booked"
+
+
+def test_get_call_surfaces_real_patient_crm_data(db_session, override_portal_user):
+    """lead_status_crm, crm_tags, crm_notes, last_contact_at are real Patient
+    columns. They must round-trip into the response instead of being silently
+    overwritten with empty defaults."""
+    from database.models import Patient
+    override_portal_user(clinic_ids=["default"])
+    db_session.add(Patient(
+        id="pat-crm", clinic_id="default",
+        first_name="C", last_name="R",
+        lead_status_crm="contacted",
+        crm_tags=["vip", "follow-up"],
+        crm_notes="Wants a Saturday slot.",
+        last_contact_at=datetime(2026, 5, 27, 14, 0, 0, tzinfo=timezone.utc),
+    ))
+    db_session.add(CallLog(
+        id="call_crm", clinic_id="default", patient_id="pat-crm",
+        started_at=datetime(2026, 5, 28, 5, 41, 0, tzinfo=timezone.utc),
+    ))
+    db_session.commit()
+    body = client.get("/api/portal/clinics/default/calls/call_crm").json()
+    p = body["patient"]
+    assert p["lead_status"] == "contacted"
+    assert p["tags"] == ["vip", "follow-up"]
+    assert p["notes"] == "Wants a Saturday slot."
+    assert p["last_contact_at"] is not None
+    # Patient has no updated_at column today; emit null rather than crashing.
+    assert p["updated_at"] is None

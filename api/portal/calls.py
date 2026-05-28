@@ -161,6 +161,29 @@ def list_calls(
     return {"items": items, "total": total, "next_cursor": None}
 
 
+# AppointmentStatus enum (database/models.py) → frontend AppointmentRecord.status
+# union ('booked' | 'cancelled' | 'rescheduled' | 'pending_human_review'). Any
+# unknown value defaults to 'booked' so the UI's StatusPill always lights up.
+_APPT_STATUS_TO_FE = {
+    "SCHEDULED": "booked",
+    "CONFIRMED": "booked",
+    "REMINDER_SENT": "booked",
+    "COMPLETED": "booked",
+    "NO_SHOW": "booked",
+    "CANCELLED": "cancelled",
+    "RESCHEDULED": "rescheduled",
+    "PENDING": "pending_human_review",
+    "PENDING_SYNC": "pending_human_review",
+}
+
+
+def _project_appointment_status(raw_status: Any) -> str:
+    if raw_status is None:
+        return "booked"
+    key = raw_status.value if hasattr(raw_status, "value") else str(raw_status)
+    return _APPT_STATUS_TO_FE.get(key.upper(), "booked")
+
+
 def _project_appointment(appt: Optional[Appointment], patient: Optional[Patient]) -> Optional[Dict[str, Any]]:
     if appt is None:
         return None
@@ -175,37 +198,50 @@ def _project_appointment(appt: Optional[Appointment], patient: Optional[Patient]
         "time_start": appt.start_time.isoformat() if appt.start_time else None,
         "time_end": appt.end_time.isoformat() if appt.end_time else None,
         "procedure": "",
-        "status": (
-            appt.status.value.lower()
-            if hasattr(appt.status, "value") and appt.status is not None
-            else str(appt.status or "booked")
-        ).lower(),
+        "status": _project_appointment_status(appt.status),
         "task": "SCHEDULE",
         "booked_by": "ai",
         "source_call_id": None,
     }
 
 
+# Patient.lead_status_crm carries CRM-side enum values that don't all align
+# with the frontend's LeadStatus union. Whitelist the ones that do; everything
+# else defaults to 'new'. 'won' maps to 'completed' which is the closest FE term.
+_LEAD_STATUS_TO_FE = {
+    "new": "new", "contacted": "contacted", "booked": "booked",
+    "completed": "completed", "lost": "lost",
+    "won": "completed", "archived": "lost",
+}
+
+
 def _project_patient(patient: Optional[Patient]) -> Optional[Dict[str, Any]]:
     if patient is None:
         return None
+    # crm_tags column defaults to {} (dict) but the FE expects a list. Coerce
+    # to list when it's already a list, else empty.
+    raw_tags = patient.crm_tags
+    tags = raw_tags if isinstance(raw_tags, list) else []
+    raw_lead = (patient.lead_status_crm or "new").lower()
     return {
         "clinic_id": patient.clinic_id,
         "patient_id": patient.id,
         "first_name": patient.first_name,
         "last_name": patient.last_name,
         "phone_e164": patient.phone,
-        "email": getattr(patient, "email", None),
-        "dob": patient.dob.isoformat() if getattr(patient, "dob", None) else None,
-        "lead_status": "new",
-        "tags": [],
-        "notes": "",
+        "email": patient.email,
+        "dob": patient.dob.isoformat() if patient.dob else None,
+        "lead_status": _LEAD_STATUS_TO_FE.get(raw_lead, "new"),
+        "tags": tags,
+        "notes": patient.crm_notes or "",
         "total_calls": 0,
         "last_call_id": None,
         "last_outcome": None,
-        "created_at": patient.created_at.isoformat() if getattr(patient, "created_at", None) else None,
-        "updated_at": patient.updated_at.isoformat() if getattr(patient, "updated_at", None) else None,
-        "last_contact_at": None,
+        "created_at": patient.created_at.isoformat() if patient.created_at else None,
+        # Patient model has no updated_at column today; FE type expects the key
+        # so emit null until the schema gains the column.
+        "updated_at": None,
+        "last_contact_at": patient.last_contact_at.isoformat() if patient.last_contact_at else None,
     }
 
 
