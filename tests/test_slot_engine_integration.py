@@ -223,3 +223,24 @@ def test_no_providers_returns_empty_providers_list(db_session):
         db_session, MON, SUN_END, slot_minutes=30, clinic_id="noprov",
     )
     assert out == {"providers": []}
+
+
+def test_get_available_slots_response_includes_provider_name(client_market_mall, db_session):
+    """The multi-provider response must include `name` per provider so the voice agent
+    can group slots by the denturist's first name (Soheil vs Nadeem), not the
+    generic title ('Mr', 'Dr')."""
+    result = get_available_slots(
+        db=db_session,
+        start_datetime=MON,
+        end_datetime=SUN_END,
+        slot_minutes=30,
+        clinic_id="market-mall-denture",
+    )
+    # multi-provider shape — must contain a `name` key on each provider entry.
+    assert "providers" in result
+    assert result["providers"], "expected at least one provider in seeded market-mall fixture"
+    for entry in result["providers"]:
+        assert "name" in entry, f"missing 'name' in provider entry: {entry}"
+        assert "title" in entry  # title still emitted for backward compat
+        assert "provider_id" in entry
+        assert "slots" in entry

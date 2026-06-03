@@ -160,6 +160,7 @@ def get_available_slots(
             "provider": {
                 "provider_id": p.id if p else provider_id,
                 "title": p.title if p else None,
+                "name": p.name if p else None,
             },
             "slots": [s.isoformat() for s in results.get(p.id, [])] if p else [],
         }
@@ -169,6 +170,7 @@ def get_available_slots(
             {
                 "provider_id": p.id,
                 "title": p.title,
+                "name": p.name,
                 "slots": [s.isoformat() for s in results[p.id]],
             }
             for p in providers
