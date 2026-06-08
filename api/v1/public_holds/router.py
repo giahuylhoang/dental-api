@@ -59,7 +59,7 @@ def create_public_hold(
                 db, background_tasks, clinic=clinic, provider_id=pid,
                 service_id=payload.service_id, service_name=payload.service_name,
                 name=payload.name, phone=payload.phone, email=payload.email,
-                start=start, end=end, reason=reason_note, source=payload.source,
+                start=start, end=end, reason=reason_note, source="booking-web-hold",
                 created_at_utc=created_at_utc,
             )
             db.commit()

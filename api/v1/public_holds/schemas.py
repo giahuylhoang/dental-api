@@ -15,7 +15,8 @@ class PublicHoldRequest(BaseModel):
     insurance: Optional[str] = None
     insurance_other: Optional[str] = None
     message: Optional[str] = None
-    source: str = "booking-web-hold"
+    # recaptcha_token is verified by the BFF (see spec §5); dental-api accepts but
+    # does not re-verify it here. Kept so the forwarded body validates cleanly.
     recaptcha_token: Optional[str] = None
 
 
