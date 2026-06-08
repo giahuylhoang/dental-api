@@ -24,6 +24,7 @@ from clients.email_client import (
 from clients.sms_client import (
     send_booking_sms_delayed,
     send_cancellation_sms_delayed,
+    send_hold_reserved_sms_delayed,
     send_reschedule_sms_delayed,
 )
 from database.models import Appointment, Clinic, Patient, Provider
@@ -175,8 +176,117 @@ def schedule_reschedule_notification(
         logger.warning("Reschedule SMS skipped: %s", e)
 
 
+def schedule_hold_create_notifications(
+    background_tasks: BackgroundTasks,
+    *,
+    patient: Patient,
+    provider: Provider,
+    appointment: Appointment,
+    clinic: Clinic,
+    service_name: Optional[str],
+    source: str,
+) -> None:
+    """Schedule notifications on hold creation.
+
+    - web (booking-web-hold): 'reserved, we'll call' SMS to patient + booking email to clinic.
+    - voice (voice-hold): 'you're booked' SMS to patient + booking email to clinic.
+    """
+    provider_name = _provider_display_name(provider)
+    patient_name = _patient_display_name(patient)
+    date_str, time_str = _format_local_date_time(appointment.start_time, clinic)
+
+    if patient.phone:
+        try:
+            if source == "voice-hold":
+                background_tasks.add_task(
+                    send_booking_sms_delayed,
+                    patient.phone,
+                    patient_name,
+                    date_str,
+                    time_str,
+                    provider_name,
+                    service_name,
+                    clinic.name,
+                    clinic.address,
+                    clinic.contact_phone,
+                )
+            else:
+                background_tasks.add_task(
+                    send_hold_reserved_sms_delayed,
+                    patient.phone,
+                    patient_name,
+                    date_str,
+                    time_str,
+                    provider_name,
+                    clinic.name,
+                    clinic.contact_phone,
+                )
+        except Exception as e:
+            logger.warning("Hold create SMS skipped: %s", e)
+
+    booking_notify_to = resolve_booking_notification_recipient(clinic.booking_notification_email)
+    if booking_notify_to:
+        try:
+            when_local = f"{date_str} at {time_str}"
+            background_tasks.add_task(
+                send_clinic_booking_email_delayed,
+                booking_notify_to,
+                clinic.name,
+                appointment.id,
+                patient_name,
+                patient.phone or "",
+                patient.email or "",
+                when_local,
+                provider_name,
+                service_name,
+            )
+        except Exception as e:
+            logger.warning("Hold create clinic email skipped: %s", e)
+
+
+def schedule_hold_confirm_notifications(
+    background_tasks: BackgroundTasks,
+    *,
+    patient: Patient,
+    provider: Provider,
+    appointment: Appointment,
+    clinic: Clinic,
+    service_name: Optional[str],
+    source: str,
+) -> None:
+    """Schedule notifications on staff hold confirmation.
+
+    - web (booking-web-hold): 'you're booked' SMS to patient.
+    - voice (voice-hold): silent (patient was already told when the hold was created).
+    """
+    if source == "voice-hold":
+        return
+    if not patient.phone:
+        return
+    try:
+        provider_name = _provider_display_name(provider)
+        patient_name = _patient_display_name(patient)
+        date_str, time_str = _format_local_date_time(appointment.start_time, clinic)
+        background_tasks.add_task(
+            send_booking_sms_delayed,
+            patient.phone,
+            patient_name,
+            date_str,
+            time_str,
+            provider_name,
+            service_name,
+            clinic.name,
+            clinic.address,
+            clinic.contact_phone,
+        )
+    except Exception as e:
+        logger.warning("Hold confirm SMS skipped: %s", e)
+
+
 __all__ = [
     "schedule_booking_notifications",
     "schedule_cancellation_notification",
+    "schedule_hold_confirm_notifications",
+    "schedule_hold_create_notifications",
     "schedule_reschedule_notification",
 ]

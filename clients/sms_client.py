@@ -248,6 +248,67 @@ async def send_booking_sms_delayed(
     )
 
 
+async def _send_hold_reserved_sms(
+    to_phone: str,
+    patient_name: str,
+    date_str: str,
+    time_str: str,
+    provider_name: str,
+    clinic_name: str,
+    clinic_phone: Optional[str] = None,
+) -> bool:
+    """Web hold: tell the patient the slot is reserved and staff will call to confirm."""
+    body = (
+        f"Hi {patient_name}, your appointment with {provider_name} at {clinic_name} "
+        f"on {date_str} at {time_str} is reserved. Our front desk will call shortly to confirm. "
+        f"Questions? Call {(clinic_phone or '').strip()}."
+    )
+    try:
+        return await asyncio.wait_for(
+            asyncio.to_thread(_send_sms_sync, str(to_phone).strip(), body),
+            timeout=10.0,
+        )
+    except asyncio.TimeoutError:
+        logger.error("Twilio SMS (hold reserved) timed out after 10s")
+        return False
+    except Exception as e:
+        logger.error("SMS hold reserved send error: %s", e, exc_info=True)
+        return False
+
+
+async def send_hold_reserved_sms_delayed(
+    phone: str,
+    patient_name: str,
+    date_str: str,
+    time_str: str,
+    provider_name: str,
+    clinic_name: str,
+    clinic_phone: Optional[str] = None,
+    *,
+    clinic_id: Optional[str] = None,
+    patient_id: Optional[str] = None,
+) -> None:
+    """Sleep SMS_DELAY_SECONDS, then send hold-reserved SMS. For BackgroundTasks.
+
+    Web hold: notifies the patient their slot is reserved and staff will call to confirm.
+    Honors patient SMS opt-in preference when clinic_id + patient_id are provided.
+    """
+    if not _patient_opts_in("sms", clinic_id, patient_id):
+        logger.info("SMS hold reserved skipped: patient opted out")
+        return
+    if SMS_DELAY_SECONDS > 0:
+        await asyncio.sleep(SMS_DELAY_SECONDS)
+    await _send_hold_reserved_sms(
+        phone,
+        patient_name,
+        date_str,
+        time_str,
+        provider_name,
+        clinic_name,
+        clinic_phone,
+    )
+
+
 async def send_cancellation_sms_delayed(
     phone: str,
     patient_name: str,
