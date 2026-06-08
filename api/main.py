@@ -132,6 +132,8 @@ from api.v1.calendar.router import router as _v1_calendar_router
 app.include_router(_v1_calendar_router)
 from api.v1.calls.router import router as _v1_calls_router
 app.include_router(_v1_calls_router)
+from api.v1.public_holds.router import router as _public_holds_router
+app.include_router(_public_holds_router)
 
 # ============================================================================
 # v2 routers (Track 1 — Auth / RBAC / Audit)
