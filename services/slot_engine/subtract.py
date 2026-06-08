@@ -148,6 +148,7 @@ def appointments_for(
     day_start_utc = day_start.astimezone(_tz.utc).replace(tzinfo=None)
     day_end_utc = day_end.astimezone(_tz.utc).replace(tzinfo=None)
 
+    from services.holds import exclude_expired_holds_filter
     rows = (
         db.query(Appointment)
         .filter(
@@ -157,6 +158,7 @@ def appointments_for(
             Appointment.start_time < day_end_utc,
             Appointment.end_time > day_start_utc,
         )
+        .filter(exclude_expired_holds_filter(datetime.utcnow()))
         .order_by(Appointment.start_time.asc())
         .all()
     )

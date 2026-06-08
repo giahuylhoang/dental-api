@@ -1,9 +1,21 @@
 import uuid
 from datetime import datetime, timedelta, time as dtime
 import pytz
+from sqlalchemy import and_, not_
 from sqlalchemy.orm import Session
 from database.models import Appointment, AppointmentStatus, Clinic, Patient
 from database.v1_1.models import ClinicOperatingHours, ClinicHoliday
+
+
+def exclude_expired_holds_filter(now_utc: datetime):
+    """SQLAlchemy filter expression: keep a row UNLESS it's an expired PENDING hold."""
+    return not_(
+        and_(
+            Appointment.status == AppointmentStatus.PENDING,
+            Appointment.hold_expiry_at.isnot(None),
+            Appointment.hold_expiry_at < now_utc,
+        )
+    )
 
 
 def _open_hours_for(db: Session, clinic_id: str, dow: int):

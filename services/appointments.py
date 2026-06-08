@@ -64,6 +64,8 @@ def _query_overlapping_appointments(
     )
     if excluding_appointment_id is not None:
         q = q.filter(Appointment.id != excluding_appointment_id)
+    from services.holds import exclude_expired_holds_filter
+    q = q.filter(exclude_expired_holds_filter(datetime.utcnow()))
     return q.all()
 
 
