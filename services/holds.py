@@ -1,7 +1,8 @@
+import uuid
 from datetime import datetime, timedelta, time as dtime
 import pytz
 from sqlalchemy.orm import Session
-from database.models import Clinic
+from database.models import Clinic, Patient
 from database.v1_1.models import ClinicOperatingHours, ClinicHoliday
 
 
@@ -47,3 +48,34 @@ def compute_hold_expiry(db: Session, clinic: Clinic, created_at_utc: datetime) -
         expiry_local = tz.localize(datetime.combine(day, close_at))
         return expiry_local.astimezone(pytz.utc).replace(tzinfo=None)
     raise RuntimeError(f"No open business day found within 30 days for clinic {clinic.id}")
+
+
+def _split_name(name: str):
+    parts = (name or "").strip().split()
+    if not parts:
+        return "Patient", ""
+    if len(parts) == 1:
+        return parts[0], ""
+    return parts[0], " ".join(parts[1:])
+
+
+def upsert_patient_by_phone(db: Session, *, clinic_id: str, name: str,
+                            phone: str, email: str | None) -> Patient:
+    """Find a clinic patient by phone or create one. Does not commit."""
+    existing = (
+        db.query(Patient)
+        .filter(Patient.clinic_id == clinic_id, Patient.phone == phone)
+        .first()
+    )
+    if existing is not None:
+        if email and not existing.email:
+            existing.email = email
+        return existing
+    first, last = _split_name(name)
+    patient = Patient(
+        id=str(uuid.uuid4()), clinic_id=clinic_id,
+        first_name=first, last_name=last, phone=phone, email=email,
+    )
+    db.add(patient)
+    db.flush()
+    return patient
