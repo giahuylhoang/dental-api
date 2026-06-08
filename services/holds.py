@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timedelta, time as dtime
 import pytz
 from sqlalchemy.orm import Session
-from database.models import Clinic, Patient
+from database.models import Appointment, AppointmentStatus, Clinic, Patient
 from database.v1_1.models import ClinicOperatingHours, ClinicHoliday
 
 
@@ -48,6 +48,63 @@ def compute_hold_expiry(db: Session, clinic: Clinic, created_at_utc: datetime) -
         expiry_local = tz.localize(datetime.combine(day, close_at))
         return expiry_local.astimezone(pytz.utc).replace(tzinfo=None)
     raise RuntimeError(f"No open business day found within 30 days for clinic {clinic.id}")
+
+
+def create_hold(
+    db: Session,
+    background_tasks,
+    *,
+    clinic: Clinic,
+    provider_id: int,
+    service_id,
+    service_name: str,
+    name: str,
+    phone: str,
+    email: str | None,
+    start: datetime,
+    end: datetime,
+    reason: str,
+    source: str,
+    created_at_utc: datetime,
+) -> Appointment:
+    """Upsert patient, verify the slot is free, create a PENDING hold, schedule notifications.
+
+    Times are naive UTC. Raises the same 409 HTTPException as a normal booking on conflict.
+    Does not commit — caller is responsible for committing.
+    """
+    # Local imports to avoid circular dependency if appointments/notifications ever import holds
+    from services.appointments import check_conflicts_for_create
+    from services.notifications import schedule_hold_create_notifications
+
+    check_conflicts_for_create(db, clinic=clinic, provider_id=provider_id, start=start, end=end)
+    patient = upsert_patient_by_phone(db, clinic_id=clinic.id, name=name, phone=phone, email=email)
+    appt = Appointment(
+        id=str(uuid.uuid4()),
+        clinic_id=clinic.id,
+        patient_id=patient.id,
+        provider_id=provider_id,
+        service_id=service_id,
+        start_time=start,
+        end_time=end,
+        reason_note=reason,
+        status=AppointmentStatus.PENDING,
+        hold_expiry_at=compute_hold_expiry(db, clinic, created_at_utc),
+        patient_confirmed=False,
+        source=source,
+    )
+    db.add(appt)
+    db.flush()
+    provider = appt.provider
+    schedule_hold_create_notifications(
+        background_tasks,
+        patient=patient,
+        provider=provider,
+        appointment=appt,
+        clinic=clinic,
+        service_name=service_name,
+        source=source,
+    )
+    return appt
 
 
 def _split_name(name: str):
