@@ -354,6 +354,22 @@ class ClaimResponseCode(Base):
 
 
 # ---------------------------------------------------------------------------
+# Tier 2j — Clinic statutory/observed holidays (holds business-day calculator)
+# ---------------------------------------------------------------------------
+
+class ClinicHoliday(Base):
+    """Dates the clinic is closed for statutory/observed holidays."""
+    __tablename__ = "clinic_holidays"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    clinic_id = Column(String, ForeignKey("clinics.id"), nullable=False)
+    holiday_date = Column(Date, nullable=False)
+    label = Column(String, nullable=True)
+
+    __table_args__ = (UniqueConstraint("clinic_id", "holiday_date", name="uq_clinic_holiday"),)
+
+
+# ---------------------------------------------------------------------------
 # v1.1 secondary indexes (declared at module level)
 # ---------------------------------------------------------------------------
 
