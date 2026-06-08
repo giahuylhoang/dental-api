@@ -46,3 +46,25 @@ def test_public_hold_conflict_returns_409(client, seed_clinic_via_session):
     payload["phone"] = "4035551111"
     r2 = client.post("/api/public/holds", headers={"X-Clinic-Id": "mm"}, json=payload)
     assert r2.status_code == 409
+
+
+from services.hold_tokens import make_confirm_token
+
+
+def test_patient_self_confirm_sets_flag_not_status(client, seed_clinic_via_session):
+    seed_clinic_via_session(_seed_mm)
+    create = client.post("/api/public/holds", headers={"X-Clinic-Id": "mm"},
+        json={"name": "Jane", "phone": "4035551234", "new_patient": True, "provider_id": 101,
+              "service_name": "Consultation", "start_time": _iso(2026, 6, 10, 14),
+              "end_time": _iso(2026, 6, 10, 15), "recaptcha_token": "test"})
+    appt_id = create.json()["appointment_id"]
+    token = make_confirm_token(appt_id)
+    resp = client.post(f"/api/public/holds/confirm?token={token}", headers={"X-Clinic-Id": "mm"})
+    assert resp.status_code == 200
+    assert resp.json()["patient_confirmed"] is True
+
+
+def test_self_confirm_rejects_bad_token(client, seed_clinic_via_session):
+    seed_clinic_via_session(_seed_mm)
+    resp = client.post("/api/public/holds/confirm?token=appt-x.garbage", headers={"X-Clinic-Id": "mm"})
+    assert resp.status_code == 400

@@ -3,9 +3,10 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Header
 from sqlalchemy.orm import Session
 from database.connection import get_db
-from database.models import Clinic, Provider
+from database.models import Clinic, Provider, Appointment
 from api.dependencies.auth import get_internal_caller
 from services.holds import create_hold
+from services.hold_tokens import verify_confirm_token
 from services.tz_utils import to_storage_utc
 from .schemas import PublicHoldRequest, PublicHoldResponse
 
@@ -77,3 +78,24 @@ def create_public_hold(
                 continue
             raise
     raise last_exc or HTTPException(status_code=409, detail="slot_unavailable")
+
+
+@router.post("/holds/confirm")
+def patient_self_confirm(
+    token: str,
+    db: Session = Depends(get_db),
+    x_clinic_id: str = Header("default", alias="X-Clinic-Id"),
+):
+    appointment_id = verify_confirm_token(token)
+    if not appointment_id:
+        raise HTTPException(status_code=400, detail="invalid_token")
+    appt = (
+        db.query(Appointment)
+        .filter(Appointment.id == appointment_id, Appointment.clinic_id == x_clinic_id)
+        .first()
+    )
+    if appt is None:
+        raise HTTPException(status_code=404, detail="hold_not_found")
+    appt.patient_confirmed = True
+    db.commit()
+    return {"appointment_id": appt.id, "patient_confirmed": True}
