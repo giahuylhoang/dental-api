@@ -116,6 +116,28 @@ def _split_name(name: str):
     return parts[0], " ".join(parts[1:])
 
 
+def confirm_hold(db: Session, background_tasks, *, clinic, appointment, service_name: str):
+    """Staff confirm: PENDING hold -> SCHEDULED, clear expiry, fire source-aware confirm SMS."""
+    from services.notifications import schedule_hold_confirm_notifications
+    appointment.status = AppointmentStatus.SCHEDULED
+    appointment.hold_expiry_at = None
+    db.flush()
+    schedule_hold_confirm_notifications(
+        background_tasks, patient=appointment.patient, provider=appointment.provider,
+        appointment=appointment, clinic=clinic, service_name=service_name,
+        source=appointment.source,
+    )
+    return appointment
+
+
+def decline_hold(db: Session, *, clinic, appointment):
+    """Staff decline/release: cancel the hold, freeing the slot. No automated patient SMS."""
+    appointment.status = AppointmentStatus.CANCELLED
+    appointment.hold_expiry_at = None
+    db.flush()
+    return appointment
+
+
 def upsert_patient_by_phone(db: Session, *, clinic_id: str, name: str,
                             phone: str, email: str | None) -> Patient:
     """Find a clinic patient by phone or create one. Does not commit."""
