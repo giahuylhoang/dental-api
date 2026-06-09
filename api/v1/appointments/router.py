@@ -1,8 +1,9 @@
 """v1 appointments router — /api/appointments and nested actions."""
+import logging
 from datetime import datetime
 from typing import List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 
 from api.dependencies import get_authorized_clinic, get_db
@@ -12,8 +13,10 @@ from database.models import (
 )
 
 from api.v1.appointments.schemas import (
+    AppointmentCancelRequest,
     AppointmentCreateRequest,
     AppointmentDetailResponse,
+    AppointmentMutationSource,
     AppointmentResponse,
     AppointmentStatusUpdateRequest,
 )
@@ -22,6 +25,8 @@ from services.notifications import (
     schedule_cancellation_notification,
     schedule_reschedule_notification,
 )
+
+logger = logging.getLogger("dental-receptionist")
 
 router = APIRouter(prefix="/api/appointments", tags=["appointments"])
 
@@ -357,6 +362,7 @@ async def delete_appointment(
 async def cancel_appointment(
     appointment_id: str,
     background_tasks: BackgroundTasks,
+    request: AppointmentCancelRequest = Body(default_factory=AppointmentCancelRequest),
     db: Session = Depends(get_db),
     clinic: Clinic = Depends(get_authorized_clinic),
 ):
@@ -372,6 +378,9 @@ async def cancel_appointment(
     )
     if not appointment:
         raise HTTPException(status_code=404, detail="Appointment not found")
+
+    source = request.source
+    logger.info("appointment %s mutated via %s", appointment_id, source.value)
 
     appointment.status = AppointmentStatus.CANCELLED
     appointment.updated_at = datetime.utcnow()
@@ -419,6 +428,8 @@ async def update_appointment_status(
     if not appointment:
         raise HTTPException(status_code=404, detail="Appointment not found")
 
+    logger.info("appointment %s mutated via %s", appointment_id, request.source.value)
+
     appointment.status = new_status
     appointment.updated_at = datetime.utcnow()
     db.commit()
@@ -442,6 +453,8 @@ async def reschedule_appointment(
     old_appointment = db.query(Appointment).filter(Appointment.id == appointment_id, Appointment.clinic_id == clinic.id).first()
     if not old_appointment:
         raise HTTPException(status_code=404, detail="Appointment not found")
+
+    logger.info("appointment %s mutated via %s", appointment_id, request.source.value)
 
     if old_appointment.status != AppointmentStatus.SCHEDULED:
         raise HTTPException(
