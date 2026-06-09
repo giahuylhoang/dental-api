@@ -134,3 +134,150 @@ def test_get_reschedule_used_token_returns_410(
 def test_get_reschedule_unknown_token_returns_404(client_market_mall):
     resp = client_market_mall.get("/p/reschedule/never_existed")
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# POST /p/reschedule/{token}/commit
+# ---------------------------------------------------------------------------
+
+
+def _seed_hold(
+    db_session,
+    *,
+    patient_id: str | None = None,
+    clinic_id: str = MM_CLINIC_ID,
+    provider_id: int = 101,
+    hours_out: int = 72,
+) -> str:
+    """Create a PENDING hold-Appointment (the holds-foundation 'hold' shape).
+
+    The holds system stores holds as Appointment rows with status=PENDING and
+    hold_expiry_at set. Returns the appointment id (= the 'hold_id' that the
+    market-mall BFF passes back to commit).
+
+    If patient_id is None, a fresh patient row is seeded.
+    """
+    if patient_id is None:
+        patient = Patient(
+            id=str(uuid.uuid4()),
+            clinic_id=clinic_id,
+            first_name="Hold",
+            last_name="Patient",
+            phone="+14035550099",
+        )
+        db_session.add(patient)
+        db_session.flush()
+        patient_id = patient.id
+
+    now_utc = datetime.utcnow()
+    start = now_utc + timedelta(hours=hours_out)
+    end = start + timedelta(minutes=30)
+    hold = Appointment(
+        id=str(uuid.uuid4()),
+        clinic_id=clinic_id,
+        patient_id=patient_id,
+        provider_id=provider_id,
+        start_time=start,
+        end_time=end,
+        status=AppointmentStatus.PENDING,
+        hold_expiry_at=now_utc + timedelta(hours=24),
+        source="booking-web-hold",
+    )
+    db_session.add(hold)
+    db_session.commit()
+    return hold.id
+
+
+def test_post_commit_swaps_appointment_and_marks_token_used(
+    client_market_mall, db_session, monkeypatch
+):
+    """Happy path: valid token + valid hold → old RESCHEDULED, new SCHEDULED, token used."""
+    monkeypatch.setattr("api.dependencies.auth.INTERNAL_SECRET", "INT")
+    monkeypatch.setenv(
+        "RESCHEDULE_SESSION_SIGNING_KEY",
+        base64.b64encode(b"\x00" * 32).decode(),
+    )
+    old_appt_id = _seed_reminder_with_token(db_session, token="tok_commit_ok")
+    # Hold must belong to the same patient + clinic as the old appointment.
+    old_appt = (
+        db_session.query(Appointment).filter_by(id=old_appt_id).first()
+    )
+    hold_id = _seed_hold(
+        db_session, patient_id=old_appt.patient_id, clinic_id=old_appt.clinic_id
+    )
+
+    resp = client_market_mall.post(
+        "/p/reschedule/tok_commit_ok/commit",
+        json={"hold_id": hold_id},
+        headers={"X-Internal-Secret": "INT"},
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["appointment_id"] == hold_id
+    assert "start_time" in body
+
+    db_session.expire_all()
+    old_after = (
+        db_session.query(Appointment).filter_by(id=old_appt_id).first()
+    )
+    assert old_after.status == AppointmentStatus.RESCHEDULED
+    new_after = db_session.query(Appointment).filter_by(id=hold_id).first()
+    assert new_after.status == AppointmentStatus.SCHEDULED
+    assert new_after.hold_expiry_at is None
+    rem = (
+        db_session.query(AppointmentReminder)
+        .filter_by(reschedule_token="tok_commit_ok")
+        .first()
+    )
+    assert rem.reschedule_token_used_at is not None
+
+
+def test_post_commit_410_on_used_token(
+    client_market_mall, db_session, monkeypatch
+):
+    monkeypatch.setattr("api.dependencies.auth.INTERNAL_SECRET", "INT")
+    monkeypatch.setenv(
+        "RESCHEDULE_SESSION_SIGNING_KEY",
+        base64.b64encode(b"\x00" * 32).decode(),
+    )
+    _seed_reminder_with_token(
+        db_session, token="tok_used2", used_at=datetime.utcnow()
+    )
+    resp = client_market_mall.post(
+        "/p/reschedule/tok_used2/commit",
+        json={"hold_id": "anything"},
+        headers={"X-Internal-Secret": "INT"},
+    )
+    assert resp.status_code == 410
+
+
+def test_post_commit_409_on_hold_mismatch(
+    client_market_mall, db_session, monkeypatch
+):
+    """Hold belongs to a different patient → 409."""
+    monkeypatch.setattr("api.dependencies.auth.INTERNAL_SECRET", "INT")
+    monkeypatch.setenv(
+        "RESCHEDULE_SESSION_SIGNING_KEY",
+        base64.b64encode(b"\x00" * 32).decode(),
+    )
+    _seed_reminder_with_token(db_session, token="tok_mismatch")
+    # _seed_hold with no patient_id => fresh different patient.
+    hold_id = _seed_hold(db_session, clinic_id=MM_CLINIC_ID)
+    resp = client_market_mall.post(
+        "/p/reschedule/tok_mismatch/commit",
+        json={"hold_id": hold_id},
+        headers={"X-Internal-Secret": "INT"},
+    )
+    assert resp.status_code == 409
+
+
+def test_post_commit_401_without_internal_secret(
+    client_market_mall, db_session, monkeypatch
+):
+    monkeypatch.setattr("api.dependencies.auth.INTERNAL_SECRET", "INT")
+    _seed_reminder_with_token(db_session, token="tok_noauth")
+    resp = client_market_mall.post(
+        "/p/reschedule/tok_noauth/commit", json={"hold_id": "any"}
+    )
+    # require_internal_secret returns 401; accept 403 too if dep changes shape.
+    assert resp.status_code in (401, 403)
