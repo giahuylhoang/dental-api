@@ -43,3 +43,33 @@ def test_parse_returns_ambiguous_for_freeform_without_regex_match():
     intent, source = parse("can we do something next Tuesday afternoon")
     assert intent == ReplyIntent.AMBIGUOUS
     assert source == "regex"
+
+
+from unittest.mock import patch
+
+
+def test_freeform_text_falls_back_to_llm_when_enabled(monkeypatch):
+    monkeypatch.setenv("SMS_REPLY_LLM_FALLBACK", "true")
+    monkeypatch.setenv("GEMINI_API_KEY", "fake_key")
+    with patch("services.reply_parser._classify_via_llm", return_value=ReplyIntent.RESCHEDULE_REQUESTED) as mock_llm:
+        intent, source = parse("can we do something next Tuesday afternoon")
+    assert intent == ReplyIntent.RESCHEDULE_REQUESTED
+    assert source == "llm"
+    mock_llm.assert_called_once()
+
+
+def test_llm_fallback_returns_ambiguous_on_classifier_error(monkeypatch):
+    monkeypatch.setenv("SMS_REPLY_LLM_FALLBACK", "true")
+    with patch("services.reply_parser._classify_via_llm", side_effect=Exception("boom")):
+        intent, source = parse("blah blah")
+    assert intent == ReplyIntent.AMBIGUOUS
+    assert source == "llm"  # we attempted, just failed
+
+
+def test_llm_fallback_disabled_by_default(monkeypatch):
+    monkeypatch.delenv("SMS_REPLY_LLM_FALLBACK", raising=False)
+    with patch("services.reply_parser._classify_via_llm") as mock_llm:
+        intent, source = parse("can we do something next Tuesday afternoon")
+    mock_llm.assert_not_called()
+    assert intent == ReplyIntent.AMBIGUOUS
+    assert source == "regex"

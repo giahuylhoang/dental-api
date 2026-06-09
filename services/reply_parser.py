@@ -54,4 +54,42 @@ def parse(text: str) -> tuple[ReplyIntent, str]:
     for pat in _RESCHEDULE_PATTERNS:
         if pat.search(norm):
             return ReplyIntent.RESCHEDULE_REQUESTED, "regex"
+    # Stage 2: LLM fallback (opt-in via env flag)
+    if os.getenv("SMS_REPLY_LLM_FALLBACK", "false").lower() == "true":
+        try:
+            return _classify_via_llm(norm), "llm"
+        except Exception as exc:
+            logger.warning("LLM fallback failed: %s", exc)
+            return ReplyIntent.AMBIGUOUS, "llm"
     return ReplyIntent.AMBIGUOUS, "regex"
+
+
+import os
+import logging
+
+logger = logging.getLogger(__name__)
+
+_LLM_FALLBACK_PROMPT = (
+    "Classify this SMS reply to an appointment confirmation request. "
+    "Reply with ONE word from this set: CONFIRMED, CANCELLED, "
+    "RESCHEDULE_REQUESTED, AMBIGUOUS.\n\nSMS: {text}"
+)
+
+
+def _classify_via_llm(text: str) -> ReplyIntent:
+    """Call Gemini 2.5 Flash to classify. Returns ReplyIntent or AMBIGUOUS on parse failure."""
+    from google import genai
+
+    client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+    resp = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=_LLM_FALLBACK_PROMPT.format(text=text),
+    )
+    raw = (resp.text or "").strip().upper()
+    if raw.startswith("CONFIRMED"):
+        return ReplyIntent.CONFIRMED
+    if raw.startswith("CANCELLED"):
+        return ReplyIntent.CANCELLED
+    if raw.startswith("RESCHEDULE"):
+        return ReplyIntent.RESCHEDULE_REQUESTED
+    return ReplyIntent.AMBIGUOUS
