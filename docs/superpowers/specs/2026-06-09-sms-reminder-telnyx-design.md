@@ -8,7 +8,9 @@
 
 ## Goal
 
-Send a one-shot SMS reminder to each patient about 5 hours before their scheduled appointment. The reminder asks for a simple reply (`YES` / `NO` / `RESCHEDULE`) that the system parses and acts on automatically — updating appointment status, sending an acknowledgement, and surfacing a self-service reschedule link that's consumed by `market-mall-website`.
+Send a one-shot SMS reminder to each patient about 24 hours before their scheduled appointment (env-configurable; expected to be tuned between 24h and 48h per clinic preference). The reminder asks for a simple reply (`YES` / `NO` / `RESCHEDULE`) that the system parses and acts on automatically — updating appointment status, sending an acknowledgement, and surfacing a self-service reschedule link that's consumed by `market-mall-website`.
+
+The 24h+ window gives patients enough time to actually call or reschedule before the appointment — a 5h window is too tight for working patients to act on.
 
 All SMS (this new reminder + the existing booking, cancellation, reschedule notifications) migrate from Twilio to **Telnyx** in this spec, behind a unified `services/sms.py` interface and gated by a `SMS_PROVIDER` env flag for safe rollback.
 
@@ -43,7 +45,7 @@ Telnyx migration adds two more pieces of plumbing, used by everything above plus
 ## Reminder timing — the rule
 
 ```python
-target_send_time = appointment.start_time - timedelta(hours=REMINDER_OFFSET_HOURS)  # default 5
+target_send_time = appointment.start_time - timedelta(hours=REMINDER_OFFSET_HOURS)  # default 24, expected 24-48
 
 # Quiet-hours deferment (per clinic timezone)
 quiet_start = time(QUIET_HOURS_START)  # default 21:00
@@ -223,7 +225,7 @@ These are NOT code; they block the production cutover but do not block the spec,
 - `api/cron/reminders.py` — quiet-hours deferment, MIN_LEAD_MINUTES skip, status-guard before send, UNIQUE-constraint dedup.
 
 **Integration:**
-- End-to-end: create appointment 5.5h from now → call scan endpoint → mock Telnyx send → simulate Telnyx webhook with `YES` → appointment status flips CONFIRMED, ack SMS attempted.
+- End-to-end: create appointment 24.5h from now (or `REMINDER_OFFSET_HOURS + 0.5h` to keep the test offset-agnostic) → call scan endpoint → mock Telnyx send → simulate Telnyx webhook with `YES` → appointment status flips CONFIRMED, ack SMS attempted.
 - Same but with `RESCHEDULE` → status stays SCHEDULED, `needs_reschedule` flag set, ack SMS attempted.
 
 **Manual (dev stack):**
