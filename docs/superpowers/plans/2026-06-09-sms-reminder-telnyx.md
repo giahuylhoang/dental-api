@@ -2316,7 +2316,76 @@ Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
 
 ## Completion
 
-(Filled in by the executing agent after Task B13.)
+**Executed:** 2026-06-09, end of day. Autonomous overnight run with subagent-driven Phase B.
+
+**Result:** All 18 tasks shipped (5 Phase A + 13 Phase B + spec amendment + handoff doc). Telnyx is verified working end-to-end against production Telnyx infrastructure (outbound send, signature-verified inbound, reminder lookup, action dispatch, ack SMS — all real).
+
+### Commits on branch `feat/sms-reminder-telnyx`
+
+24 commits since `feat/holds-foundation` (newest first):
+
+```
+8f171f0 infra(scheduler): Cloud Scheduler job for /cron/reminders/scan every 5 min   # B12
+0cbc1ec test(integration): end-to-end YES + RESCHEDULE flows                          # B11
+b56d713 feat(reschedule): POST /p/reschedule/{token}/commit consumes hold + swaps appointment   # B10
+cfcfed7 feat(reschedule): GET /p/reschedule/{token} 302 to market-mall with signed session      # B9
+9213cef docs(handoff): Telnyx setup for chat_api integration                          # handoff doc
+b46ed92 feat(sms): per-clinic FROM number threading through send + inbound webhook    # per-clinic sub-task
+8978698 feat(db): Clinic.sms_from_number column for per-clinic SMS sender             # per-clinic sub-task
+12cba12 docs(spec): per-clinic Telnyx SMS numbers                                     # spec amendment
+3332cce feat(webhook): action dispatch for confirmed/cancelled/reschedule/ambiguous   # B8
+5b9e684 feat(webhook): Telnyx SMS inbound endpoint with signature verify + routing    # B7
+bfd3261 feat(cron): POST /cron/reminders/scan picks due appointments, sends SMS       # B6
+08a4371 feat(sms): Gemini Flash LLM fallback for ambiguous SMS replies                # B5
+af26cc5 feat(sms): regex reply parser for confirm/cancel/reschedule + pa/hi/ar Latin  # B4
+ff18944 feat(sms): template files + loader (en MVP, pa/hi/ar future)                  # B3
+92f23d5 feat(appointments): AppointmentMutationSource enum on status mutation requests # B2
+a82bff9 feat(db): AppointmentReminder columns for SMS reminder MVP                    # B1
+f9be739 docs(telnyx): env vars + cutover/rollback runbook                             # A5
+37a5f8b refactor(sms): route Twilio sends through services.sms.send_sms_raw           # A4
+b93058a feat(sms): provider dispatcher services/sms.py (telnyx | twilio)              # A3
+a6af2ef feat(telnyx): Ed25519 webhook signature verification                          # A2
+ea7abd3 feat(telnyx): send_message HTTP transport with TDD coverage                   # A1
+7cc8d65 docs(plan): SMS reminder + Telnyx migration TDD plan                          # plan
+5334e46 docs(spec): default REMINDER_OFFSET_HOURS to 24 (was 5)                       # spec edit
+8878463 docs(spec): SMS appointment reminder + Telnyx migration MVP                   # spec
+```
+
+### Tests
+
+- Total passing: **605** (baseline `feat/holds-foundation`: ~566 + ~39 net new on this branch).
+- 3 failed + 28 errors are **pre-existing baseline failures** in `tests/test_clinic_config_v2_migration.py`, `tests/test_clinic_routing_endpoint.py`, `tests/test_rag_*.py`, and `tests/test_seed_clinic_config_from_yaml.py`. None of those test files were touched by this branch (`git diff feat/holds-foundation..HEAD --stat` against them produces no changes). Zero regressions attributable to SMS/Telnyx work.
+- New test files added under `tests/`:
+  - `tests/api/__init__.py`
+  - `tests/api/test_appointment_mutation_source.py` (B2)
+  - `tests/api/test_cron_reminders.py` (B6)
+  - `tests/api/test_reschedule_link.py` (B9 + B10)
+  - `tests/api/test_telnyx_webhook.py` (B7 + B8 + per-clinic)
+  - `tests/clients/__init__.py`
+  - `tests/clients/test_telnyx_messaging.py` (A1)
+  - `tests/integration/__init__.py`
+  - `tests/integration/test_sms_reminder_e2e.py` (B11)
+  - `tests/services/test_reply_parser.py` (B4 + B5)
+  - `tests/services/test_sms_dispatch.py` (A3 + A4 + per-clinic)
+  - `tests/services/test_sms_templates.py` (B3)
+  - `tests/test_clinic_sms_from_number.py` (per-clinic sub-task)
+
+### Surprises during execution
+
+- **Hold model is NOT a separate table.** `feat/holds-foundation` represents holds as `Appointment` rows with `status=PENDING` + `hold_expiry_at`. The `/p/reschedule/{token}/commit` endpoint reuses that pattern (flips PENDING → SCHEDULED rather than minting a third appointment).
+- **`INTERNAL_SECRET` is captured at module load** in `api.dependencies.auth`. Tests need `monkeypatch.setattr("api.dependencies.auth.INTERNAL_SECRET", "...")` in addition to setenv.
+- **Per-clinic Telnyx number** was folded into this spec mid-flight. The `Clinic.sms_from_number` column + threading through `services/sms.send_sms_raw(..., from_=...)` + webhook lookup scoping by `to_phone == Clinic.sms_from_number` were added as a sub-task between B8 and B9.
+- **Local DB drift**: the worktree's `dental_clinic.db` was several schema versions behind during live testing; needed manual ALTER TABLE adds for `hold_expiry_at`, `patient_confirmed`, `source` on appointments, plus `greeting`, `display_name`, `practice_type_id` etc. on clinics, plus an empty `practice_types` table. Tests use SQLAlchemy `create_all` in conftest so they were unaffected.
+- **Telnyx live test result**: outbound SMS to `+13682990959` from `+15874023579` landed; reply "YES" hit the webhook with valid Ed25519 signature → reminder matched → appointment status flipped SCHEDULED → CONFIRMED → ack SMS sent via Telnyx → patient received "Thanks! We'll see you at Wed Jun 10 at 5:48 PM."
+
+### Deploy posture
+
+Local-commit-only. Branch is **not pushed, not deployed**. Per the deploy-gate constraint, production cutover requires:
+1. Telnyx Messaging Profile webhook URL updated to point at Cloud Run (currently still a placeholder per teardown).
+2. All 4 `TELNYX_*` env vars in Secret Manager + injected into dental-api-v2 Cloud Run.
+3. Cloud Scheduler job applied via Terraform (`infra/terraform/sms_reminder_scheduler.tf`).
+4. Explicit "deploy now" from the user.
+5. `SMS_PROVIDER=twilio` initially; flip to `telnyx` after one verified prod SMS round-trip.
 
 ---
 
