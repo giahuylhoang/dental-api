@@ -14,6 +14,27 @@ The 24h+ window gives patients enough time to actually call or reschedule before
 
 All SMS (this new reminder + the existing booking, cancellation, reschedule notifications) migrate from Twilio to **Telnyx** in this spec, behind a unified `services/sms.py` interface and gated by a `SMS_PROVIDER` env flag for safe rollback.
 
+## Multi-clinic numbers
+
+Each clinic has its own Telnyx-provisioned phone number that patients see as the SMS sender. Per-clinic numbers are required because:
+
+- Patient recognition: the same SMS sender should appear across all communication from a given clinic.
+- Reply disambiguation: when the same patient phone exists at two clinics, the inbound `to.phone_number` is what tells us which appointment the reply refers to.
+- Carrier policy: A2P / 10DLC brand registration generally requires consistent sender-per-brand.
+
+**Telnyx-side topology:** ONE Telnyx account → ONE Messaging Profile → many phone numbers attached to the same profile. Single API key works for all numbers. Single Ed25519 public key signs all inbound webhooks for the profile (signature verification stays one code path). The `from` field in the send payload selects which clinic's number is used.
+
+**Schema:** `Clinic` gets `sms_from_number: Optional[str]` (E.164). Migration in this spec.
+
+**Send path:** `services/sms.send_sms_raw(to, body, *, from_=None)` accepts an explicit FROM. Cron scan + webhook ack pass `clinic.sms_from_number`. Falls back to `TELNYX_SMS_FROM_NUMBER` env var when the clinic's column is unset (graceful migration window — clinics without an SMS number assigned can still test against a shared dev number).
+
+**Webhook routing:** Inbound webhook extracts `to.phone_number`. Reminder lookup is scoped by **both** `Patient.phone == from_phone` AND `Clinic.sms_from_number == to_phone`, so cross-clinic patient ambiguity is impossible.
+
+**Operational flow per new clinic:**
+1. Buy one SMS-capable local DID in the Telnyx portal.
+2. Assign it to the `dental-sms-prod` Messaging Profile.
+3. Update the clinic row: `UPDATE clinics SET sms_from_number = '+1...' WHERE id = '<clinic-id>'` (or via the admin UI once a UI field exists — out of scope for MVP).
+
 ## Non-goals (explicit)
 
 - Outbound voice calls. Reserved for **phase 2**, which will branch off `dental-agent`'s `v3-realtime-model`.
