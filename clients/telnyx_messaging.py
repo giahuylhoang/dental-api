@@ -25,15 +25,20 @@ def _http_client() -> httpx.Client:
     return httpx.Client(timeout=10.0)
 
 
-def send_message(*, to: str, body: str) -> str | None:
+def send_message(*, to: str, body: str, from_: str | None = None) -> str | None:
     """Send one SMS via Telnyx. Returns message ID on success, None on failure.
 
     Caller is responsible for body construction. We do not chunk long bodies —
     Telnyx auto-segments at the protocol layer.
+
+    ``from_`` is the sender number to use. When None, falls back to the
+    ``TELNYX_SMS_FROM_NUMBER`` env var (legacy single-number behavior).
+    Per-clinic threading passes ``clinic.sms_from_number`` so each clinic
+    sends from its own DID.
     """
     api_key = os.getenv("TELNYX_API_KEY")
     profile_id = os.getenv("TELNYX_MESSAGING_PROFILE_ID")
-    from_number = os.getenv("TELNYX_SMS_FROM_NUMBER")
+    from_number = from_ or os.getenv("TELNYX_SMS_FROM_NUMBER")
 
     if not (api_key and profile_id and from_number):
         logger.warning("Telnyx send skipped: missing TELNYX_* env vars")

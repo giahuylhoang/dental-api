@@ -36,16 +36,19 @@ def _append_clinic_contact_suffix(
     return f"{base} {' '.join(extras)}"
 
 
-def _send_via_twilio(*, to: str, body: str) -> str | None:
+def _send_via_twilio(*, to: str, body: str, from_: str | None = None) -> str | None:
     """Pure Twilio transport. No body construction, no SEND_BOOKING_SMS toggle.
 
     Called by services.sms.send_sms_raw when SMS_PROVIDER=twilio. Returns
     the Twilio message SID on success, None on failure or when creds are
     not configured.
+
+    ``from_`` is the sender number to use. When None, falls back to the
+    ``TWILIO_PHONE_NUMBER`` env var (legacy single-number behavior).
     """
     account_sid = os.getenv("TWILIO_ACCOUNT_SID")
     auth_token = os.getenv("TWILIO_AUTH_TOKEN")
-    from_phone = os.getenv("TWILIO_PHONE_NUMBER")
+    from_phone = from_ or os.getenv("TWILIO_PHONE_NUMBER")
 
     if not all([account_sid, auth_token, from_phone]):
         logger.warning("Twilio not configured (missing TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, or TWILIO_PHONE_NUMBER)")

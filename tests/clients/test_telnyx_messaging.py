@@ -56,6 +56,48 @@ def test_send_message_returns_none_on_http_error(monkeypatch):
     assert telnyx_messaging.send_message(to="+1", body="x") is None
 
 
+def test_send_message_explicit_from_overrides_env(monkeypatch):
+    """When the caller passes from_, it overrides TELNYX_SMS_FROM_NUMBER env."""
+    monkeypatch.setenv("TELNYX_API_KEY", "KEY")
+    monkeypatch.setenv("TELNYX_MESSAGING_PROFILE_ID", "MP")
+    monkeypatch.setenv("TELNYX_SMS_FROM_NUMBER", "+19999999999")  # env default
+
+    from clients import telnyx_messaging
+
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"data": {"id": "msg_x"}}
+    mock_client = MagicMock()
+    mock_client.post.return_value = mock_response
+    monkeypatch.setattr(telnyx_messaging, "_http_client", lambda: mock_client)
+
+    telnyx_messaging.send_message(to="+1", body="x", from_="+14035550000")
+
+    sent_body = mock_client.post.call_args[1]["json"]
+    assert sent_body["from"] == "+14035550000"  # NOT the env default
+
+
+def test_send_message_falls_back_to_env_when_from_is_none(monkeypatch):
+    """When from_ is omitted, the env TELNYX_SMS_FROM_NUMBER is used."""
+    monkeypatch.setenv("TELNYX_API_KEY", "KEY")
+    monkeypatch.setenv("TELNYX_MESSAGING_PROFILE_ID", "MP")
+    monkeypatch.setenv("TELNYX_SMS_FROM_NUMBER", "+19999999999")
+
+    from clients import telnyx_messaging
+
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"data": {"id": "msg_x"}}
+    mock_client = MagicMock()
+    mock_client.post.return_value = mock_response
+    monkeypatch.setattr(telnyx_messaging, "_http_client", lambda: mock_client)
+
+    telnyx_messaging.send_message(to="+1", body="x")
+
+    sent_body = mock_client.post.call_args[1]["json"]
+    assert sent_body["from"] == "+19999999999"  # env default
+
+
 def test_send_message_returns_none_when_api_key_missing(monkeypatch):
     """Missing TELNYX_API_KEY → no-op, return None, log warning."""
     monkeypatch.delenv("TELNYX_API_KEY", raising=False)

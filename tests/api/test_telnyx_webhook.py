@@ -9,11 +9,12 @@ from unittest.mock import patch
 
 import nacl.signing
 
-from database.models import Appointment, AppointmentStatus, Patient
+from database.models import Appointment, AppointmentStatus, Clinic, Patient
 from database.ops.models import AppointmentReminder
 
 
 MM_CLINIC_ID = "market-mall-denture"
+MM_SMS_FROM = "+14035550000"
 
 
 def _sign(signing_key, body_bytes, ts):
@@ -37,7 +38,15 @@ def _seed_reminder_for_appointment(
     tests/api/test_cron_reminders.py::_seed_appointment, then adds a
     reminder row in the exact state the inbound webhook expects to match
     on (status=sent, sent_at < now, reply_received_at IS NULL).
+
+    Also sets ``clinic.sms_from_number = MM_SMS_FROM`` so the inbound
+    webhook's clinic-scoped lookup (Clinic.sms_from_number == to_phone)
+    can resolve the reminder.
     """
+    clinic = db_session.query(Clinic).filter(Clinic.id == clinic_id).first()
+    if clinic is not None and clinic.sms_from_number is None:
+        clinic.sms_from_number = MM_SMS_FROM
+        db_session.flush()
     patient = Patient(
         id=str(uuid.uuid4()),
         clinic_id=clinic_id,
@@ -335,3 +344,91 @@ def test_webhook_ambiguous_first_time_sends_disambig_then_suppresses(
         .first()
     )
     assert rem.ambiguous_reply_count == 2
+
+
+# ---------------------------------------------------------------------------
+# Per-clinic FROM number scoping
+# ---------------------------------------------------------------------------
+
+
+def _signed_webhook_post_with_to(client, signing_key, *, from_phone, to_phone, text):
+    """Same as _full_signed_webhook_post but with an explicit `to` number."""
+    body = json.dumps(
+        {
+            "data": {
+                "event_type": "message.received",
+                "payload": {
+                    "from": {"phone_number": from_phone},
+                    "to": [{"phone_number": to_phone}],
+                    "text": text,
+                    "id": f"msg_in_{text[:4]}",
+                },
+            }
+        }
+    ).encode()
+    ts = str(int(time.time()))
+    sig = _sign(signing_key, body, ts)
+    return client.post(
+        "/webhooks/telnyx/sms-inbound",
+        content=body,
+        headers={
+            "Content-Type": "application/json",
+            "Telnyx-Signature-ED25519": sig,
+            "Telnyx-Timestamp": ts,
+        },
+    )
+
+
+def test_webhook_falls_through_when_to_phone_doesnt_match_any_clinic(
+    client_market_mall, db_session, monkeypatch
+):
+    """Valid signature + real reminder + correct from_phone, but the inbound
+    `to` number doesn't match any clinic's sms_from_number → fallthrough.
+    """
+    signing_key = nacl.signing.SigningKey.generate()
+    monkeypatch.setenv(
+        "TELNYX_PUBLIC_KEY", base64.b64encode(bytes(signing_key.verify_key)).decode()
+    )
+    monkeypatch.setenv("SMS_PROVIDER", "telnyx")
+    # Seeding helper sets clinic.sms_from_number to MM_SMS_FROM (+14035550000).
+    _, phone = _seed_reminder_for_appointment(
+        client_market_mall, db_session, hours_out=24, phone="+14035550009"
+    )
+    with patch(
+        "clients.telnyx_messaging.send_message", return_value="msg_ack"
+    ) as ack_send:
+        resp = _signed_webhook_post_with_to(
+            client_market_mall,
+            signing_key,
+            from_phone=phone,
+            to_phone="+19999999999",  # unknown clinic DID
+            text="yes",
+        )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["routed_to"] == "fallthrough"
+    ack_send.assert_not_called()
+
+
+def test_webhook_ack_sms_sends_from_matching_clinic_number(
+    client_market_mall, db_session, monkeypatch
+):
+    """Ack SMS must be sent with from_=clinic.sms_from_number so the
+    patient sees a reply from the same DID the reminder came from.
+    """
+    signing_key = nacl.signing.SigningKey.generate()
+    monkeypatch.setenv(
+        "TELNYX_PUBLIC_KEY", base64.b64encode(bytes(signing_key.verify_key)).decode()
+    )
+    monkeypatch.setenv("SMS_PROVIDER", "telnyx")
+    _, phone = _seed_reminder_for_appointment(
+        client_market_mall, db_session, hours_out=24, phone="+14035550010"
+    )
+    with patch(
+        "clients.telnyx_messaging.send_message", return_value="msg_ack"
+    ) as ack_send:
+        resp = _full_signed_webhook_post(
+            client_market_mall, signing_key, from_phone=phone, text="yes"
+        )
+    assert resp.status_code == 200, resp.text
+    ack_send.assert_called_once()
+    assert ack_send.call_args.kwargs.get("from_") == MM_SMS_FROM

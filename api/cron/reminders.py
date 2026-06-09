@@ -165,8 +165,14 @@ def scan(db: Session = Depends(get_db)):
             logger.warning("Skipping reminder for appt %s: no patient phone", appt.id)
             continue
 
-        # Send.
-        message_id = sms_service.send_sms_raw(to=to_phone, body=body)
+        # Send. Per-clinic FROM number — falls back to TELNYX_SMS_FROM_NUMBER
+        # / TWILIO_PHONE_NUMBER env in the client when clinic.sms_from_number
+        # is unset (legacy single-DID deployments).
+        message_id = sms_service.send_sms_raw(
+            to=to_phone,
+            body=body,
+            from_=clinic.sms_from_number if clinic else None,
+        )
 
         reminder = AppointmentReminder(
             id=str(uuid.uuid4()),

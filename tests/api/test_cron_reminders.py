@@ -228,3 +228,35 @@ def test_scan_records_failed_when_provider_returns_none(
     assert row is not None
     assert row.status == "failed"
     assert row.outbound_message_id is None
+
+
+def test_scan_forwards_clinic_sms_from_number_to_send(
+    client_market_mall, db_session, monkeypatch
+):
+    """Cron picks up clinic.sms_from_number and forwards it to send_sms_raw
+    so the reminder is sent from the clinic's own DID (not the env default)."""
+    from database.models import Clinic
+
+    monkeypatch.setenv("REMINDER_OFFSET_HOURS", "24")
+    monkeypatch.setenv("SMS_PROVIDER", "telnyx")
+    monkeypatch.setenv("DENTAL_API_INTERNAL_SECRET", "test_secret")
+    monkeypatch.setenv("QUIET_HOURS_START", "0")
+    monkeypatch.setenv("QUIET_HOURS_END", "0")
+
+    clinic = db_session.query(Clinic).filter(Clinic.id == MM_CLINIC_ID).first()
+    clinic.sms_from_number = "+14035550000"
+    db_session.commit()
+
+    _seed_appointment(client_market_mall, db_session, hours_out=24.0)
+
+    with patch(
+        "clients.telnyx_messaging.send_message", return_value="msg_clinic_did"
+    ) as mock_send:
+        resp = client_market_mall.post(
+            "/cron/reminders/scan", headers=_internal_secret_headers()
+        )
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["sent_count"] == 1
+    mock_send.assert_called_once()
+    assert mock_send.call_args.kwargs.get("from_") == "+14035550000"

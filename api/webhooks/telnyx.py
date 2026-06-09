@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 
 from clients import telnyx_messaging
 from database.connection import get_db
-from database.models import Appointment, AppointmentStatus, Patient
+from database.models import Appointment, AppointmentStatus, Clinic, Patient
 from database.ops.models import AppointmentReminder
 from services import sms as sms_service
 from services import sms_templates
@@ -68,6 +68,11 @@ async def sms_inbound(
 
     msg = data.get("payload", {})
     from_phone = (msg.get("from") or {}).get("phone_number")
+    # Telnyx puts recipients in a list at data.payload.to[].phone_number.
+    # Multi-clinic disambiguation hinges on the `to` number — same patient
+    # at two clinics gets routed to the correct reminder by clinic DID.
+    to_list = msg.get("to") or []
+    to_phone = (to_list[0] or {}).get("phone_number") if to_list else None
     text = msg.get("text") or ""
     message_id = msg.get("id")
     if not from_phone:
@@ -77,13 +82,20 @@ async def sms_inbound(
     # AppointmentReminder.sent_at and Appointment.start_time are stored
     # tz-naive (UTC); strip tz on the cutoff for comparison consistency.
     cutoff_naive = cutoff.replace(tzinfo=None)
+    # Scope by Clinic.sms_from_number == to_phone so same-patient-at-two-
+    # clinics replies disambiguate. If the matching clinic hasn't set
+    # sms_from_number, the join fails and we fall through — correct
+    # behavior: webhook can't route to a clinic that hasn't registered
+    # its number.
     reminder = (
         db.query(AppointmentReminder)
         .join(Appointment, AppointmentReminder.appointment_id == Appointment.id)
         .join(Patient, Appointment.patient_id == Patient.id)
+        .join(Clinic, Appointment.clinic_id == Clinic.id)
         .filter(AppointmentReminder.reply_received_at.is_(None))
         .filter(AppointmentReminder.sent_at >= cutoff_naive)
         .filter(Patient.phone == from_phone)
+        .filter(Clinic.sms_from_number == to_phone)
         .order_by(AppointmentReminder.sent_at.desc())
         .first()
     )
@@ -144,7 +156,11 @@ async def sms_inbound(
 
     if ack_body:
         try:
-            sms_service.send_sms_raw(to=from_phone, body=ack_body)
+            sms_service.send_sms_raw(
+                to=from_phone,
+                body=ack_body,
+                from_=(clinic.sms_from_number if clinic else None),
+            )
         except Exception as exc:
             logger.warning("Failed to send ack SMS to %s: %s", from_phone, exc)
 

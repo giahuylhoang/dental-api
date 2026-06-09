@@ -22,14 +22,20 @@ def _provider() -> str:
     return os.getenv("SMS_PROVIDER", "twilio").lower()
 
 
-def send_sms_raw(*, to: str, body: str) -> str | None:
-    """Send one SMS. Returns provider message ID on success, None on failure."""
+def send_sms_raw(*, to: str, body: str, from_: str | None = None) -> str | None:
+    """Send one SMS. Returns provider message ID on success, None on failure.
+
+    ``from_`` is the sender number to use. When None, the underlying client
+    falls back to its provider-specific env var (``TELNYX_SMS_FROM_NUMBER``
+    or ``TWILIO_PHONE_NUMBER``) for back-compat. Per-clinic threading passes
+    ``clinic.sms_from_number`` so each clinic sends from its own DID.
+    """
     provider = _provider()
     if provider == "telnyx":
         from clients import telnyx_messaging
-        return telnyx_messaging.send_message(to=to, body=body)
+        return telnyx_messaging.send_message(to=to, body=body, from_=from_)
     if provider == "twilio":
         from clients import sms_client
-        return sms_client._send_via_twilio(to=to, body=body)
+        return sms_client._send_via_twilio(to=to, body=body, from_=from_)
     logger.warning("Unknown SMS_PROVIDER=%r; SMS not sent", provider)
     return None
