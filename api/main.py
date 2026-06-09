@@ -134,6 +134,8 @@ from api.v1.calls.router import router as _v1_calls_router
 app.include_router(_v1_calls_router)
 from api.v1.public_holds.router import router as _public_holds_router
 app.include_router(_public_holds_router)
+from api.v1.internal_holds.router import router as _internal_holds_router
+app.include_router(_internal_holds_router)
 from api.v1.holds_admin.router import router as _holds_admin_router
 app.include_router(_holds_admin_router)
 
