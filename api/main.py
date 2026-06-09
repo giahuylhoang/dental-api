@@ -146,6 +146,12 @@ from api.cron.reminders import router as _cron_reminders_router
 app.include_router(_cron_reminders_router)
 
 # ============================================================================
+# Webhook endpoints (provider-signature gated)
+# ============================================================================
+from api.webhooks.telnyx import router as _webhooks_telnyx_router
+app.include_router(_webhooks_telnyx_router)
+
+# ============================================================================
 # v2 routers (Track 1 — Auth / RBAC / Audit)
 # ============================================================================
 try:
