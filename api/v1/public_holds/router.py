@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Header, 
 from sqlalchemy.orm import Session
 from database.connection import get_db
 from database.models import Clinic, Provider, Appointment
-from api.dependencies.auth import get_internal_caller
+from api.dependencies.auth import require_internal_secret
 from services.holds import create_hold
 from services.hold_tokens import verify_confirm_token
 from services.slots import get_available_slots
@@ -32,7 +32,7 @@ def get_public_slots(
     provider_name: Optional[str] = Query(None, description="Provider name for filtering"),
     slot_minutes: int = Query(30, description="Slot duration in minutes"),
     db: Session = Depends(get_db),
-    _: None = Depends(get_internal_caller),
+    _: None = Depends(require_internal_secret),
     x_clinic_id: str = Header("default", alias="X-Clinic-Id"),
 ):
     """Get available appointment slots (internal-secret gated).
@@ -66,7 +66,7 @@ def create_public_hold(
     payload: PublicHoldRequest,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    _: None = Depends(get_internal_caller),
+    _: None = Depends(require_internal_secret),
     x_clinic_id: str = Header("default", alias="X-Clinic-Id"),
 ):
     clinic = _resolve_clinic(db, x_clinic_id)
