@@ -1,0 +1,1 @@
+Hi {first_name}, this is {clinic_name}. Reminder: your appointment is {when_human} with {provider_first_name}. Reply YES to confirm, NO to cancel, or RESCHEDULE for options. To pick a new time yourself: {reschedule_link}

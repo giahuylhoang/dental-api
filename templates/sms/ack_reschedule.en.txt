@@ -1,0 +1,1 @@
+Sure thing. Pick a new time here: {reschedule_link} — or call {clinic_phone} to talk to Emma.

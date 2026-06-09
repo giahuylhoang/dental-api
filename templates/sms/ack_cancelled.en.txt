@@ -1,0 +1,1 @@
+Got it — your appointment is cancelled. To book again, call {clinic_phone} or visit {reschedule_link}.
