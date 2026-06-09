@@ -50,6 +50,16 @@ class AppointmentReminder(Base):
     sent_at = Column(DateTime, nullable=True)
     status = Column(String, default="pending")  # pending|sent|failed|cancelled
     failure_reason = Column(Text, nullable=True)
+    # SMS reminder MVP (Telnyx) — see alembic ca70e6da68cd
+    provider = Column(String, nullable=False, server_default="telnyx")
+    outbound_message_id = Column(String, nullable=True)
+    reply_received_at = Column(DateTime, nullable=True)
+    reply_parsed_intent = Column(String, nullable=True)  # confirmed|cancelled|reschedule_requested|ambiguous
+    reply_raw_text = Column(Text, nullable=True)
+    reschedule_token = Column(String, nullable=True, index=True)
+    reschedule_token_used_at = Column(DateTime, nullable=True)
+    reschedule_token_expires_at = Column(DateTime, nullable=True)
+    ambiguous_reply_count = Column(Integer, nullable=False, server_default="0")
 
 
 class WaitlistEntry(Base):
