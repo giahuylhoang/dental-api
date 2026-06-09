@@ -140,6 +140,12 @@ from api.v1.holds_admin.router import router as _holds_admin_router
 app.include_router(_holds_admin_router)
 
 # ============================================================================
+# Cron endpoints (Cloud Scheduler-triggered, X-Internal-Secret gated)
+# ============================================================================
+from api.cron.reminders import router as _cron_reminders_router
+app.include_router(_cron_reminders_router)
+
+# ============================================================================
 # v2 routers (Track 1 — Auth / RBAC / Audit)
 # ============================================================================
 try:
