@@ -152,6 +152,12 @@ from api.webhooks.telnyx import router as _webhooks_telnyx_router
 app.include_router(_webhooks_telnyx_router)
 
 # ============================================================================
+# Public token-handoff endpoints (no auth — token in URL)
+# ============================================================================
+from api.public.reschedule import router as _public_reschedule_router
+app.include_router(_public_reschedule_router)
+
+# ============================================================================
 # v2 routers (Track 1 — Auth / RBAC / Audit)
 # ============================================================================
 try:
