@@ -1,12 +1,15 @@
 import logging
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Header
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Header, Query
 from sqlalchemy.orm import Session
 from database.connection import get_db
 from database.models import Clinic, Provider, Appointment
 from api.dependencies.auth import get_internal_caller
 from services.holds import create_hold
 from services.hold_tokens import verify_confirm_token
+from services.slots import get_available_slots
 from services.tz_utils import to_storage_utc
 from .schemas import PublicHoldRequest, PublicHoldResponse
 
@@ -19,6 +22,43 @@ def _resolve_clinic(db: Session, clinic_id: str) -> Clinic:
     if clinic is None:
         raise HTTPException(status_code=404, detail="clinic_not_found")
     return clinic
+
+
+@router.get("/slots")
+def get_public_slots(
+    start_datetime: str = Query(..., description="ISO datetime string"),
+    end_datetime: str = Query(..., description="ISO datetime string"),
+    provider_id: Optional[int] = Query(None, description="Provider ID for filtering"),
+    provider_name: Optional[str] = Query(None, description="Provider name for filtering"),
+    slot_minutes: int = Query(30, description="Slot duration in minutes"),
+    db: Session = Depends(get_db),
+    _: None = Depends(get_internal_caller),
+    x_clinic_id: str = Header("default", alias="X-Clinic-Id"),
+):
+    """Get available appointment slots (internal-secret gated).
+
+    Identical payload to GET /api/calendar/slots, but authenticates via
+    X-Internal-Secret + X-Clinic-Id instead of Firebase, so the booking BFF
+    can call it without a Firebase user token.
+    """
+    clinic = _resolve_clinic(db, x_clinic_id)
+    try:
+        slots = get_available_slots(
+            db=db,
+            start_datetime=start_datetime,
+            end_datetime=end_datetime,
+            provider_id=provider_id,
+            provider_name=provider_name,
+            slot_minutes=slot_minutes,
+            clinic_id=clinic.id,
+            timezone_str=clinic.timezone,
+            hour_start=clinic.working_hour_start,
+            hour_end=clinic.working_hour_end,
+        )
+        return slots
+    except Exception as e:
+        logger.error(f"Error in get_public_slots: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/holds", response_model=PublicHoldResponse)
