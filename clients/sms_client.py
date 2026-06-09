@@ -36,28 +36,46 @@ def _append_clinic_contact_suffix(
     return f"{base} {' '.join(extras)}"
 
 
-def _send_sms_sync(to_phone: str, body: str) -> bool:
-    """Send SMS via Twilio. Blocking. Returns True on success, False on failure. Never raises."""
-    if not SEND_BOOKING_SMS:
-        logger.info("SMS sending disabled (SEND_BOOKING_SMS=false). Would send: %s", body[:80])
-        return True
+def _send_via_twilio(*, to: str, body: str) -> str | None:
+    """Pure Twilio transport. No body construction, no SEND_BOOKING_SMS toggle.
 
+    Called by services.sms.send_sms_raw when SMS_PROVIDER=twilio. Returns
+    the Twilio message SID on success, None on failure or when creds are
+    not configured.
+    """
     account_sid = os.getenv("TWILIO_ACCOUNT_SID")
     auth_token = os.getenv("TWILIO_AUTH_TOKEN")
     from_phone = os.getenv("TWILIO_PHONE_NUMBER")
 
     if not all([account_sid, auth_token, from_phone]):
         logger.warning("Twilio not configured (missing TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, or TWILIO_PHONE_NUMBER)")
-        return False
+        return None
 
     try:
         from twilio.rest import Client
         client = Client(account_sid, auth_token)
-        client.messages.create(body=body, from_=from_phone, to=to_phone)
-        return True
+        msg = client.messages.create(body=body, from_=from_phone, to=to)
+        return msg.sid
     except Exception as e:
         logger.error("Twilio SMS failed: %s", e, exc_info=True)
-        return False
+        return None
+
+
+def _send_sms_sync(to_phone: str, body: str) -> bool:
+    """Send SMS via the active provider. Blocking. Returns True on success/skip.
+
+    Dispatches through services.sms.send_sms_raw, which routes to Telnyx
+    or Twilio based on SMS_PROVIDER env. SEND_BOOKING_SMS=false short-
+    circuits before any send.
+    """
+    if not SEND_BOOKING_SMS:
+        logger.info("SMS sending disabled (SEND_BOOKING_SMS=false). Would send: %s", body[:80])
+        return True
+
+    from services.sms import send_sms_raw
+
+    msg_id = send_sms_raw(to=to_phone, body=body)
+    return msg_id is not None
 
 
 async def send_booking_confirmation_sms(
