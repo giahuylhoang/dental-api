@@ -5,14 +5,19 @@ services/sms_templates.py; send dispatching happens in services/sms.py.
 """
 from __future__ import annotations
 
+import base64
 import logging
 import os
+import time
 
 import httpx
+import nacl.exceptions
+import nacl.signing
 
 logger = logging.getLogger(__name__)
 
 TELNYX_API_BASE = "https://api.telnyx.com/v2"
+MAX_SIGNATURE_AGE_SECONDS = 300
 
 
 def _http_client() -> httpx.Client:
@@ -59,3 +64,37 @@ def send_message(*, to: str, body: str) -> str | None:
     except Exception as exc:
         logger.exception("Telnyx send raised: %s", exc)
         return None
+
+
+def verify_webhook_signature(payload: bytes, signature_b64: str, timestamp: str) -> bool:
+    """Verify Telnyx-Signature-ED25519 + Telnyx-Timestamp headers.
+
+    Telnyx signs the bytes ``f"{timestamp}|".encode() + payload`` with the
+    profile's Ed25519 private key. The public key is published once per
+    Messaging Profile and stored in TELNYX_PUBLIC_KEY (base64).
+
+    Returns False on:
+    - missing TELNYX_PUBLIC_KEY env var
+    - non-numeric timestamp
+    - timestamp drift > MAX_SIGNATURE_AGE_SECONDS (replay protection)
+    - signature mismatch / decode error
+    """
+    public_key_b64 = os.getenv("TELNYX_PUBLIC_KEY")
+    if not public_key_b64:
+        return False
+
+    try:
+        ts_int = int(timestamp)
+    except (TypeError, ValueError):
+        return False
+    if abs(time.time() - ts_int) > MAX_SIGNATURE_AGE_SECONDS:
+        return False
+
+    try:
+        verify_key = nacl.signing.VerifyKey(base64.b64decode(public_key_b64))
+        sig_bytes = base64.b64decode(signature_b64)
+        signed_message = timestamp.encode() + b"|" + payload
+        verify_key.verify(signed_message, sig_bytes)
+        return True
+    except (nacl.exceptions.BadSignatureError, ValueError, TypeError):
+        return False
