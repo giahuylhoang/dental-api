@@ -227,8 +227,18 @@ async def _forward_to_chat_api(
         )
         return {"routed_to": "fallthrough_no_clinic", "to": to_phone}
 
-    patient = db.query(Patient).filter(Patient.phone == from_phone).first()
-    patient_id = patient.id if patient else None
+    # Patient lookup is best-effort: schema drift between local dev DB and prod
+    # (or a missing alembic upgrade) shouldn't break the forward — chat_api
+    # falls back to its own lookup when patient_id is None.
+    try:
+        patient = db.query(Patient).filter(Patient.phone == from_phone).first()
+        patient_id = patient.id if patient else None
+    except Exception as exc:
+        logger.warning("patient_lookup_failed phone=%s error=%s", from_phone, exc)
+        patient_id = None
+        # SQLAlchemy invalidates the session after an OperationalError; roll back
+        # so subsequent operations (none here, but defensive) can reuse it.
+        db.rollback()
 
     payload = {
         "phone_number": from_phone,
