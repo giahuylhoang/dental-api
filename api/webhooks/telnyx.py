@@ -18,6 +18,7 @@ import logging
 import os
 from datetime import datetime, timedelta, timezone
 
+import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from sqlalchemy.orm import Session
 
@@ -101,7 +102,12 @@ async def sms_inbound(
     )
 
     if reminder is None:
-        return {"routed_to": "fallthrough"}
+        return await _forward_to_chat_api(
+            db=db,
+            from_phone=from_phone,
+            to_phone=to_phone,
+            text=text,
+        )
 
     # --- Action dispatch (Task B8) ---
     intent, source = parse_reply(text)
@@ -170,4 +176,118 @@ async def sms_inbound(
         "routed_to": "reminder_match",
         "intent": intent.value,
         "source": source,
+    }
+
+
+def _chat_api_url() -> str:
+    """chat_api base URL. Defaults to localhost:8092 for dev (matches the
+    REPL default + the systemd unit's bind port)."""
+    return os.environ.get("INTERNAL_CHAT_API_URL", "http://127.0.0.1:8092").rstrip("/")
+
+
+def _chat_api_headers() -> dict[str, str]:
+    """X-Internal-Secret if dental-api has one configured. chat_api's auth
+    is no-op when the secret is unset on its side, so sending an extra
+    header is harmless."""
+    headers = {"Content-Type": "application/json"}
+    secret = os.environ.get("DENTAL_API_INTERNAL_SECRET")
+    if secret:
+        headers["X-Internal-Secret"] = secret
+    return headers
+
+
+async def _forward_to_chat_api(
+    *, db: Session, from_phone: str, to_phone: str | None, text: str,
+) -> dict:
+    """Forward a non-reminder-matched SMS to chat_api as general chat.
+
+    Looks up clinic by `to_phone` (Clinic.sms_from_number) — that's how
+    multi-clinic disambiguation works on the SMS side, same as the
+    reminder branch. Optionally pre-resolves patient_id from
+    Patient.phone (saves chat_api an HTTP round-trip). Posts the
+    documented chat_api SMS contract and fires the reply back via
+    services.sms.send_sms_raw.
+
+    Returns a dispatch record indicating where the message went. On
+    chat_api 5xx or send failure, raises HTTPException(502) so Telnyx
+    retries the inbound (idempotency on the chat_api side is the
+    consumer's responsibility — chat_api state advances per turn).
+    """
+    if not to_phone:
+        logger.warning("sms_router decision=fallthrough_no_to from=%s", from_phone)
+        return {"routed_to": "fallthrough_no_to"}
+
+    clinic = (
+        db.query(Clinic).filter(Clinic.sms_from_number == to_phone).first()
+    )
+    if clinic is None:
+        logger.warning(
+            "sms_router decision=fallthrough_no_clinic to=%s from=%s",
+            to_phone, from_phone,
+        )
+        return {"routed_to": "fallthrough_no_clinic", "to": to_phone}
+
+    patient = db.query(Patient).filter(Patient.phone == from_phone).first()
+    patient_id = patient.id if patient else None
+
+    payload = {
+        "phone_number": from_phone,
+        "channel": "sms",
+        "message": text,
+        "clinic_slug": clinic.id,
+        "patient_id": patient_id,
+        # pending_reminder is omitted here — we got here precisely because
+        # NO reminder matched. The AMBIGUOUS-reminder chat-takeover path
+        # is a separate feature (would live in the reminder branch above,
+        # forwarding with pending_reminder context).
+    }
+
+    chat_url = f"{_chat_api_url()}/chat/message"
+    logger.info(
+        "sms_router decision=chat_no_reminder clinic=%s patient_id=%s phone=%s",
+        clinic.id, patient_id, from_phone,
+    )
+
+    try:
+        async with httpx.AsyncClient(timeout=25.0) as client:
+            chat_resp = await client.post(
+                chat_url, headers=_chat_api_headers(), json=payload,
+            )
+            chat_resp.raise_for_status()
+            chat_data = chat_resp.json()
+    except httpx.HTTPError as exc:
+        logger.error(
+            "chat_api_forward_failed url=%s from=%s error=%s",
+            chat_url, from_phone, exc,
+        )
+        raise HTTPException(status_code=502, detail=f"chat_api forward failed: {exc}")
+
+    reply_body = (chat_data.get("reply") or "").strip()
+    if not reply_body:
+        logger.warning(
+            "chat_api_empty_reply from=%s phase=%s",
+            from_phone, chat_data.get("phase"),
+        )
+        return {
+            "routed_to": "chat_no_reply",
+            "phase": chat_data.get("phase"),
+        }
+
+    try:
+        sms_service.send_sms_raw(
+            to=from_phone,
+            body=reply_body,
+            from_=clinic.sms_from_number,
+        )
+    except Exception as exc:
+        logger.error(
+            "Failed to send chat reply SMS to %s via %s: %s",
+            from_phone, clinic.sms_from_number, exc,
+        )
+        raise HTTPException(status_code=502, detail="failed to send reply SMS")
+
+    return {
+        "routed_to": "chat_no_reminder",
+        "phase": chat_data.get("phase"),
+        "patient_id": patient_id,
     }
