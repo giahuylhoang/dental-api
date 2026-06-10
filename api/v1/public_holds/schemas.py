@@ -6,6 +6,9 @@ class PublicHoldRequest(BaseModel):
     name: str
     phone: str
     email: Optional[str] = None
+    # dob: patient date of birth as 'YYYY-MM-DD' (web form collects first/last/DOB
+    # to match the voice-agent patient convention). Stored on Patient.dob.
+    dob: Optional[str] = None
     new_patient: bool
     provider_id: Optional[int] = None
     service_id: Optional[int] = None

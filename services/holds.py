@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timedelta, time as dtime
+from datetime import datetime, timedelta, time as dtime, date as ddate
 import pytz
 from sqlalchemy import and_, not_
 from sqlalchemy.orm import Session
@@ -78,6 +78,7 @@ def create_hold(
     reason: str,
     source: str,
     created_at_utc: datetime,
+    dob: str | None = None,
 ) -> Appointment:
     """Upsert patient, verify the slot is free, create a PENDING hold, schedule notifications.
 
@@ -89,7 +90,7 @@ def create_hold(
     from services.notifications import schedule_hold_create_notifications
 
     check_conflicts_for_create(db, clinic=clinic, provider_id=provider_id, start=start, end=end)
-    patient = upsert_patient_by_phone(db, clinic_id=clinic.id, name=name, phone=phone, email=email)
+    patient = upsert_patient_by_phone(db, clinic_id=clinic.id, name=name, phone=phone, email=email, dob=dob)
     appt = Appointment(
         id=str(uuid.uuid4()),
         clinic_id=clinic.id,
@@ -150,9 +151,21 @@ def decline_hold(db: Session, *, clinic, appointment):
     return appointment
 
 
+def _parse_dob(dob: str | None):
+    """Parse 'YYYY-MM-DD' to a date; return None if absent or unparseable."""
+    if not dob:
+        return None
+    try:
+        return ddate.fromisoformat(dob.strip())
+    except (ValueError, AttributeError):
+        return None
+
+
 def upsert_patient_by_phone(db: Session, *, clinic_id: str, name: str,
-                            phone: str, email: str | None) -> Patient:
+                            phone: str, email: str | None,
+                            dob: str | None = None) -> Patient:
     """Find a clinic patient by phone or create one. Does not commit."""
+    parsed_dob = _parse_dob(dob)
     existing = (
         db.query(Patient)
         .filter(Patient.clinic_id == clinic_id, Patient.phone == phone)
@@ -161,11 +174,14 @@ def upsert_patient_by_phone(db: Session, *, clinic_id: str, name: str,
     if existing is not None:
         if email and not existing.email:
             existing.email = email
+        if parsed_dob and not existing.dob:
+            existing.dob = parsed_dob
         return existing
     first, last = _split_name(name)
     patient = Patient(
         id=str(uuid.uuid4()), clinic_id=clinic_id,
         first_name=first, last_name=last, phone=phone, email=email,
+        dob=parsed_dob,
     )
     db.add(patient)
     db.flush()
