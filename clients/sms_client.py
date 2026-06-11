@@ -277,6 +277,7 @@ async def _send_hold_reserved_sms(
     provider_name: str,
     clinic_name: str,
     clinic_phone: Optional[str] = None,
+    clinic_address: Optional[str] = None,
 ) -> bool:
     """Web hold: tell the patient the slot is reserved and staff will call to confirm."""
     body = (
@@ -284,6 +285,9 @@ async def _send_hold_reserved_sms(
         f"on {date_str} at {time_str} is reserved. Our front desk will call shortly to confirm. "
         f"Questions? Call {(clinic_phone or '').strip()}."
     )
+    addr = (clinic_address or "").strip()
+    if addr:
+        body += f" Address: {addr}."
     try:
         return await asyncio.wait_for(
             asyncio.to_thread(_send_sms_sync, str(to_phone).strip(), body),
@@ -305,6 +309,7 @@ async def send_hold_reserved_sms_delayed(
     provider_name: str,
     clinic_name: str,
     clinic_phone: Optional[str] = None,
+    clinic_address: Optional[str] = None,
     *,
     clinic_id: Optional[str] = None,
     patient_id: Optional[str] = None,
@@ -327,6 +332,7 @@ async def send_hold_reserved_sms_delayed(
         provider_name,
         clinic_name,
         clinic_phone,
+        clinic_address,
     )
 
 

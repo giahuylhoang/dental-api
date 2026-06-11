@@ -220,6 +220,7 @@ def schedule_hold_create_notifications(
                     provider_name,
                     clinic.name,
                     clinic.contact_phone,
+                    clinic.address,
                 )
         except Exception as e:
             logger.warning("Hold create SMS skipped: %s", e)
