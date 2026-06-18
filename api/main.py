@@ -80,11 +80,16 @@ app = FastAPI(
 from api.middleware.observability import ObservabilityMiddleware
 app.add_middleware(ObservabilityMiddleware)
 
-# CORS: allow frontend (Vite often on 5173 or 5174 when 5173 is in use)
+# CORS: dev (Vite 5173/5174, Next 3000-3002) + prod (custom rockyridge.io
+# domains + Firebase App Hosting preview channels).
 _CORS_BASE = [
-    "http://localhost:5173", "http://localhost:5174", "http://localhost:3000",
-    "http://127.0.0.1:5173", "http://127.0.0.1:5174", "http://127.0.0.1:3000",
+    "http://localhost:5173", "http://localhost:5174",
+    "http://localhost:3000", "http://localhost:3001", "http://localhost:3002",
+    "http://127.0.0.1:5173", "http://127.0.0.1:5174",
+    "http://127.0.0.1:3000", "http://127.0.0.1:3001", "http://127.0.0.1:3002",
     "https://dental-crm--rockyridgeai-dental.us-central1.hosted.app",
+    "https://dental-pms.rockyridge.io",
+    "https://emma.rockyridge.io",
 ]
 _CORS_EXTRA = [o.strip() for o in os.getenv("CORS_EXTRA_ORIGINS", "").split(",") if o.strip()]
 
@@ -127,6 +132,12 @@ from api.v1.calendar.router import router as _v1_calendar_router
 app.include_router(_v1_calendar_router)
 from api.v1.calls.router import router as _v1_calls_router
 app.include_router(_v1_calls_router)
+from api.v1.public_holds.router import router as _public_holds_router
+app.include_router(_public_holds_router)
+from api.v1.internal_holds.router import router as _internal_holds_router
+app.include_router(_internal_holds_router)
+from api.v1.holds_admin.router import router as _holds_admin_router
+app.include_router(_holds_admin_router)
 
 # ============================================================================
 # v2 routers (Track 1 — Auth / RBAC / Audit)

@@ -9,6 +9,7 @@ from api.dependencies.auth import (  # noqa: F401
     get_current_uid,
     get_authorized_clinic,
     get_internal_caller,
+    require_internal_secret,
     init_firebase_admin,
 )
 
@@ -20,5 +21,6 @@ __all__ = [
     "get_current_uid",
     "get_authorized_clinic",
     "get_internal_caller",
+    "require_internal_secret",
     "init_firebase_admin",
 ]

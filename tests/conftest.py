@@ -139,6 +139,21 @@ def client(db_engine):
         session.close()
 
 
+@pytest.fixture
+def seed_clinic_via_session(db_engine):
+    """Return a callable that seeds the test DB via a short-lived session.
+
+    The client fixture overrides get_db with a session bound to the same
+    StaticPool engine, so commits here are visible to subsequent client requests.
+    """
+    def _seed(fn):
+        S = sessionmaker(bind=db_engine)
+        s = S()
+        fn(s)
+        s.close()
+    return _seed
+
+
 @pytest.fixture(scope="function")
 def client_market_mall(client, db_session):
     """Client with market-mall-denture clinic seeded (providers 101/102, busy blocks, service 700)."""

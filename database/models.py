@@ -215,6 +215,9 @@ class Appointment(Base):
     reason_note = Column(Text, nullable=True)
     chief_complaint = Column(Text, nullable=True)
     status = Column(SQLEnum(AppointmentStatus), default=AppointmentStatus.SCHEDULED)
+    hold_expiry_at = Column(DateTime, nullable=True)  # set for PENDING web/voice holds; naive UTC
+    patient_confirmed = Column(Boolean, nullable=False, default=False)  # web self-confirm flag
+    source = Column(String, nullable=True)  # 'booking-web-hold' | 'voice-hold' | None (staff/direct)
     calendar_event_id = Column(String, nullable=True)  # Google Calendar event ID for sync
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

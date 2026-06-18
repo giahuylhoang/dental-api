@@ -90,6 +90,31 @@ def seed_market_mall_denture(db):
         base_price=100.00,
     )
     db.add(service)
+
+    from database.v1_1.models import ClinicHoliday
+    from datetime import date as _date
+    # Alberta statutory holidays 2026 (Calgary). Refresh yearly.
+    AB_HOLIDAYS_2026 = [
+        (_date(2026, 1, 1), "New Year's Day"),
+        (_date(2026, 2, 16), "Family Day"),
+        (_date(2026, 4, 3), "Good Friday"),
+        (_date(2026, 5, 18), "Victoria Day"),
+        (_date(2026, 7, 1), "Canada Day"),
+        (_date(2026, 8, 3), "Heritage Day"),
+        (_date(2026, 9, 7), "Labour Day"),
+        (_date(2026, 9, 30), "Truth & Reconciliation"),
+        (_date(2026, 10, 12), "Thanksgiving"),
+        (_date(2026, 11, 11), "Remembrance Day"),
+        (_date(2026, 12, 25), "Christmas Day"),
+    ]
+    for hd, label in AB_HOLIDAYS_2026:
+        exists = (
+            db.query(ClinicHoliday)
+            .filter(ClinicHoliday.clinic_id == MARKET_MALL_CLINIC_ID, ClinicHoliday.holiday_date == hd)
+            .first()
+        )
+        if not exists:
+            db.add(ClinicHoliday(clinic_id=MARKET_MALL_CLINIC_ID, holiday_date=hd, label=label))
     print("✓ Seeded market-mall-denture clinic (providers 101, 102, busy blocks, service 700)")
 
 

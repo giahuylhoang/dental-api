@@ -127,3 +127,16 @@ def get_internal_caller(
         return
     if not INTERNAL_SECRET or x_internal_secret != INTERNAL_SECRET:
         raise HTTPException(status_code=401, detail="internal_auth_failed")
+
+
+def require_internal_secret(
+    x_internal_secret: Optional[str] = Header(None, alias="X-Internal-Secret"),
+) -> None:
+    """Enforce the shared internal secret for internet-facing endpoints, REGARDLESS
+    of ADMIN_AUTH_BYPASS. Unlike get_internal_caller, bypass does NOT skip this — so
+    endpoints exposed to the public internet (via the booking BFF) stay protected even
+    when the rest of the API is in bypass mode. If no secret is configured
+    (INTERNAL_SECRET is unset — local/dev/test), the check is skipped so dev/tests work.
+    """
+    if INTERNAL_SECRET and x_internal_secret != INTERNAL_SECRET:
+        raise HTTPException(status_code=401, detail="internal_auth_failed")

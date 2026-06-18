@@ -16,6 +16,14 @@ async def _run_scheduler(get_db_factory):
             await _dispatch_due_reminders(get_db_factory)
         except Exception as e:
             logger.error("Reminder scheduler error: %s", e, exc_info=True)
+        try:
+            db = next(get_db_factory())
+            try:
+                expire_pending_holds(db)
+            finally:
+                db.close()
+        except Exception as e:
+            logger.error("Hold expiry sweep failed: %s", e, exc_info=True)
         await asyncio.sleep(60)
 
 
@@ -73,6 +81,22 @@ async def _dispatch_due_reminders(get_db_factory):
             db.commit()
     finally:
         db.close()
+
+
+def expire_pending_holds(db) -> int:
+    """Cancel PENDING holds whose hold_expiry_at has passed. Returns count cancelled."""
+    from datetime import datetime
+    from database.models import Appointment, AppointmentStatus
+    now = datetime.utcnow()
+    expired = (db.query(Appointment)
+               .filter(Appointment.status == AppointmentStatus.PENDING,
+                       Appointment.hold_expiry_at.isnot(None),
+                       Appointment.hold_expiry_at < now).all())
+    for a in expired:
+        a.status = AppointmentStatus.CANCELLED
+    if expired:
+        db.commit()
+    return len(expired)
 
 
 def start_reminder_scheduler(get_db_factory):
