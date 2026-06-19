@@ -84,9 +84,18 @@ def resolve_clinic_recipients(clinic, *, kind: str = "booking") -> list[str]:
         if env_to:
             addrs.append(env_to)
         addrs.append(info)
+        # Fallback so referrals are never silently unrouted if info_email is unset.
+        addrs.append((getattr(clinic, "booking_notification_email", None) or "").strip())
     else:
         addrs.append(info)
-    return _dedupe_emails(addrs)
+    out = _dedupe_emails(addrs)
+    if kind == "referral" and not out:
+        logger.warning(
+            "No referral notification recipient configured for clinic %s "
+            "(set clinic.info_email / booking_notification_email or REFERRAL_NOTIFICATION_TO)",
+            getattr(clinic, "id", "?"),
+        )
+    return out
 
 
 NEW_BOOKING_EMAIL_SUBJECT = "New booking: {clinic_name} — {patient_name} — {when_local}"

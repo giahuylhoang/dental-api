@@ -1,7 +1,14 @@
-"""Referral business logic: create (mint upload tickets) + complete (verify + notify).
+"""Referral business logic: create (mint upload tickets) + complete (verify + record + notify).
 
-Follows the holds.py convention: services do the work and FLUSH, the router commits.
-Storage is the pluggable backend (GCS in prod, Local in dev/tests).
+Flow (matches the spec):
+  create_referral  → validate manifest, create Referral(status=NEW), return signed PUT tickets.
+                     No referral_documents rows yet (abandoned referrals leave no orphan metadata).
+  complete_referral→ the client reports which objects it uploaded; we treat that list as
+                     authoritative but UNTRUSTED: each key must belong to this referral, the
+                     object must actually exist in storage, be within the size limit, and carry
+                     an allowed MIME. Surviving files become referral_documents; status → READY;
+                     the clinic notification is dispatched. Idempotent (re-calls on a non-NEW
+                     referral no-op and never re-send email).
 """
 from __future__ import annotations
 
@@ -19,6 +26,7 @@ from api.v1.public_referrals.schemas import (
     ALLOWED_MIME,
     MAX_FILE_BYTES,
     MAX_FILES,
+    ReferralCompleteRequest,
     ReferralCreateRequest,
     UploadTicket,
 )
@@ -35,17 +43,16 @@ def _kind_for_mime(mime: str) -> str:
 
 
 def _parse_date(s: Optional[str]) -> Optional[date]:
-    if not s:
+    if not s or not s.strip():
         return None
     try:
         return date.fromisoformat(s.strip())
     except (ValueError, AttributeError):
-        return None
+        raise HTTPException(status_code=422, detail="invalid_extraction_date")
 
 
 def _safe_ext(name: str) -> str:
     ext = Path(name or "").suffix
-    # keep it short + harmless
     return ext if (0 < len(ext) <= 8 and ext.replace(".", "").isalnum()) else ""
 
 
@@ -57,8 +64,8 @@ def create_referral(
     submit_ip: Optional[str],
     storage,
 ) -> Tuple[Referral, List[UploadTicket]]:
-    """Validate the manifest, create the Referral + pending ReferralDocument rows,
-    and return one signed PUT ticket per file. Does NOT commit (caller commits)."""
+    """Validate, create the Referral (NEW), and return one signed PUT ticket per file.
+    Does NOT create referral_documents or commit (caller commits)."""
     files = payload.files or []
     if len(files) > MAX_FILES:
         raise HTTPException(status_code=422, detail=f"too_many_files:max_{MAX_FILES}")
@@ -68,13 +75,25 @@ def create_referral(
         if (f.size or 0) > MAX_FILE_BYTES:
             raise HTTPException(status_code=422, detail="file_too_large")
 
+    # Provider (if specified) must belong to this clinic and be active.
+    if payload.provider_id is not None:
+        ok = db.query(Provider).filter(
+            Provider.id == payload.provider_id,
+            Provider.clinic_id == clinic.id,
+            Provider.is_active.is_(True),
+        ).first()
+        if ok is None:
+            raise HTTPException(status_code=422, detail="invalid_provider")
+
+    extraction_date = _parse_date(payload.proposed_extraction_date)
+
     referral = Referral(
         clinic_id=clinic.id,
         patient_name=payload.patient_name.strip(),
         patient_phone=payload.patient_phone.strip(),
         referred_by=payload.referred_by.strip(),
         referrer_contact=(payload.referrer_contact or "").strip() or None,
-        proposed_extraction_date=_parse_date(payload.proposed_extraction_date),
+        proposed_extraction_date=extraction_date,
         tx_plan=(payload.tx_plan or "").strip() or None,
         provider_id=payload.provider_id,
         status=ReferralStatus.NEW,
@@ -84,27 +103,15 @@ def create_referral(
     db.add(referral)
     db.flush()  # assign referral.id
 
-    backend_name = "local" if storage.__class__.__name__ == "LocalBackend" else "gcs"
     tickets: List[UploadTicket] = []
     for idx, f in enumerate(files):
         object_key = f"{clinic.id}/referrals/{referral.id}/{uuid.uuid4().hex}{_safe_ext(f.name)}"
-        db.add(ReferralDocument(
-            clinic_id=clinic.id,
-            referral_id=referral.id,
-            kind=_kind_for_mime(f.mime),
-            storage_url=object_key,
-            storage_backend=backend_name,
-            mime=f.mime,
-            size_bytes=f.size,          # claimed; re-verified on complete
-            original_name=f.name,
-        ))
         tickets.append(UploadTicket(
             file_index=idx,
             object_key=object_key,
             put_url=storage.signed_put_url(object_key, f.mime, MAX_FILE_BYTES),
             content_type=f.mime,
         ))
-    db.flush()
     return referral, tickets
 
 
@@ -125,35 +132,62 @@ def complete_referral(
     *,
     clinic: Clinic,
     referral_id: str,
+    payload: ReferralCompleteRequest,
     storage,
 ) -> Referral:
-    """Reconcile uploaded objects against the pending document rows (authoritative:
-    keep rows whose object actually exists + is within size; delete the rest), mark
-    READY, and schedule the clinic notification email. Commits."""
+    """Record the uploaded files (client-reported but re-verified), mark READY, and
+    schedule the clinic email. Idempotent: a non-NEW referral is returned untouched."""
     referral = db.query(Referral).filter(
         Referral.id == referral_id, Referral.clinic_id == clinic.id
     ).first()
     if referral is None:
         raise HTTPException(status_code=404, detail="referral_not_found")
 
+    # Idempotency guard — never re-record or re-email an already-completed referral.
+    if referral.status != ReferralStatus.NEW:
+        return referral
+
     prefix = f"{clinic.id}/referrals/{referral.id}/"
+    backend_name = "local" if storage.__class__.__name__ == "LocalBackend" else "gcs"
+    seen_keys: set[str] = set()
     kept: List[ReferralDocument] = []
-    for doc in list(referral.documents):
-        # Defensive: object key must belong to THIS referral.
-        if not doc.storage_url.startswith(prefix):
-            db.delete(doc)
+
+    for f in (payload.files or []):
+        key = (f.object_key or "").strip()
+        if not key or key in seen_keys:
             continue
-        st = storage.stat(doc.storage_url)
+        seen_keys.add(key)
+        # Key must belong to THIS referral (defends against forged/cross-referral keys).
+        if not key.startswith(prefix) or "/.." in key or key.endswith("/.."):
+            continue
+        mime = (f.mime or "").strip()
+        if mime and mime not in ALLOWED_MIME:
+            storage.delete(key)  # disallowed type → remove the bytes, skip
+            continue
+        st = storage.stat(key)
         if st is None:
-            db.delete(doc)  # never uploaded
-            continue
+            continue  # never actually uploaded
         if (st["size"] or 0) > MAX_FILE_BYTES:
-            storage.delete(doc.storage_url)  # oversize → reject + remove bytes
-            db.delete(doc)
+            storage.delete(key)  # oversize → reject + remove
             continue
-        doc.size_bytes = st["size"]  # trust server-measured size
-        if st.get("content_type"):
-            doc.mime = st["content_type"]
+        # Prefer the storage-reported content type when it is an allowed type;
+        # otherwise fall back to the (allowed) manifest mime.
+        st_mime = (st.get("content_type") or "").strip()
+        final_mime = st_mime if st_mime in ALLOWED_MIME else (mime or None)
+        if final_mime is not None and final_mime not in ALLOWED_MIME:
+            storage.delete(key)
+            continue
+        doc = ReferralDocument(
+            clinic_id=clinic.id,
+            referral_id=referral.id,
+            kind=_kind_for_mime(final_mime or ""),
+            storage_url=key,
+            storage_backend=backend_name,
+            mime=final_mime,
+            size_bytes=st["size"],
+            original_name=f.name,
+        )
+        db.add(doc)
         kept.append(doc)
 
     referral.status = ReferralStatus.READY
@@ -161,7 +195,7 @@ def complete_referral(
 
     # Snapshot primitives BEFORE commit/session-close for the background task.
     recipients = _referral_recipients(clinic)
-    payload = {
+    payload_data = {
         "patient_name": referral.patient_name,
         "patient_phone": referral.patient_phone,
         "referred_by": referral.referred_by,
@@ -191,7 +225,7 @@ def complete_referral(
             dispatch_referral_created,
             recipients=recipients,
             clinic_name=clinic_name,
-            referral=payload,
+            referral=payload_data,
             files=files,
             storage=storage,
         )

@@ -69,8 +69,9 @@ class LocalBackend(StorageBackend):
 
     def _path(self, object_key: str) -> Path:
         # Prevent traversal; object keys are server-generated but be defensive:
-        # drop "..", ".", and empty segments so the result can never escape root.
-        parts = [seg for seg in object_key.replace("..", "").split("/") if seg and seg != "."]
+        # split on "/" and drop empty, ".", and ".." segments so the result can
+        # never escape root regardless of input.
+        parts = [seg for seg in object_key.split("/") if seg and seg not in (".", "..")]
         return self.root.joinpath(*parts)
 
     def signed_put_url(self, object_key: str, content_type: str, max_bytes: int) -> str:

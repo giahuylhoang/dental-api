@@ -1,5 +1,6 @@
 """Tests for the public referral endpoints (run with DENTAL_API_INTERNAL_SECRET unset)."""
-from database.models import Clinic, Provider, Referral, ReferralDocument
+import api.dependencies.auth as auth
+from database.models import Clinic, Provider, ReferralStatus
 from services.storage import get_storage_backend, reset_storage_backend_cache
 
 
@@ -24,11 +25,14 @@ def _create_payload(n_files=2):
     }
 
 
-def test_create_referral_returns_tickets(client, seed_clinic_via_session, monkeypatch):
+def _reset(monkeypatch):
     monkeypatch.delenv("GCS_BUCKET", raising=False)
     reset_storage_backend_cache()
-    seed_clinic_via_session(_seed_mm)
 
+
+def test_create_referral_returns_tickets(client, seed_clinic_via_session, monkeypatch):
+    _reset(monkeypatch)
+    seed_clinic_via_session(_seed_mm)
     resp = client.post("/api/public/referrals", headers={"X-Clinic-Id": "mm"}, json=_create_payload(2))
     assert resp.status_code == 200, resp.text
     body = resp.json()
@@ -40,48 +44,81 @@ def test_create_referral_returns_tickets(client, seed_clinic_via_session, monkey
         assert up["put_url"]
 
 
-def test_create_rejects_too_many_and_too_big(client, seed_clinic_via_session, monkeypatch):
-    monkeypatch.delenv("GCS_BUCKET", raising=False)
-    reset_storage_backend_cache()
+def test_create_validation(client, seed_clinic_via_session, monkeypatch):
+    _reset(monkeypatch)
+    seed_clinic_via_session(_seed_mm)
+    H = {"X-Clinic-Id": "mm"}
+
+    assert client.post("/api/public/referrals", headers=H, json=_create_payload(11)).status_code == 422
+    too_big = _create_payload(1); too_big["files"][0]["size"] = 16 * 1024 * 1024
+    assert client.post("/api/public/referrals", headers=H, json=too_big).status_code == 422
+    bad_mime = _create_payload(1); bad_mime["files"][0]["mime"] = "application/x-msdownload"
+    assert client.post("/api/public/referrals", headers=H, json=bad_mime).status_code == 422
+    bad_prov = _create_payload(0); bad_prov["provider_id"] = 999
+    assert client.post("/api/public/referrals", headers=H, json=bad_prov).status_code == 422
+    bad_date = _create_payload(0); bad_date["proposed_extraction_date"] = "soon"
+    assert client.post("/api/public/referrals", headers=H, json=bad_date).status_code == 422
+
+
+def test_complete_records_only_uploaded_and_is_idempotent(client, seed_clinic_via_session, monkeypatch):
+    _reset(monkeypatch)
+    monkeypatch.setenv("SEND_CLINIC_BOOKING_EMAIL", "false")
     seed_clinic_via_session(_seed_mm)
 
-    too_many = _create_payload(11)
-    assert client.post("/api/public/referrals", headers={"X-Clinic-Id": "mm"}, json=too_many).status_code == 422
+    created = client.post("/api/public/referrals", headers={"X-Clinic-Id": "mm"}, json=_create_payload(2)).json()
+    rid = created["referral_id"]
+    keys = [u["object_key"] for u in created["uploads"]]
 
-    too_big = _create_payload(1)
-    too_big["files"][0]["size"] = 16 * 1024 * 1024
-    assert client.post("/api/public/referrals", headers={"X-Clinic-Id": "mm"}, json=too_big).status_code == 422
+    # Browser uploaded ONLY the first file.
+    get_storage_backend().put(keys[0], b"\xff\xd8 jpeg", "image/jpeg")
 
-    bad_mime = _create_payload(1)
-    bad_mime["files"][0]["mime"] = "application/x-msdownload"
-    assert client.post("/api/public/referrals", headers={"X-Clinic-Id": "mm"}, json=bad_mime).status_code == 422
-
-
-def test_complete_records_uploaded_files_only(client, seed_clinic_via_session, monkeypatch):
-    monkeypatch.delenv("GCS_BUCKET", raising=False)
-    reset_storage_backend_cache()
-    monkeypatch.setenv("SEND_CLINIC_BOOKING_EMAIL", "false")  # don't attempt SMTP in test
-    seed_clinic_via_session(_seed_mm)
-
-    create = client.post("/api/public/referrals", headers={"X-Clinic-Id": "mm"}, json=_create_payload(2)).json()
-    rid = create["referral_id"]
-    keys = [u["object_key"] for u in create["uploads"]]
-
-    # Simulate the browser uploading ONLY the first file directly to storage.
-    storage = get_storage_backend()
-    storage.put(keys[0], b"\xff\xd8 pretend-jpeg", "image/jpeg")
-
-    resp = client.post(f"/api/public/referrals/{rid}/complete",
-                       headers={"X-Clinic-Id": "mm"}, json={"files": [{"object_key": keys[0]}]})
-    assert resp.status_code == 200, resp.text
-    body = resp.json()
+    body = client.post(f"/api/public/referrals/{rid}/complete", headers={"X-Clinic-Id": "mm"},
+                       json={"files": [{"object_key": keys[0], "name": "xray0.jpg", "mime": "image/jpeg"},
+                                       {"object_key": keys[1], "name": "xray1.jpg", "mime": "image/jpeg"}]}).json()
     assert body["status"] == "READY"
-    assert body["documents"] == 1   # the un-uploaded file's pending row was dropped
+    assert body["documents"] == 1   # second key never uploaded → not recorded
+
+    # Idempotent: second call no-ops, count unchanged, still READY.
+    body2 = client.post(f"/api/public/referrals/{rid}/complete", headers={"X-Clinic-Id": "mm"},
+                        json={"files": [{"object_key": keys[0], "name": "x", "mime": "image/jpeg"}]}).json()
+    assert body2["status"] == "READY"
+    assert body2["documents"] == 1
+
+
+def test_complete_rejects_foreign_and_bad_mime(client, seed_clinic_via_session, monkeypatch):
+    _reset(monkeypatch)
+    monkeypatch.setenv("SEND_CLINIC_BOOKING_EMAIL", "false")
+    seed_clinic_via_session(_seed_mm)
+    created = client.post("/api/public/referrals", headers={"X-Clinic-Id": "mm"}, json=_create_payload(1)).json()
+    rid = created["referral_id"]
+    storage = get_storage_backend()
+    # A forged key NOT under this referral's prefix, plus a real upload with a bad mime.
+    storage.put("mm/referrals/SOMEONE-ELSE/evil.jpg", b"x", "image/jpeg")
+    storage.put(created["uploads"][0]["object_key"], b"x", "image/jpeg")
+    body = client.post(f"/api/public/referrals/{rid}/complete", headers={"X-Clinic-Id": "mm"}, json={"files": [
+        {"object_key": "mm/referrals/SOMEONE-ELSE/evil.jpg", "name": "evil", "mime": "image/jpeg"},
+        {"object_key": created["uploads"][0]["object_key"], "name": "ok", "mime": "application/x-msdownload"},
+    ]}).json()
+    assert body["status"] == "READY"
+    assert body["documents"] == 0  # foreign key rejected; bad-mime file deleted+skipped
 
 
 def test_complete_unknown_referral_404(client, seed_clinic_via_session, monkeypatch):
-    monkeypatch.delenv("GCS_BUCKET", raising=False)
-    reset_storage_backend_cache()
+    _reset(monkeypatch)
     seed_clinic_via_session(_seed_mm)
     resp = client.post("/api/public/referrals/nope/complete", headers={"X-Clinic-Id": "mm"}, json={"files": []})
     assert resp.status_code == 404
+
+
+def test_internal_secret_enforced_when_configured(client, seed_clinic_via_session, monkeypatch):
+    _reset(monkeypatch)
+    seed_clinic_via_session(_seed_mm)
+    monkeypatch.setattr(auth, "INTERNAL_SECRET", "the-secret")
+    # No X-Internal-Secret header → 401 (fails closed when a secret is configured).
+    resp = client.post("/api/public/referrals", headers={"X-Clinic-Id": "mm"}, json=_create_payload(0))
+    assert resp.status_code == 401
+    # Correct secret → allowed.
+    ok = client.post("/api/public/referrals",
+                     headers={"X-Clinic-Id": "mm", "X-Internal-Secret": "the-secret"},
+                     json=_create_payload(0))
+    assert ok.status_code == 200

@@ -47,6 +47,9 @@ class ReferralCreateResponse(BaseModel):
 
 class CompletedFile(BaseModel):
     object_key: str
+    name: Optional[str] = None     # original filename (display only)
+    mime: Optional[str] = None     # claimed; re-checked against ALLOWED_MIME + storage
+    size: Optional[int] = None     # claimed; ignored in favour of storage stat()
 
 
 class ReferralCompleteRequest(BaseModel):

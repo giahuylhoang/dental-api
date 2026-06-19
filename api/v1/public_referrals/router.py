@@ -67,6 +67,7 @@ def complete_public_referral(
     clinic = _resolve_clinic(db, x_clinic_id)
     referral = complete_referral(
         db, background_tasks, clinic=clinic, referral_id=referral_id,
+        payload=payload or ReferralCompleteRequest(),
         storage=get_storage_backend(),
     )
     return ReferralCompleteResponse(
