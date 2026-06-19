@@ -115,12 +115,27 @@ class GCSBackend(StorageBackend):
     def __init__(self, bucket: str) -> None:
         self._bucket_name = bucket
         self._client = None  # lazy
+        self._creds = None   # lazy signing credentials
 
     def _bucket(self):
         if self._client is None:
             from google.cloud import storage  # lazy import — keeps tests GCS-free
             self._client = storage.Client()
         return self._client.bucket(self._bucket_name)
+
+    def _signing(self) -> dict:
+        """Credentials for v4 signing on Cloud Run, where the runtime service account
+        has no local private key. Passing service_account_email + a fresh access_token
+        makes google-cloud-storage sign via the IAM SignBlob API (the SA needs
+        roles/iam.serviceAccountTokenCreator on itself). ``GCS_SIGNER_SA`` overrides
+        the signer email when the metadata-derived one is unavailable."""
+        import google.auth
+        from google.auth.transport.requests import Request
+        if self._creds is None:
+            self._creds, _ = google.auth.default()
+        self._creds.refresh(Request())
+        email = os.getenv("GCS_SIGNER_SA", "").strip() or getattr(self._creds, "service_account_email", None)
+        return {"service_account_email": email, "access_token": self._creds.token}
 
     def signed_put_url(self, object_key: str, content_type: str, max_bytes: int) -> str:
         from datetime import timedelta
@@ -133,6 +148,7 @@ class GCSBackend(StorageBackend):
             # Cap the upload size at the signing layer (defense-in-depth; the
             # server still re-verifies actual size via stat() on /complete).
             headers={"x-goog-content-length-range": f"0,{max_bytes}"},
+            **self._signing(),
         )
 
     def signed_get_url(self, object_key: str, ttl_seconds: int = GET_TTL) -> str:
@@ -140,6 +156,7 @@ class GCSBackend(StorageBackend):
         blob = self._bucket().blob(object_key)
         return blob.generate_signed_url(
             version="v4", expiration=timedelta(seconds=ttl_seconds), method="GET",
+            **self._signing(),
         )
 
     def stat(self, object_key: str) -> Optional[ObjectStat]:
