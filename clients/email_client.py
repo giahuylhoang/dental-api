@@ -45,6 +45,50 @@ def resolve_booking_notification_recipient(clinic_booking_notification_email: st
     return (clinic_booking_notification_email or "").strip()
 
 
+def _dedupe_emails(addrs: Sequence[str]) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for a in addrs:
+        a = (a or "").strip()
+        if not a:
+            continue
+        k = a.lower()
+        if k not in seen:
+            seen.add(k)
+            out.append(a)
+    return out
+
+
+def resolve_clinic_recipients(clinic, *, kind: str = "booking") -> list[str]:
+    """Clinic-scoped notification recipients (deduped, case-insensitive).
+
+    - ``booking``: existing booking recipient (env ``BOOKING_NOTIFICATION_TO`` override
+      or ``clinic.booking_notification_email``) PLUS the clinic's ``info_email``.
+    - ``referral``: env ``REFERRAL_NOTIFICATION_TO`` override (if set) PLUS the clinic's
+      ``info_email``.
+
+    The ``info_email`` is read off the clinic row, so one tenant's address never leaks
+    into another tenant's notifications.
+    """
+    info = (getattr(clinic, "info_email", None) or "").strip()
+    addrs: list[str] = []
+    if kind == "booking":
+        primary = resolve_booking_notification_recipient(
+            getattr(clinic, "booking_notification_email", None)
+        )
+        if primary:
+            addrs.append(primary)
+        addrs.append(info)
+    elif kind == "referral":
+        env_to = os.getenv("REFERRAL_NOTIFICATION_TO", "").strip()
+        if env_to:
+            addrs.append(env_to)
+        addrs.append(info)
+    else:
+        addrs.append(info)
+    return _dedupe_emails(addrs)
+
+
 NEW_BOOKING_EMAIL_SUBJECT = "New booking: {clinic_name} — {patient_name} — {when_local}"
 
 def _smtp_local_hostname() -> str:
