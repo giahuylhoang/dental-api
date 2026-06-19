@@ -357,3 +357,67 @@ class CallLog(Base):
 # ---------------------------------------------------------------------------
 from database.ops.ai_config import ClinicAiVoice, ClinicAiDisclosure  # noqa: E402,F401
 from database.v1_1.models import ClinicClosure  # noqa: E402,F401
+
+
+# ---------------------------------------------------------------------------
+# Referrals (public referral form) — Phase 1.
+# Files live in object storage (GCS in prod); rows below carry metadata only.
+# Kept OUT of the shared `documents` table so the clinical-documents contract
+# (NOT NULL patient_id / content_sha256) is untouched. Phase 2 conversion
+# promotes a referral_documents row into `documents` with patient_id set.
+# All columns are SQLite-compatible, so these create cleanly in the test DB.
+# ---------------------------------------------------------------------------
+class ReferralStatus(str, PyEnum):
+    NEW = "NEW"            # created; awaiting file uploads / completion
+    READY = "READY"        # files uploaded + recorded; clinic notified
+    IN_REVIEW = "IN_REVIEW"
+    CONVERTED = "CONVERTED"  # promoted to a patient (Phase 2)
+    ARCHIVED = "ARCHIVED"
+
+
+class Referral(Base):
+    """A patient referral submitted by an external clinic via the public form."""
+    __tablename__ = "referrals"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    clinic_id = Column(String, ForeignKey("clinics.id"), nullable=False, default=DEFAULT_CLINIC_ID)
+    patient_name = Column(String, nullable=False)
+    patient_phone = Column(String, nullable=False)
+    referred_by = Column(String, nullable=False)            # referring clinic name
+    referrer_contact = Column(String, nullable=True)        # optional email/phone
+    proposed_extraction_date = Column(Date, nullable=True)
+    tx_plan = Column(Text, nullable=True)                   # treatment-plan notes
+    provider_id = Column(Integer, ForeignKey("providers.id"), nullable=True)  # null = "Either"
+    status = Column(SQLEnum(ReferralStatus), nullable=False, default=ReferralStatus.NEW)
+    patient_id = Column(String, ForeignKey("patients.id"), nullable=True)     # set on Phase-2 conversion
+    source = Column(String, nullable=False, default="public-referral")
+    submit_ip = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    documents = relationship(
+        "ReferralDocument", back_populates="referral", cascade="all, delete-orphan",
+    )
+
+
+class ReferralDocument(Base):
+    """A file attached to a referral. Bytes live in object storage (storage_url)."""
+    __tablename__ = "referral_documents"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    clinic_id = Column(String, ForeignKey("clinics.id"), nullable=False, default=DEFAULT_CLINIC_ID)
+    referral_id = Column(String, ForeignKey("referrals.id"), nullable=False)
+    kind = Column(String, nullable=False, default="xray")   # xray|photo|pdf|other
+    storage_url = Column(Text, nullable=False)              # object key in the bucket
+    storage_backend = Column(String, nullable=False, default="gcs")  # 'gcs'|'local'
+    mime = Column(String, nullable=True)
+    size_bytes = Column(Integer, nullable=True)
+    sha256 = Column(String, nullable=True)                  # optional for GCS-origin files
+    original_name = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    referral = relationship("Referral", back_populates="documents")
+
+
+Index("ix_referrals_clinic_status_created", Referral.clinic_id, Referral.status, Referral.created_at.desc())
+Index("ix_referral_documents_referral", ReferralDocument.clinic_id, ReferralDocument.referral_id)

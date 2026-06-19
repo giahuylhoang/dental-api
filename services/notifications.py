@@ -12,13 +12,16 @@ also updating clients/sms_client.py and clients/email_client.py.
 from __future__ import annotations
 
 import logging
+import os
 from datetime import datetime
 from typing import Optional
 
 from fastapi import BackgroundTasks
 
 from clients.email_client import (
+    build_email_message,
     resolve_booking_notification_recipient,
+    resolve_clinic_recipients,
     send_clinic_booking_email_delayed,
 )
 from clients.sms_client import (
@@ -86,14 +89,13 @@ def schedule_booking_notifications(
     else:
         logger.info("No patient phone; skipping SMS confirmation")
 
-    # Clinic-side booking email
-    booking_notify_to = resolve_booking_notification_recipient(clinic.booking_notification_email)
-    if booking_notify_to:
+    # Clinic-side booking email — clinic-scoped recipients (booking email + info@).
+    when_local = f"{date_str} at {time_str}"
+    for _recipient in resolve_clinic_recipients(clinic, kind="booking"):
         try:
-            when_local = f"{date_str} at {time_str}"
             background_tasks.add_task(
                 send_clinic_booking_email_delayed,
-                booking_notify_to,
+                _recipient,
                 clinic.name,
                 appointment.id,
                 patient_name,
@@ -225,13 +227,12 @@ def schedule_hold_create_notifications(
         except Exception as e:
             logger.warning("Hold create SMS skipped: %s", e)
 
-    booking_notify_to = resolve_booking_notification_recipient(clinic.booking_notification_email)
-    if booking_notify_to:
+    when_local = f"{date_str} at {time_str}"
+    for _recipient in resolve_clinic_recipients(clinic, kind="booking"):
         try:
-            when_local = f"{date_str} at {time_str}"
             background_tasks.add_task(
                 send_clinic_booking_email_delayed,
-                booking_notify_to,
+                _recipient,
                 clinic.name,
                 appointment.id,
                 patient_name,
@@ -291,3 +292,96 @@ __all__ = [
     "schedule_hold_create_notifications",
     "schedule_reschedule_notification",
 ]
+
+
+# ---------------------------------------------------------------------------
+# Referral notifications (Phase 1). Sync + primitive-only args so it is safe to
+# run as a FastAPI BackgroundTask after the DB session has closed. The storage
+# backend is stateless (no session), so reading files / signing URLs here is OK.
+# ---------------------------------------------------------------------------
+_REFERRAL_ATTACH_BUDGET = int(os.getenv("REFERRAL_EMAIL_ATTACH_MAX_MB", "12")) * 1024 * 1024
+_REFERRAL_MAX_ENCODED = int(os.getenv("REFERRAL_EMAIL_MAX_ENCODED_MB", "23")) * 1024 * 1024
+_REFERRAL_LINK_TTL = int(os.getenv("GCS_LINK_URL_TTL", str(7 * 24 * 3600)))
+
+
+def _referral_body(clinic_name: str, referral: dict, files: list[dict], links=None) -> str:
+    lines = [
+        "A new patient referral was submitted.",
+        "",
+        f"Clinic:               {clinic_name}",
+        f"Patient name:         {referral.get('patient_name', '')}",
+        f"Patient phone:        {referral.get('patient_phone', '')}",
+        f"Referred by:          {referral.get('referred_by', '')}",
+        f"Referrer contact:     {referral.get('referrer_contact') or '—'}",
+        f"Denturist requested:  {referral.get('provider_label') or 'Either / first available'}",
+        f"Proposed extraction:  {referral.get('proposed_extraction_date') or '—'}",
+        f"Submitted at:         {referral.get('submitted_at', '')}",
+        "",
+        "Treatment plan:",
+        (referral.get("tx_plan") or "—"),
+        "",
+        f"Attachments ({len(files)}):",
+    ]
+    for f in files:
+        size_kb = round((f.get("size") or 0) / 1024)
+        lines.append(f"  - {f.get('original_name') or f.get('object_key')} ({size_kb} KB)")
+    if links:
+        lines += ["", "Files were too large to attach — secure download links (expire in ~7 days):"]
+        lines += [f"  - {name}: {url}" for name, url in links]
+    return "\n".join(lines)
+
+
+def dispatch_referral_created(*, recipients, clinic_name, referral, files, storage) -> bool:
+    """Build + send the referral notification email. Best-effort; never raises.
+
+    Attaches the files when the *encoded* message stays under the safe SMTP cap;
+    otherwise falls back to ~7-day signed download links.
+    """
+    from clients.email_client import SEND_CLINIC_BOOKING_EMAIL, _deliver_message
+
+    recipients = [r for r in (recipients or []) if r]
+    if not recipients:
+        return True
+    subject = (
+        f"New referral: {clinic_name} — {referral.get('patient_name', '')} "
+        f"(from {referral.get('referred_by', '')})"
+    )
+
+    if not SEND_CLINIC_BOOKING_EMAIL:
+        logger.info("Clinic emails disabled — would send referral '%s' to %s", subject, recipients)
+        return True
+
+    raw_total = sum((f.get("size") or 0) for f in files)
+    attachments = []
+    if files and raw_total <= _REFERRAL_ATTACH_BUDGET:
+        try:
+            for f in files:
+                attachments.append({
+                    "filename": f.get("original_name") or f.get("object_key", "file"),
+                    "content": storage.read_bytes(f["object_key"]),
+                    "mime": f.get("mime"),
+                })
+        except Exception as e:
+            logger.warning("Referral attach read failed (%s) — falling back to links", e)
+            attachments = []
+
+    if attachments:
+        body = _referral_body(clinic_name, referral, files)
+        msg = build_email_message(
+            to_emails=recipients, subject=subject, body=body, attachments=attachments
+        )
+        if len(msg.as_bytes()) <= _REFERRAL_MAX_ENCODED:
+            return _deliver_message(msg)
+        logger.info("Referral email too large to attach (%d bytes) — using links", len(msg.as_bytes()))
+
+    # Links mode (no attachments fit, or none provided).
+    links = []
+    for f in files:
+        try:
+            url = storage.signed_get_url(f["object_key"], ttl_seconds=_REFERRAL_LINK_TTL)
+        except Exception:
+            url = "(link unavailable)"
+        links.append((f.get("original_name") or f.get("object_key"), url))
+    body = _referral_body(clinic_name, referral, files, links=links)
+    msg = build_email_message(to_emails=recipients, subject=subject, body=body)
+    return _deliver_message(msg)
