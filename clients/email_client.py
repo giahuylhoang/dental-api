@@ -22,8 +22,10 @@ import asyncio
 import logging
 import os
 import smtplib
+from email.message import EmailMessage
 from email.mime.text import MIMEText
 from email.utils import formataddr
+from typing import Optional, Sequence, TypedDict
 
 from clients.sms_client import SMS_DELAY_SECONDS
 
@@ -189,6 +191,103 @@ async def send_clinic_new_booking_email(
         return False
     except Exception as e:
         logger.error("Clinic booking email error: %s", e, exc_info=True)
+        return False
+
+
+# ---------------------------------------------------------------------------
+# Multipart email with attachments + multiple recipients (referral notifications).
+# The plain-text path above is unchanged; this is additive.
+# ---------------------------------------------------------------------------
+
+class Attachment(TypedDict):
+    filename: str
+    content: bytes
+    mime: Optional[str]
+
+
+def build_email_message(
+    *,
+    to_emails: Sequence[str],
+    subject: str,
+    body: str,
+    attachments: Optional[Sequence[Attachment]] = None,
+) -> EmailMessage:
+    """Build a (possibly multipart) message. Caller can inspect ``len(msg.as_bytes())``
+    to decide whether attachments fit before sending (see notifications size guard)."""
+    from_addr = os.getenv("EMAIL_FROM", "").strip()
+    from_name = os.getenv("EMAIL_FROM_NAME", "").strip()
+    recipients = [a.strip() for a in to_emails if a and a.strip()]
+
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = formataddr((from_name, from_addr)) if from_name else from_addr
+    msg["To"] = ", ".join(recipients)
+    msg.set_content(body)
+
+    for att in attachments or []:
+        mime = (att.get("mime") or "application/octet-stream")
+        maintype, _, subtype = mime.partition("/")
+        msg.add_attachment(
+            att["content"],
+            maintype=maintype or "application",
+            subtype=subtype or "octet-stream",
+            filename=att["filename"],
+        )
+    return msg
+
+
+def _deliver_message(msg: EmailMessage) -> bool:
+    """Send a prebuilt EmailMessage to all of its To: recipients. Never raises."""
+    host = os.getenv("SMTP_HOST", "").strip()
+    from_addr = os.getenv("EMAIL_FROM", "").strip()
+    if not host or not from_addr:
+        logger.warning("SMTP not configured — skipping email '%s'", msg.get("Subject"))
+        return False
+
+    port = int(os.getenv("SMTP_PORT", "587"))
+    user = os.getenv("SMTP_USER", "").strip()
+    password = os.getenv("SMTP_PASSWORD", "")
+    use_tls = os.getenv("SMTP_USE_TLS", "true").lower() in ("true", "1", "yes")
+    recipients = [a.strip() for a in (msg["To"] or "").split(",") if a.strip()]
+    if not recipients:
+        return True
+
+    try:
+        with smtplib.SMTP(host, port, timeout=30, local_hostname=_smtp_local_hostname()) as server:
+            if use_tls:
+                server.starttls()
+            if user:
+                server.login(user, password)
+            server.send_message(msg, from_addr=from_addr, to_addrs=recipients)
+        return True
+    except Exception as e:
+        logger.error("SMTP send (multipart) failed: %s", e, exc_info=True)
+        return False
+
+
+async def send_email_with_attachments(
+    to_emails: Sequence[str],
+    subject: str,
+    body: str,
+    attachments: Optional[Sequence[Attachment]] = None,
+) -> bool:
+    """Async wrapper: build + send a multipart message. Best-effort, never raises."""
+    if not SEND_CLINIC_BOOKING_EMAIL:
+        logger.info("Clinic emails disabled — would send '%s' to %s", subject, list(to_emails))
+        return True
+    recipients = [a.strip() for a in to_emails if a and a.strip()]
+    if not recipients:
+        return True
+    msg = build_email_message(
+        to_emails=recipients, subject=subject, body=body, attachments=attachments
+    )
+    try:
+        return await asyncio.wait_for(asyncio.to_thread(_deliver_message, msg), timeout=60.0)
+    except asyncio.TimeoutError:
+        logger.error("Multipart email timed out")
+        return False
+    except Exception as e:
+        logger.error("Multipart email error: %s", e, exc_info=True)
         return False
 
 
