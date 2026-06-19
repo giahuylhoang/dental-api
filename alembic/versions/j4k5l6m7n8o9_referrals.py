@@ -1,13 +1,17 @@
 """referrals + referral_documents (+ clinics.info_email)
 
 Revision ID: j4k5l6m7n8o9
-Revises: i3j4k5l6m7n8
+Revises: i3j4k5l6m7n8, 493cc648b838
 Create Date: 2026-06-19 00:00:00.000000
 
 Phase 1 of the public referral form. Additive only:
 - new `referrals` and `referral_documents` tables
 - new nullable `clinics.info_email` column (clinic-scoped notification inbox)
 The shared `documents` table is intentionally NOT touched.
+
+This revision also MERGES the two pre-existing Alembic heads
+(`i3j4k5l6m7n8` user_clinic_memberships and `493cc648b838` clinic_sms_from_number)
+back into a single head so `alembic upgrade head` is unambiguous.
 """
 from typing import Sequence, Union
 
@@ -16,7 +20,7 @@ import sqlalchemy as sa
 
 
 revision: str = "j4k5l6m7n8o9"
-down_revision: Union[str, Sequence[str], None] = "i3j4k5l6m7n8"
+down_revision: Union[str, Sequence[str], None] = ("i3j4k5l6m7n8", "493cc648b838")
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
