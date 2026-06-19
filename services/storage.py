@@ -66,6 +66,7 @@ class LocalBackend(StorageBackend):
 
     def __init__(self, root: str | os.PathLike = "var/uploads") -> None:
         self.root = Path(root)
+        self._ct: dict[str, Optional[str]] = {}  # object_key -> content_type
 
     def _path(self, object_key: str) -> Path:
         # Prevent traversal; object keys are server-generated but be defensive:
@@ -84,7 +85,7 @@ class LocalBackend(StorageBackend):
         p = self._path(object_key)
         if not p.exists():
             return None
-        return ObjectStat(size=p.stat().st_size, content_type=None)
+        return ObjectStat(size=p.stat().st_size, content_type=self._ct.get(object_key))
 
     def read_bytes(self, object_key: str) -> bytes:
         return self._path(object_key).read_bytes()
@@ -93,11 +94,13 @@ class LocalBackend(StorageBackend):
         p = self._path(object_key)
         if p.exists():
             p.unlink()
+        self._ct.pop(object_key, None)
 
     def put(self, object_key: str, data: bytes, content_type: Optional[str] = None) -> None:
         p = self._path(object_key)
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_bytes(data)
+        self._ct[object_key] = content_type
 
 
 class GCSBackend(StorageBackend):

@@ -143,9 +143,22 @@ def complete_referral(
     if referral is None:
         raise HTTPException(status_code=404, detail="referral_not_found")
 
-    # Idempotency guard — never re-record or re-email an already-completed referral.
-    if referral.status != ReferralStatus.NEW:
-        return referral
+    # Atomic idempotency claim: flip NEW→READY in one UPDATE within this transaction.
+    # Concurrent /complete calls block on the row lock (Postgres); only the winner
+    # gets claimed==1 and proceeds to record docs + email. The rest no-op.
+    claimed = db.query(Referral).filter(
+        Referral.id == referral_id,
+        Referral.clinic_id == clinic.id,
+        Referral.status == ReferralStatus.NEW,
+    ).update(
+        {Referral.status: ReferralStatus.READY, Referral.updated_at: datetime.utcnow()},
+        synchronize_session=False,
+    )
+    if not claimed:
+        db.commit()
+        db.refresh(referral)
+        return referral  # already completed by another request
+    db.refresh(referral)
 
     prefix = f"{clinic.id}/referrals/{referral.id}/"
     backend_name = "local" if storage.__class__.__name__ == "LocalBackend" else "gcs"
@@ -162,7 +175,7 @@ def complete_referral(
             continue
         mime = (f.mime or "").strip()
         if mime and mime not in ALLOWED_MIME:
-            storage.delete(key)  # disallowed type → remove the bytes, skip
+            storage.delete(key)  # disallowed claimed type → remove the bytes, skip
             continue
         st = storage.stat(key)
         if st is None:
@@ -170,11 +183,19 @@ def complete_referral(
         if (st["size"] or 0) > MAX_FILE_BYTES:
             storage.delete(key)  # oversize → reject + remove
             continue
-        # Prefer the storage-reported content type when it is an allowed type;
-        # otherwise fall back to the (allowed) manifest mime.
+        # The storage-reported content type is authoritative: if present it MUST be
+        # allowed (no falling back to a more permissive client claim). If storage
+        # reports nothing, use the (already-allowlisted) manifest mime. Either way
+        # the recorded type must be a determinable, allowed type or we reject.
         st_mime = (st.get("content_type") or "").strip()
-        final_mime = st_mime if st_mime in ALLOWED_MIME else (mime or None)
-        if final_mime is not None and final_mime not in ALLOWED_MIME:
+        if st_mime:
+            if st_mime not in ALLOWED_MIME:
+                storage.delete(key)
+                continue
+            final_mime = st_mime
+        else:
+            final_mime = mime or None
+        if not final_mime or final_mime not in ALLOWED_MIME:
             storage.delete(key)
             continue
         doc = ReferralDocument(
@@ -190,8 +211,7 @@ def complete_referral(
         db.add(doc)
         kept.append(doc)
 
-    referral.status = ReferralStatus.READY
-    referral.updated_at = datetime.utcnow()
+    # status/updated_at already set atomically above (the NEW→READY claim).
 
     # Snapshot primitives BEFORE commit/session-close for the background task.
     recipients = _referral_recipients(clinic)
