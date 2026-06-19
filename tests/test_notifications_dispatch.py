@@ -23,16 +23,21 @@ def test_booking_recipients_add_info_and_dedupe(monkeypatch):
     assert ec.resolve_clinic_recipients(c2, kind="booking") == ["Info@Clinic.com"]
 
 
-def test_referral_recipients_use_env_info_plus_fallback(monkeypatch):
+def test_referral_recipients_env_info_and_conditional_fallback(monkeypatch):
     monkeypatch.delenv("REFERRAL_NOTIFICATION_TO", raising=False)
     monkeypatch.setenv("CLINIC_INFO_EMAIL", "info@clinic.com")
     c = _clinic(booking_notification_email="front@clinic.com")
-    # info@ from env + per-clinic booking email as fallback.
-    assert ec.resolve_clinic_recipients(c, kind="referral") == ["info@clinic.com", "front@clinic.com"]
+    # info@ configured → ONLY info@; the clinic booking email is NOT cc'd.
+    assert ec.resolve_clinic_recipients(c, kind="referral") == ["info@clinic.com"]
 
-    # REFERRAL_NOTIFICATION_TO overrides/leads when set.
+    # REFERRAL_NOTIFICATION_TO leads when set.
     monkeypatch.setenv("REFERRAL_NOTIFICATION_TO", "referrals@clinic.com")
     assert ec.resolve_clinic_recipients(c, kind="referral")[0] == "referrals@clinic.com"
+
+    # Nothing configured → fall back to the per-clinic booking email.
+    monkeypatch.delenv("REFERRAL_NOTIFICATION_TO", raising=False)
+    monkeypatch.delenv("CLINIC_INFO_EMAIL", raising=False)
+    assert ec.resolve_clinic_recipients(c, kind="referral") == ["front@clinic.com"]
 
 
 def _capture_deliver(monkeypatch):

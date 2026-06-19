@@ -83,9 +83,13 @@ def resolve_clinic_recipients(clinic, *, kind: str = "booking") -> list[str]:
         env_to = os.getenv("REFERRAL_NOTIFICATION_TO", "").strip()
         if env_to:
             addrs.append(env_to)
-        addrs.append(info)
-        # Fallback so referrals are never silently unrouted if CLINIC_INFO_EMAIL is unset.
-        addrs.append((getattr(clinic, "booking_notification_email", None) or "").strip())
+        if info:
+            addrs.append(info)
+        # Fallback to the per-clinic booking email ONLY when no explicit referral/info
+        # recipient is configured — so a real clinic address is never CC'd while an
+        # explicit recipient (e.g. a test inbox) is in effect.
+        if not addrs:
+            addrs.append((getattr(clinic, "booking_notification_email", None) or "").strip())
     else:
         addrs.append(info)
     out = _dedupe_emails(addrs)
