@@ -8,8 +8,7 @@ from services.storage import LocalBackend, reset_storage_backend_cache
 
 
 def _seed_mm(db):
-    db.add(Clinic(id="mm", name="Market Mall", timezone="America/Edmonton",
-                  info_email="info@marketmalldentureclinic.com"))
+    db.add(Clinic(id="mm", name="Market Mall", timezone="America/Edmonton"))
     db.add(Provider(id=1, clinic_id="mm", name="Souheil Khalil", title="Denturist", is_active=True))
     db.commit()
 

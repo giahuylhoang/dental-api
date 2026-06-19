@@ -5,7 +5,7 @@ from database.models import Clinic, Referral, ReferralDocument, ReferralStatus
 
 
 def _clinic(db, cid="mm-test"):
-    c = Clinic(id=cid, name="Market Mall Test", info_email="info@example.com")
+    c = Clinic(id=cid, name="Market Mall Test")
     db.add(c)
     db.flush()
     return c
@@ -47,9 +47,3 @@ def test_referral_defaults_and_documents(db_session):
     assert len(ref.documents) == 1
     assert ref.documents[0].original_name == "panoramic.jpg"
 
-
-def test_info_email_column_present(db_session):
-    db = db_session
-    c = _clinic(db, cid="mm-test2")
-    db.refresh(c)
-    assert c.info_email == "info@example.com"

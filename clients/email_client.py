@@ -60,17 +60,17 @@ def _dedupe_emails(addrs: Sequence[str]) -> list[str]:
 
 
 def resolve_clinic_recipients(clinic, *, kind: str = "booking") -> list[str]:
-    """Clinic-scoped notification recipients (deduped, case-insensitive).
+    """Notification recipients (deduped, case-insensitive).
 
     - ``booking``: existing booking recipient (env ``BOOKING_NOTIFICATION_TO`` override
-      or ``clinic.booking_notification_email``) PLUS the clinic's ``info_email``.
-    - ``referral``: env ``REFERRAL_NOTIFICATION_TO`` override (if set) PLUS the clinic's
-      ``info_email``.
+      or ``clinic.booking_notification_email``) PLUS the shared clinic inbox ``CLINIC_INFO_EMAIL``.
+    - ``referral``: env ``REFERRAL_NOTIFICATION_TO`` (if set), the ``CLINIC_INFO_EMAIL``
+      inbox, and the per-clinic ``booking_notification_email`` as a fallback.
 
-    The ``info_email`` is read off the clinic row, so one tenant's address never leaks
-    into another tenant's notifications.
+    The ``info@`` inbox comes from the ``CLINIC_INFO_EMAIL`` env var (deployment config)
+    rather than a DB column, so no schema change to the hot ``clinics`` table is needed.
     """
-    info = (getattr(clinic, "info_email", None) or "").strip()
+    info = os.getenv("CLINIC_INFO_EMAIL", "").strip()
     addrs: list[str] = []
     if kind == "booking":
         primary = resolve_booking_notification_recipient(
@@ -84,7 +84,7 @@ def resolve_clinic_recipients(clinic, *, kind: str = "booking") -> list[str]:
         if env_to:
             addrs.append(env_to)
         addrs.append(info)
-        # Fallback so referrals are never silently unrouted if info_email is unset.
+        # Fallback so referrals are never silently unrouted if CLINIC_INFO_EMAIL is unset.
         addrs.append((getattr(clinic, "booking_notification_email", None) or "").strip())
     else:
         addrs.append(info)
@@ -92,7 +92,7 @@ def resolve_clinic_recipients(clinic, *, kind: str = "booking") -> list[str]:
     if kind == "referral" and not out:
         logger.warning(
             "No referral notification recipient configured for clinic %s "
-            "(set clinic.info_email / booking_notification_email or REFERRAL_NOTIFICATION_TO)",
+            "(set CLINIC_INFO_EMAIL / clinic.booking_notification_email or REFERRAL_NOTIFICATION_TO)",
             getattr(clinic, "id", "?"),
         )
     return out

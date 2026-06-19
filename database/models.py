@@ -51,10 +51,6 @@ class Clinic(Base):
     contact_phone = Column(String, nullable=True)
     sms_from_number = Column(String, nullable=True)
     booking_notification_email = Column(String, nullable=True)
-    # General clinic inbox (e.g. info@…). Used as an ADDITIONAL recipient for
-    # clinic notifications (new bookings, referrals). Clinic-scoped so one
-    # tenant's address never leaks into another's email.
-    info_email = Column(String, nullable=True)
     greeting = Column(JSON().with_variant(JSONB, "postgresql"), nullable=False, default=dict, server_default="{}")
     # clinic_config_v2: shared-defaults FK + per-clinic overrides
     practice_type_id = Column(String, ForeignKey("practice_types.id"), nullable=True)

@@ -7,28 +7,32 @@ from services.storage import LocalBackend
 
 
 def _clinic(**kw):
-    base = dict(booking_notification_email=None, info_email=None)
+    base = dict(booking_notification_email=None)
     base.update(kw)
     return types.SimpleNamespace(**base)
 
 
 def test_booking_recipients_add_info_and_dedupe(monkeypatch):
     monkeypatch.delenv("BOOKING_NOTIFICATION_TO", raising=False)
-    c = _clinic(booking_notification_email="front@clinic.com", info_email="info@clinic.com")
+    monkeypatch.setenv("CLINIC_INFO_EMAIL", "info@clinic.com")
+    c = _clinic(booking_notification_email="front@clinic.com")
     assert ec.resolve_clinic_recipients(c, kind="booking") == ["front@clinic.com", "info@clinic.com"]
 
-    # Same address in both fields → deduped (case-insensitive).
-    c2 = _clinic(booking_notification_email="Info@Clinic.com", info_email="info@clinic.com")
+    # Same address in booking field + info env → deduped (case-insensitive).
+    c2 = _clinic(booking_notification_email="Info@Clinic.com")
     assert ec.resolve_clinic_recipients(c2, kind="booking") == ["Info@Clinic.com"]
 
 
-def test_referral_recipients_clinic_scoped(monkeypatch):
+def test_referral_recipients_use_env_info_plus_fallback(monkeypatch):
     monkeypatch.delenv("REFERRAL_NOTIFICATION_TO", raising=False)
-    a = _clinic(info_email="info@a.com")
-    b = _clinic(info_email="info@b.com")
-    # Each clinic only gets its OWN info address — no cross-tenant leak.
-    assert ec.resolve_clinic_recipients(a, kind="referral") == ["info@a.com"]
-    assert ec.resolve_clinic_recipients(b, kind="referral") == ["info@b.com"]
+    monkeypatch.setenv("CLINIC_INFO_EMAIL", "info@clinic.com")
+    c = _clinic(booking_notification_email="front@clinic.com")
+    # info@ from env + per-clinic booking email as fallback.
+    assert ec.resolve_clinic_recipients(c, kind="referral") == ["info@clinic.com", "front@clinic.com"]
+
+    # REFERRAL_NOTIFICATION_TO overrides/leads when set.
+    monkeypatch.setenv("REFERRAL_NOTIFICATION_TO", "referrals@clinic.com")
+    assert ec.resolve_clinic_recipients(c, kind="referral")[0] == "referrals@clinic.com"
 
 
 def _capture_deliver(monkeypatch):

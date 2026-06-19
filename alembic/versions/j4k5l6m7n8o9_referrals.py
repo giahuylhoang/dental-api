@@ -1,4 +1,4 @@
-"""referrals + referral_documents (+ clinics.info_email)
+"""referrals + referral_documents
 
 Revision ID: j4k5l6m7n8o9
 Revises: i3j4k5l6m7n8, 493cc648b838
@@ -6,8 +6,8 @@ Create Date: 2026-06-19 00:00:00.000000
 
 Phase 1 of the public referral form. Additive only:
 - new `referrals` and `referral_documents` tables
-- new nullable `clinics.info_email` column (clinic-scoped notification inbox)
-The shared `documents` table is intentionally NOT touched.
+The shared `documents` table is intentionally NOT touched. The clinic info@
+recipient is configured via the CLINIC_INFO_EMAIL env var (no schema change).
 
 This revision also MERGES the two pre-existing Alembic heads
 (`i3j4k5l6m7n8` user_clinic_memberships and `493cc648b838` clinic_sms_from_number)
@@ -30,8 +30,6 @@ _STATUS = sa.Enum(
 
 
 def upgrade() -> None:
-    op.add_column("clinics", sa.Column("info_email", sa.String(), nullable=True))
-
     op.create_table(
         "referrals",
         sa.Column("id", sa.String(), nullable=False),
@@ -89,5 +87,4 @@ def downgrade() -> None:
     op.drop_table("referral_documents")
     op.drop_index("ix_referrals_clinic_status_created", table_name="referrals")
     op.drop_table("referrals")
-    op.drop_column("clinics", "info_email")
     _STATUS.drop(op.get_bind(), checkfirst=True)
