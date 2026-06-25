@@ -1,12 +1,48 @@
-"""Background reminder scheduler: wakes every 60s, dispatches due reminders."""
+"""Background reminder scheduler: wakes every 60s, dispatches due reminders.
+
+Connection-pool safety (2026-06-19 incident): dispatch is split into three
+phases, each in its own short-lived session, so we NEVER hold a SQLAlchemy
+session (and therefore a pooled DB connection) across the blocking Twilio/email
+send:
+
+  1. collect  — open a session, read due reminders + the data needed to build
+                each message, close the session.
+  2. send     — pure I/O against Twilio/email with NO DB session held.
+  3. persist  — open a fresh session, write sent/failed back, close.
+
+Holding the session across `_send_sms_sync` is exactly what exhausted the pool
+on 2026-06-19 (QueuePool limit reached, every DB endpoint timed out).
+"""
 
 import asyncio
 import logging
+from dataclasses import dataclass
 from datetime import datetime, timedelta
+from typing import Optional
 
 logger = logging.getLogger("dental-receptionist")
 
 _scheduler_task = None
+
+
+@dataclass
+class _DueReminder:
+    """In-memory snapshot of a due reminder — carries everything the send phase
+    needs so no DB session is required during the blocking send."""
+    reminder_id: str
+    channel: str
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    body: Optional[str] = None
+    precheck_error: Optional[str] = None
+
+
+@dataclass
+class _ReminderResult:
+    reminder_id: str
+    status: str  # "sent" | "failed"
+    sent_at: Optional[datetime] = None
+    failure_reason: Optional[str] = None
 
 
 async def _run_scheduler(get_db_factory):
@@ -28,13 +64,25 @@ async def _run_scheduler(get_db_factory):
 
 
 async def _dispatch_due_reminders(get_db_factory):
+    """Dispatch due reminders in three phases, releasing the DB session before
+    the blocking send (see module docstring / 2026-06-19 incident)."""
+    due = _collect_due_reminders(get_db_factory)
+    if not due:
+        return
+    results = _send_reminders(due)
+    _persist_reminder_results(get_db_factory, results)
+
+
+def _collect_due_reminders(get_db_factory) -> list[_DueReminder]:
+    """Phase 1 — open a session, read due reminders + the patient/appointment
+    data needed to build each message, then close the session. No sends here."""
     from database.ops.models import AppointmentReminder
     from database.models import Appointment, Patient
-    from clients.sms_client import _send_sms_sync
 
     now = datetime.utcnow()
     window_end = now + timedelta(seconds=60)
 
+    due: list[_DueReminder] = []
     db = next(get_db_factory())
     try:
         reminders = db.query(AppointmentReminder).filter(
@@ -44,41 +92,103 @@ async def _dispatch_due_reminders(get_db_factory):
         ).all()
 
         for reminder in reminders:
-            # Idempotent: skip already sent
-            if reminder.status == "sent":
-                continue
-
             apt = db.query(Appointment).filter(Appointment.id == reminder.appointment_id).first()
             if not apt:
-                reminder.status = "failed"
-                reminder.failure_reason = "Appointment not found"
-                db.commit()
+                due.append(_DueReminder(
+                    reminder_id=reminder.id, channel=reminder.channel,
+                    precheck_error="Appointment not found",
+                ))
                 continue
 
             patient = db.query(Patient).filter(Patient.id == apt.patient_id).first()
 
-            try:
-                if reminder.channel == "sms" and patient and patient.phone:
-                    body = f"Reminder: appointment on {apt.start_time.strftime('%Y-%m-%d %H:%M')}"
-                    ok = _send_sms_sync(patient.phone, body)
-                    if ok:
-                        reminder.status = "sent"
-                        reminder.sent_at = datetime.utcnow()
-                    else:
-                        reminder.status = "failed"
-                        reminder.failure_reason = "SMS send failed"
-                elif reminder.channel == "email" and patient and patient.email:
-                    logger.info("Email reminder stub: to=%s", patient.email)
-                    reminder.status = "sent"
-                    reminder.sent_at = datetime.utcnow()
-                else:
-                    reminder.status = "failed"
-                    reminder.failure_reason = "No contact info"
-            except Exception as e:
-                reminder.status = "failed"
-                reminder.failure_reason = str(e)
+            if reminder.channel == "sms" and patient and patient.phone:
+                body = f"Reminder: appointment on {apt.start_time.strftime('%Y-%m-%d %H:%M')}"
+                due.append(_DueReminder(
+                    reminder_id=reminder.id, channel="sms",
+                    phone=patient.phone, body=body,
+                ))
+            elif reminder.channel == "email" and patient and patient.email:
+                due.append(_DueReminder(
+                    reminder_id=reminder.id, channel="email",
+                    email=patient.email,
+                ))
+            else:
+                due.append(_DueReminder(
+                    reminder_id=reminder.id, channel=reminder.channel,
+                    precheck_error="No contact info",
+                ))
+    finally:
+        db.close()
 
-            db.commit()
+    return due
+
+
+def _send_reminders(due: list[_DueReminder]) -> list[_ReminderResult]:
+    """Phase 2 — pure I/O. Call Twilio/email with NO DB session held."""
+    from clients.sms_client import _send_sms_sync
+
+    results: list[_ReminderResult] = []
+    for item in due:
+        if item.precheck_error:
+            results.append(_ReminderResult(
+                reminder_id=item.reminder_id, status="failed",
+                failure_reason=item.precheck_error,
+            ))
+            continue
+
+        try:
+            if item.channel == "sms":
+                ok = _send_sms_sync(item.phone, item.body)
+                if ok:
+                    results.append(_ReminderResult(
+                        reminder_id=item.reminder_id, status="sent",
+                        sent_at=datetime.utcnow(),
+                    ))
+                else:
+                    results.append(_ReminderResult(
+                        reminder_id=item.reminder_id, status="failed",
+                        failure_reason="SMS send failed",
+                    ))
+            elif item.channel == "email":
+                logger.info("Email reminder stub: to=%s", item.email)
+                results.append(_ReminderResult(
+                    reminder_id=item.reminder_id, status="sent",
+                    sent_at=datetime.utcnow(),
+                ))
+            else:
+                results.append(_ReminderResult(
+                    reminder_id=item.reminder_id, status="failed",
+                    failure_reason="No contact info",
+                ))
+        except Exception as e:
+            results.append(_ReminderResult(
+                reminder_id=item.reminder_id, status="failed",
+                failure_reason=str(e),
+            ))
+
+    return results
+
+
+def _persist_reminder_results(get_db_factory, results: list[_ReminderResult]) -> None:
+    """Phase 3 — open a fresh session, write sent/failed back, commit, close."""
+    from database.ops.models import AppointmentReminder
+
+    if not results:
+        return
+
+    db = next(get_db_factory())
+    try:
+        for result in results:
+            reminder = db.query(AppointmentReminder).filter(
+                AppointmentReminder.id == result.reminder_id
+            ).first()
+            if reminder is None:
+                continue
+            reminder.status = result.status
+            reminder.sent_at = result.sent_at
+            reminder.failure_reason = result.failure_reason
+        db.commit()
     finally:
         db.close()
 
