@@ -15,6 +15,15 @@ its own date (so DST is handled per-row via zoneinfo). It NEVER touches
 `source='voice-hold'` rows — the voice agent always sent offset-aware times,
 which Postgres stored as correct UTC.
 
+One-shot operation
+------------------
+This is a ONE-SHOT operation. The `--before-created-at` cutoff (set to the
+deploy timestamp of the fixed write path for the real run) prevents touching
+rows created AFTER the fix, which are already correct UTC. BUT: re-running
+`--apply` with the SAME cutoff WILL double-shift the same pre-cutoff rows —
+DO NOT re-run it. The printed audit log is the durable record of what was
+shifted.
+
 Safety / gating
 ---------------
 Steps 3-6 of the plan (Cloud SQL backup, prod dry-run, `--apply` against
@@ -23,6 +32,7 @@ authors the logic + a `--dry-run`/`--apply` CLI; the unit tests
 (tests/test_backfill_appt_tz.py) exercise it on SQLite. Running it against any
 real database is a separate, human-gated action.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -85,21 +95,28 @@ def _shift(ts: Optional[datetime], off: int) -> Optional[datetime]:
     return ts - timedelta(minutes=off)
 
 
-def _candidate_query(db: Session):
-    return db.query(Appointment).filter(
+def _candidate_query(db: Session, before: Optional[datetime] = None):
+    q = db.query(Appointment).filter(
         Appointment.source.in_(["booking-web-hold"]) | Appointment.source.is_(None)
     )
+    if before is not None:
+        q = q.filter(Appointment.created_at < before)
+    return q
 
 
-def compute_backfill_diffs(db: Session) -> List[BackfillDiff]:
+def compute_backfill_diffs(
+    db: Session, before: Optional[datetime] = None
+) -> List[BackfillDiff]:
     """Build the in-memory before/after diff for every candidate row.
 
     Each row is shifted by ITS OWN clinic offset on ITS OWN date. Protected
-    (`voice-hold`) rows are excluded by construction.
+    (`voice-hold`) rows are excluded by construction. When ``before`` is given,
+    only rows with ``created_at < before`` are considered (so post-fix rows,
+    which are already correct UTC, are never touched).
     """
     tz_map = _clinic_tz_map(db)
     diffs: List[BackfillDiff] = []
-    for a in _candidate_query(db).all():
+    for a in _candidate_query(db, before=before).all():
         tz = tz_map.get(a.clinic_id, DEFAULT_TZ)
         off = offset_minutes(tz, a.start_time)
         diffs.append(BackfillDiff(
@@ -123,13 +140,55 @@ def count_protected(db: Session) -> int:
     )
 
 
-def apply_backfill(db: Session, diffs: List[BackfillDiff]) -> None:
+def _snapshot_protected(db: Session) -> dict:
+    """Snapshot every protected row's (start_time, end_time) keyed by id, for
+    a byte-level tamper check after the commit."""
+    snap = {}
+    for a in (
+        db.query(Appointment)
+        .filter(Appointment.source.in_(list(PROTECTED_SOURCES)))
+        .with_entities(Appointment.id, Appointment.start_time, Appointment.end_time)
+        .all()
+    ):
+        snap[a.id] = (a.start_time, a.end_time)
+    return snap
+
+
+def _verify_protected_unchanged(db: Session, snapshot: dict) -> None:
+    """Re-read protected rows and raise RuntimeError if ANY (start, end) pair
+    differs from the pre-write snapshot — not just the count (a swap that
+    preserves count is still caught)."""
+    current = _snapshot_protected(db)
+    changed = []
+    for aid, pair in snapshot.items():
+        if current.get(aid) != pair:
+            changed.append(aid)
+    # Also catch a protected row vanishing or a new one appearing.
+    if set(current) != set(snapshot):
+        for aid in set(current) ^ set(snapshot):
+            changed.append(aid)
+    if changed:
+        raise RuntimeError(
+            "protected (voice-hold) rows changed during backfill — aborting. "
+            f"changed ids: {sorted(changed)}"
+        )
+
+
+def apply_backfill(
+    db: Session,
+    diffs: List[BackfillDiff],
+    before: Optional[datetime] = None,
+) -> None:
     """Apply the computed shift inside a single transaction.
 
-    Guards: the protected (`voice-hold`) row count must be unchanged after the
-    update — a tripwire against any accidental scope error.
+    Guards (all raise RuntimeError, never ``assert`` — so ``python -O`` cannot
+    strip them):
+      1. No diff may target a row whose CURRENT source is protected (defensive
+         against a source flip between diff and apply).
+      2. Every protected (``voice-hold``) row's (start_time, end_time) must be
+         byte-identical before and after the commit — a count-only check would
+         miss a timestamp swap.
     """
-    protected_before = count_protected(db)
     by_id = {d.appointment_id: d for d in diffs}
     rows = (
         db.query(Appointment)
@@ -137,17 +196,33 @@ def apply_backfill(db: Session, diffs: List[BackfillDiff]) -> None:
         .all()
         if by_id else []
     )
+
+    # Defensive: refuse any diff that currently points at a protected row.
+    for a in rows:
+        if a.source in PROTECTED_SOURCES:
+            raise RuntimeError(
+                f"refusing to shift protected row {a.id} (source={a.source})"
+            )
+
+    protected_snapshot = _snapshot_protected(db)
+
     for a in rows:
         d = by_id[a.id]
-        assert a.source not in PROTECTED_SOURCES, (
-            f"refusing to shift protected row {a.id} (source={a.source})"
-        )
         a.start_time = d.start_after
         a.end_time = d.end_after
+
     db.commit()
-    assert count_protected(db) == protected_before, (
-        "protected voice-hold count changed during backfill — aborting"
-    )
+
+    _verify_protected_unchanged(db, protected_snapshot)
+
+    # Audit: machine-greppable per-row record.
+    cutoff_str = before.isoformat() if before else "<none — unbounded>"
+    print(f"=== audit: shifted {len(rows)} row(s); cutoff={cutoff_str} ===")
+    for a in rows:
+        d = by_id[a.id]
+        print(
+            f"  SHIFT id={a.id} start {d.start_before} -> {d.start_after}"
+        )
 
 
 def _print_summary(diffs: List[BackfillDiff], protected: int) -> None:
@@ -167,23 +242,59 @@ def _print_summary(diffs: List[BackfillDiff], protected: int) -> None:
         )
 
 
-def main(argv: Optional[list] = None) -> None:  # pragma: no cover - CLI wrapper
+def _parse_iso8601(value: str) -> datetime:
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            f"--before-created-at must be ISO8601, got {value!r}"
+        )
+
+
+def main(argv: Optional[list] = None) -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--apply", action="store_true",
                     help="apply the shift (default is a read-only dry run)")
+    ap.add_argument(
+        "--before-created-at",
+        type=_parse_iso8601,
+        default=None,
+        metavar="ISO8601",
+        help=(
+            "only shift rows with created_at < this cutoff (set to the deploy "
+            "timestamp for the real run). REQUIRED for --apply."
+        ),
+    )
     args = ap.parse_args(argv)
+
+    # --apply requires a cutoff: without it, post-fix rows (already UTC) or a
+    # re-run would double-shift. Dry-run without a cutoff is allowed but warned.
+    if args.apply and args.before_created_at is None:
+        print(
+            "ERROR: --apply requires --before-created-at <ISO8601> "
+            "(the deploy timestamp of the fixed write path). Without it, "
+            "post-fix rows would be double-shifted. Aborting.",
+            flush=True,
+        )
+        raise SystemExit(2)
 
     from database.connection import SessionLocal
 
     db = SessionLocal()
     try:
-        diffs = compute_backfill_diffs(db)
+        if args.before_created_at is None and not args.apply:
+            print(
+                "WARNING: no --before-created-at given — the candidate window is "
+                "UNBOUNDED. --apply would be refused. Inspect only.",
+                flush=True,
+            )
+        diffs = compute_backfill_diffs(db, before=args.before_created_at)
         protected = count_protected(db)
         _print_summary(diffs, protected)
         if not args.apply:
             print("DRY RUN — no writes. Re-run with --apply after human review.")
             return
-        apply_backfill(db, diffs)
+        apply_backfill(db, diffs, before=args.before_created_at)
         print(f"APPLIED — shifted {len(diffs)} row(s); protected rows unchanged.")
     finally:
         db.close()

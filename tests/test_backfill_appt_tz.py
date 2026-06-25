@@ -19,6 +19,7 @@ from scripts.backfill_appt_tz import (
     apply_backfill,
     compute_backfill_diffs,
     count_protected,
+    main,
     offset_minutes,
 )
 
@@ -114,3 +115,84 @@ def test_source_constants():
     assert None in CANDIDATE_SOURCES
     assert "booking-web-hold" in CANDIDATE_SOURCES
     assert PROTECTED_SOURCES == {"voice-hold"}
+
+
+# ---------------------------------------------------------------------------
+# Task 4 hardening: created_at cutoff, --apply validation, tripwire, audit.
+# ---------------------------------------------------------------------------
+
+CUTOFF = datetime(2026, 6, 24, 0, 0)  # boundary; pre-cutoff created, post excluded
+
+
+def _set_created(db, aid, created_at):
+    db.query(Appointment).filter_by(id=aid).update({"created_at": created_at})
+    db.commit()
+
+
+def test_cutoff_excludes_post_cutoff_candidate_row(db_session):
+    _seed(db_session)
+    # a-summer created AFTER the cutoff -> excluded
+    _set_created(db_session, "a-summer", datetime(2026, 6, 25, 23, 0))
+    # a-winter created BEFORE the cutoff -> included
+    _set_created(db_session, "a-winter", datetime(2026, 6, 1, 0, 0))
+
+    diffs = compute_backfill_diffs(db_session, before=CUTOFF)
+    ids = {d.appointment_id for d in diffs}
+    assert "a-summer" not in ids
+    assert "a-winter" in ids
+
+
+def test_cutoff_pre_cutoff_candidate_is_shifted(db_session):
+    _seed(db_session)
+    _set_created(db_session, "a-summer", datetime(2026, 6, 1, 0, 0))
+    _set_created(db_session, "a-winter", datetime(2026, 6, 1, 0, 0))
+    _set_created(db_session, "a-van", datetime(2026, 6, 1, 0, 0))
+
+    diffs = compute_backfill_diffs(db_session, before=CUTOFF)
+    apply_backfill(db_session, diffs, before=CUTOFF)
+
+    summer = db_session.query(Appointment).filter_by(id="a-summer").one()
+    assert summer.start_time == datetime(2026, 6, 25, 20, 0)
+
+
+def test_apply_without_before_created_at_errors(db_session):
+    # --apply without --before-created-at must fail loudly (SystemExit, non-zero).
+    with __import__("pytest").raises(SystemExit):
+        main(["--apply"])
+
+
+def test_diff_targeting_currently_protected_row_raises_runtime_error(db_session):
+    _seed(db_session)
+    diffs = compute_backfill_diffs(db_session)
+    # Simulate a source flip between diff and apply: retarget a diff at the
+    # protected voice-hold row.
+    diffs[0].appointment_id = "a-voice"
+    with __import__("pytest").raises(RuntimeError):
+        apply_backfill(db_session, diffs)
+
+
+def test_protected_row_tamper_detected_after_apply(db_session):
+    """If a protected row's timestamp changes between snapshot and verify
+    (e.g. a concurrent writer), the tripwire raises RuntimeError."""
+    _seed(db_session)
+
+    # Monkeypatch db.commit so that, right after the real commit but before the
+    # post-commit re-read, we tamper a protected voice-hold row's start_time.
+    real_commit = db_session.commit
+    tampered = {"done": False}
+
+    def tampering_commit():
+        real_commit()
+        if not tampered["done"]:
+            # Swap start_time <-> end_time keeps COUNT constant but changes values.
+            v = db_session.query(Appointment).filter_by(id="a-voice").one()
+            v.start_time, v.end_time = v.end_time, v.start_time
+            real_commit()
+            tampered["done"] = True
+
+    db_session.commit = tampering_commit  # type: ignore[assignment]
+
+    diffs = compute_backfill_diffs(db_session)
+    with __import__("pytest").raises(RuntimeError):
+        apply_backfill(db_session, diffs)
+
