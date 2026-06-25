@@ -67,17 +67,38 @@ if "supa=" in DATABASE_URL:
 # timeout); pool_recycle proactively closes connections >30 min old so
 # they never reach the server-side timeout. Both keep "stale connection"
 # OperationalErrors out of request handlers.
+#
+# pool_timeout=10: fail fast on pool exhaustion. The 2026-06-19 incident
+# (CRM "keeps loading") was a QueuePool-exhaustion hang — the background
+# reminder scheduler held a session across a blocking Twilio send, all 15
+# connections stalled, and checkouts queued on the 30s SQLAlchemy default
+# until requests hit the ~120s Cloud Run request timeout and 500'd, so the
+# spinner never resolved. A 10s checkout timeout surfaces the failure well
+# under the request timeout instead of hanging. Do NOT switch to NullPool
+# (it would worsen cold-start latency). See 2026-06-25 plan.
+def build_engine_kwargs(database_url: str) -> dict:
+    """Return the create_engine kwargs for a given DATABASE_URL.
+
+    Extracted (and unit-guarded by tests/test_db_connection_pool.py) so the
+    Postgres pool_timeout=10 setting can't be silently regressed by a future
+    edit. SQLite (tests/local) gets only check_same_thread=False.
+    """
+    kwargs: dict = {}
+    if "sqlite" in database_url:
+        kwargs["connect_args"] = {"check_same_thread": False}
+    else:
+        kwargs.update(
+            pool_pre_ping=True,
+            pool_size=5,
+            max_overflow=10,
+            pool_timeout=10,
+            pool_recycle=1800,
+        )
+    return kwargs
+
+
 _is_sqlite = "sqlite" in DATABASE_URL
-_engine_kwargs: dict = {}
-if _is_sqlite:
-    _engine_kwargs["connect_args"] = {"check_same_thread": False}
-else:
-    _engine_kwargs.update(
-        pool_pre_ping=True,
-        pool_size=5,
-        max_overflow=10,
-        pool_recycle=1800,
-    )
+_engine_kwargs = build_engine_kwargs(DATABASE_URL)
 engine = create_engine(DATABASE_URL, **_engine_kwargs)
 
 # Register SQL observability events (off by default, enable with OBSERVE_SQL=1)
