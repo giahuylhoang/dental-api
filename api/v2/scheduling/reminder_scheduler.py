@@ -77,7 +77,8 @@ def _collect_due_reminders(get_db_factory) -> list[_DueReminder]:
     """Phase 1 — open a session, read due reminders + the patient/appointment
     data needed to build each message, then close the session. No sends here."""
     from database.ops.models import AppointmentReminder
-    from database.models import Appointment, Patient
+    from database.models import Appointment, Patient, Clinic
+    from services.tz_utils import to_clinic_local
 
     now = datetime.utcnow()
     window_end = now + timedelta(seconds=60)
@@ -91,6 +92,16 @@ def _collect_due_reminders(get_db_factory) -> list[_DueReminder]:
             AppointmentReminder.scheduled_at >= now - timedelta(minutes=5),
         ).all()
 
+        # Cache clinic rows by id so we don't issue an N+1 query per reminder.
+        clinic_cache: dict = {}
+
+        def _clinic_for(apt):
+            clinic = clinic_cache.get(apt.clinic_id)
+            if clinic is None:
+                clinic = db.query(Clinic).filter(Clinic.id == apt.clinic_id).first()
+                clinic_cache[apt.clinic_id] = clinic
+            return clinic
+
         for reminder in reminders:
             apt = db.query(Appointment).filter(Appointment.id == reminder.appointment_id).first()
             if not apt:
@@ -103,7 +114,12 @@ def _collect_due_reminders(get_db_factory) -> list[_DueReminder]:
             patient = db.query(Patient).filter(Patient.id == apt.patient_id).first()
 
             if reminder.channel == "sms" and patient and patient.phone:
-                body = f"Reminder: appointment on {apt.start_time.strftime('%Y-%m-%d %H:%M')}"
+                # apt.start_time is stored as naive UTC (Postgres
+                # `timestamp without time zone`); render the body in the
+                # appointment's clinic-local tz so the patient sees their
+                # wall-clock time, not UTC.
+                local = to_clinic_local(apt.start_time, _clinic_for(apt))
+                body = f"Reminder: appointment on {local.strftime('%Y-%m-%d %H:%M')}"
                 due.append(_DueReminder(
                     reminder_id=reminder.id, channel="sms",
                     phone=patient.phone, body=body,

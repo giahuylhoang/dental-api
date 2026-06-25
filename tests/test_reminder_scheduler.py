@@ -88,6 +88,82 @@ def _tracking_factory(db_engine, checked_out):
     return factory
 
 
+def _seed_due_sms_reminder_with_start_time(db_session, start_time):
+    """Seed the default clinic + patient + appointment with an explicit,
+    naive-UTC ``start_time`` and a pending SMS reminder due now.
+
+    Mirrors :func:`_seed_due_sms_reminder` but lets the caller pin the
+    appointment time so the rendered SMS body can be asserted against the
+    clinic-local (America/Edmonton) wall-clock time.
+    """
+    clinic_id = "default"
+    if db_session.query(Clinic).filter(Clinic.id == clinic_id).first() is None:
+        db_session.add(Clinic(id=clinic_id, name="Default", timezone="America/Edmonton"))
+        db_session.flush()
+
+    provider = Provider(clinic_id=clinic_id, name="Soheil", title="Denturist", is_active=True)
+    db_session.add(provider)
+    db_session.flush()
+
+    patient = Patient(
+        id=str(uuid.uuid4()),
+        clinic_id=clinic_id,
+        first_name="Jane",
+        last_name="Doe",
+        phone="+14035551234",
+    )
+    db_session.add(patient)
+    db_session.flush()
+
+    appt = Appointment(
+        id=str(uuid.uuid4()),
+        clinic_id=clinic_id,
+        patient_id=patient.id,
+        provider_id=provider.id,
+        start_time=start_time,
+        end_time=start_time + timedelta(minutes=30),
+        status=AppointmentStatus.SCHEDULED,
+    )
+    db_session.add(appt)
+    db_session.flush()
+
+    now = datetime.utcnow()
+    reminder = AppointmentReminder(
+        id=str(uuid.uuid4()),
+        appointment_id=appt.id,
+        channel="sms",
+        offset_minutes=24 * 60,
+        scheduled_at=now + timedelta(seconds=10),  # inside the now..now+60s window
+        status="pending",
+        provider="telnyx",
+    )
+    db_session.add(reminder)
+    db_session.commit()
+    return reminder.id
+
+
+def test_reminder_sms_body_renders_clinic_local_not_utc(db_session, db_engine):
+    """The SMS body must render the appointment in the clinic's local tz
+    (America/Edmonton), not the stored naive-UTC value.
+
+    A summer date (July) pins MDT = UTC-6 deterministically, so naive UTC
+    20:00:00 must render as 14:00 local in the body. Before the fix the body
+    emitted the raw stored UTC (``20:00``)."""
+    # July 15, 14:00 Edmonton/MDT == 20:00 UTC. Stored naive UTC.
+    start_time = datetime(2026, 7, 15, 20, 0, 0)
+    _seed_due_sms_reminder_with_start_time(db_session, start_time)
+
+    factory = _tracking_factory(db_engine, checked_out=None)
+    due = reminder_scheduler._collect_due_reminders(factory)
+
+    sms_items = [d for d in due if d.channel == "sms" and not d.precheck_error]
+    assert sms_items, "expected at least one due SMS reminder with a body"
+    body = sms_items[0].body
+
+    assert "14:00" in body, f"expected clinic-local 14:00 in body, got: {body!r}"
+    assert "20:00" not in body, f"UTC value 20:00 leaked into body: {body!r}"
+
+
 def test_dispatch_releases_session_before_blocking_send(db_session, db_engine, monkeypatch):
     reminder_id = _seed_due_sms_reminder(db_session)
 
