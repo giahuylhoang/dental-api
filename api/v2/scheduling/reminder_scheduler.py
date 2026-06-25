@@ -96,11 +96,9 @@ def _collect_due_reminders(get_db_factory) -> list[_DueReminder]:
         clinic_cache: dict = {}
 
         def _clinic_for(apt):
-            clinic = clinic_cache.get(apt.clinic_id)
-            if clinic is None:
-                clinic = db.query(Clinic).filter(Clinic.id == apt.clinic_id).first()
-                clinic_cache[apt.clinic_id] = clinic
-            return clinic
+            if apt.clinic_id not in clinic_cache:
+                clinic_cache[apt.clinic_id] = db.query(Clinic).filter(Clinic.id == apt.clinic_id).first()
+            return clinic_cache[apt.clinic_id]
 
         for reminder in reminders:
             apt = db.query(Appointment).filter(Appointment.id == reminder.appointment_id).first()

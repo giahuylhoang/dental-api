@@ -167,6 +167,54 @@ def test_v2_recurrence_cross_zone_aware_input_keeps_clinic_local_wall_clock(clie
     assert [r.end_time for r in rows] == [e.replace(hour=20) for e in expected]
 
 
+def test_v2_recurrence_keeps_wall_clock_across_dst_fall_back(client, db_session):
+    """Weekly recurrence spanning the Nov 1, 2026 fall-back (MDT -6 -> MST -7)
+    must keep a CONSTANT clinic-local wall time (09:00 Edmonton) while the stored
+    naive-UTC shifts at the boundary (15:00 UTC before, 16:00 UTC after).
+
+    Pins that per-occurrence conversion (not a single anchor offset) is applied,
+    so DST transitions do not drag the wall clock."""
+    from services.tz_utils import to_clinic_local
+    from database.models import Clinic
+    from database.models import DEFAULT_CLINIC_ID as _CID
+
+    patient, provider = _seed(db_session)
+    clinic = db_session.query(Clinic).filter(Clinic.id == _CID).first()
+
+    resp = client.post("/api/v2/scheduling/appointments", json={
+        "start_time": "2026-10-26T09:00:00",
+        "end_time": "2026-10-26T10:00:00",
+        "patient_id": patient.id,
+        "provider_id": provider.id,
+        "patient_name": "T",
+        "service_name": "S",
+        "recurrence_rule": "FREQ=WEEKLY;COUNT=3",
+    }, headers={"X-Clinic-Id": DEFAULT_CLINIC_ID})
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["generated_count"] == 3
+
+    rows = db_session.query(Appointment).filter(
+        Appointment.clinic_id == DEFAULT_CLINIC_ID,
+        Appointment.patient_id == patient.id,
+    ).order_by(Appointment.start_time).all()
+    assert len(rows) == 3
+
+    # Clinic-local wall clock stays 09:00 on all three occurrences.
+    for r in rows:
+        assert to_clinic_local(r.start_time, clinic).hour == 9, r.start_time
+
+    # Stored naive-UTC shifts at the DST boundary:
+    # 2026-10-26 09:00 MDT (-6) == 15:00 UTC
+    # 2026-11-02 09:00 MST (-7) == 16:00 UTC
+    # 2026-11-09 09:00 MST (-7) == 16:00 UTC
+    expected = [
+        datetime(2026, 10, 26, 15, 0, 0),
+        datetime(2026, 11, 2, 16, 0, 0),
+        datetime(2026, 11, 9, 16, 0, 0),
+    ]
+    assert [r.start_time for r in rows] == expected, [r.start_time for r in rows]
+
+
 def test_v2_v1_conflict_parity(client, db_session):
     """A v2-created appt at 14:00 local must conflict with a v1-created appt at
     the same wall time — proves both now share one naive-UTC representation."""
