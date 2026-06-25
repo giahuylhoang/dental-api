@@ -20,7 +20,7 @@ from api.dependencies.auth import require_internal_secret
 from database.connection import get_db
 from database.models import Clinic, Provider
 from services.holds import create_hold
-from services.tz_utils import to_storage_utc
+from services.tz_utils import to_storage_utc_clinic
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/internal", tags=["internal-holds"])
@@ -84,8 +84,8 @@ def create_internal_hold(
     different channel value because this endpoint is not exposed via the BFF.
     """
     clinic = _resolve_clinic(db, x_clinic_id)
-    start = to_storage_utc(datetime.fromisoformat(payload.start_time))
-    end = to_storage_utc(datetime.fromisoformat(payload.end_time))
+    start = to_storage_utc_clinic(datetime.fromisoformat(payload.start_time), clinic)
+    end = to_storage_utc_clinic(datetime.fromisoformat(payload.end_time), clinic)
     created_at_utc = datetime.utcnow()
 
     # provider_id is required for voice-holds (Emma always resolves a specific

@@ -13,7 +13,7 @@ tools/slot_utils for slot computation. If you change one, change both.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 import pytz
@@ -97,7 +97,13 @@ def _raise_if_busy_block_overlap(
     from tools.slot_utils import find_busy_block_overlap
 
     tz = pytz.timezone(clinic.timezone or "America/Edmonton")
-    block = find_busy_block_overlap(db, clinic.id, provider_id, start, end, tz)
+    # All appointment write boundaries now pass naive UTC (the storage invariant).
+    # find_busy_block_overlap interprets a NAIVE datetime as clinic-local, so we
+    # attach UTC explicitly: this keeps the busy-block comparison correct whether
+    # the caller passed naive UTC (new contract) or a tz-aware value (legacy).
+    start_aware = start.replace(tzinfo=timezone.utc) if start.tzinfo is None else start
+    end_aware = end.replace(tzinfo=timezone.utc) if end.tzinfo is None else end
+    block = find_busy_block_overlap(db, clinic.id, provider_id, start_aware, end_aware, tz)
     if block is not None:
         raise HTTPException(
             status_code=409,

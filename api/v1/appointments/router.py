@@ -310,14 +310,16 @@ async def update_appointment(
     if not appointment:
         raise HTTPException(status_code=404, detail="Appointment not found")
 
-    from services.tz_utils import to_storage_utc
+    from services.tz_utils import to_storage_utc_clinic
     for key, value in updates.items():
         if hasattr(appointment, key):
             if key in ["start_time", "end_time"]:
                 setattr(
                     appointment,
                     key,
-                    to_storage_utc(datetime.fromisoformat(value.replace("Z", "+00:00"))),
+                    to_storage_utc_clinic(
+                        datetime.fromisoformat(value.replace("Z", "+00:00")), clinic
+                    ),
                 )
             else:
                 setattr(appointment, key, value)
@@ -466,23 +468,28 @@ async def reschedule_appointment(
         new_start_time = datetime.fromisoformat(request.start_time.replace("Z", "+00:00"))
         new_end_time = datetime.fromisoformat(request.end_time.replace("Z", "+00:00"))
 
+        # Convert clinic-local input to naive UTC ONCE, then share with both the
+        # conflict check and the ORM write (2026-06-25 plan).
+        from services.tz_utils import to_storage_utc_clinic
+        new_start_utc = to_storage_utc_clinic(new_start_time, clinic)
+        new_end_utc = to_storage_utc_clinic(new_end_time, clinic)
+
         check_conflicts_for_reschedule(
             db,
             clinic=clinic,
             provider_id=request.provider_id,
-            start=new_start_time,
-            end=new_end_time,
+            start=new_start_utc,
+            end=new_end_utc,
             excluding_appointment_id=appointment_id,
         )
 
-        from services.tz_utils import to_storage_utc
         new_appointment = Appointment(
             clinic_id=clinic.id,
             patient_id=request.patient_id,
             provider_id=request.provider_id,
             service_id=request.service_id,
-            start_time=to_storage_utc(new_start_time),
-            end_time=to_storage_utc(new_end_time),
+            start_time=new_start_utc,
+            end_time=new_end_utc,
             reason_note=request.reason,
             status=AppointmentStatus.SCHEDULED,
         )
@@ -506,7 +513,7 @@ async def reschedule_appointment(
                 background_tasks,
                 patient=patient,
                 provider=provider,
-                new_start_time=new_start_time,
+                new_start_time=new_start_utc,
                 clinic=clinic,
                 service_name=service_name,
             )

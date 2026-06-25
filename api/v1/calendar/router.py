@@ -143,6 +143,13 @@ async def create_calendar_event(
         if not service:
             raise HTTPException(status_code=404, detail="Service not found")
 
+    # Convert the parsed clinic-local input to naive UTC ONCE at the boundary,
+    # then share that representation with both the conflict check and the ORM
+    # write so storage and conflict detection never disagree (2026-06-25 plan).
+    from services.tz_utils import to_storage_utc_clinic
+    start_utc = to_storage_utc_clinic(start_time_dt, clinic)
+    end_utc = to_storage_utc_clinic(end_time_dt, clinic)
+
     # Reject conflicts with active appointments or recurring busy blocks.
     # Slot listing already hides these — this guard closes the loop for direct
     # API calls / stale UI tabs.
@@ -150,20 +157,19 @@ async def create_calendar_event(
         db,
         clinic=clinic,
         provider_id=request.provider_id,
-        start=start_time_dt,
-        end=end_time_dt,
+        start=start_utc,
+        end=end_utc,
     )
 
-    # 1. Create appointment in database — normalize to naive UTC so SQLite
-    #    and Postgres store the same value regardless of input offset.
-    from services.tz_utils import to_storage_utc
+    # 1. Create appointment in database — store the naive-UTC value computed
+    #    above so SQLite and Postgres store the same instant.
     appointment = Appointment(
         clinic_id=clinic.id,
         patient_id=request.patient_id,
         provider_id=request.provider_id,
         service_id=request.service_id,
-        start_time=to_storage_utc(start_time_dt),
-        end_time=to_storage_utc(end_time_dt),
+        start_time=start_utc,
+        end_time=end_utc,
         reason_note=request.reason,
         status=AppointmentStatus.SCHEDULED,
     )

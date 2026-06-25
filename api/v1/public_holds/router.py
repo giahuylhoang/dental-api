@@ -10,7 +10,7 @@ from api.dependencies.auth import require_internal_secret
 from services.holds import create_hold
 from services.hold_tokens import verify_confirm_token
 from services.slots import get_available_slots
-from services.tz_utils import to_storage_utc
+from services.tz_utils import to_storage_utc_clinic
 from .schemas import PublicHoldRequest, PublicHoldResponse
 
 logger = logging.getLogger(__name__)
@@ -70,8 +70,8 @@ def create_public_hold(
     x_clinic_id: str = Header("default", alias="X-Clinic-Id"),
 ):
     clinic = _resolve_clinic(db, x_clinic_id)
-    start = to_storage_utc(datetime.fromisoformat(payload.start_time))
-    end = to_storage_utc(datetime.fromisoformat(payload.end_time))
+    start = to_storage_utc_clinic(datetime.fromisoformat(payload.start_time), clinic)
+    end = to_storage_utc_clinic(datetime.fromisoformat(payload.end_time), clinic)
     created_at_utc = datetime.utcnow()
 
     candidate_ids = [payload.provider_id] if payload.provider_id else [
