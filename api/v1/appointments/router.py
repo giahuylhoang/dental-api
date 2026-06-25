@@ -151,9 +151,18 @@ async def list_appointments(
     # Filter by specific date
     if date:
         try:
+            from services.tz_utils import to_storage_utc_clinic
             target_date = datetime.strptime(date, "%Y-%m-%d").date()
-            start_of_day = datetime.combine(target_date, datetime.min.time())
-            end_of_day = datetime.combine(target_date, datetime.max.time())
+            # Build the day window in clinic-local wall-clock then convert to the
+            # naive-UTC representation the column actually stores, so a late-evening
+            # local appointment (stored on the next UTC day) still files on its
+            # correct clinic-local day. (2026-06-25 plan, Task 2.3.)
+            start_of_day = to_storage_utc_clinic(
+                datetime.combine(target_date, datetime.min.time()), clinic
+            )
+            end_of_day = to_storage_utc_clinic(
+                datetime.combine(target_date, datetime.max.time()), clinic
+            )
             query = query.filter(
                 Appointment.start_time >= start_of_day,
                 Appointment.start_time <= end_of_day
@@ -179,8 +188,6 @@ async def delete_appointments_by_date_endpoint(
         date: Date in YYYY-MM-DD format (e.g., "2025-12-22")
         dry_run: If true, only return what would be deleted without actually deleting
     """
-    import pytz
-
     try:
         target_date_obj = datetime.strptime(date, "%Y-%m-%d").date()
     except ValueError:
@@ -189,9 +196,15 @@ async def delete_appointments_by_date_endpoint(
             detail="Invalid date format. Use YYYY-MM-DD (e.g., 2025-12-22)",
         )
 
-    tz = pytz.timezone(clinic.timezone or "America/Edmonton")
-    start_of_day = tz.localize(datetime.combine(target_date_obj, datetime.min.time()))
-    end_of_day = tz.localize(datetime.combine(target_date_obj, datetime.max.time()))
+    # Use the same clinic-local -> naive-UTC bounds as the GET day-list so DELETE
+    # targets exactly the appointments the day view shows. (2026-06-25 plan, Task 2.3.)
+    from services.tz_utils import to_storage_utc_clinic
+    start_of_day = to_storage_utc_clinic(
+        datetime.combine(target_date_obj, datetime.min.time()), clinic
+    )
+    end_of_day = to_storage_utc_clinic(
+        datetime.combine(target_date_obj, datetime.max.time()), clinic
+    )
 
     appointments = db.query(Appointment).filter(
         Appointment.clinic_id == clinic.id,

@@ -49,9 +49,15 @@ def _query_overlapping_appointments(
     Optionally excludes a specific appointment id (used by the reschedule path
     so the appointment being moved doesn't conflict with itself).
     """
-    # Appointment.start_time / end_time are stored naive UTC. Normalize the
-    # filter values to the same representation so the SQL comparison doesn't
-    # silently fall over when the caller passes a tz-aware bound.
+    # Appointment.start_time / end_time are stored naive UTC. Every appointment
+    # write boundary now converts clinic-local input to naive UTC (via
+    # to_storage_utc_clinic) BEFORE calling the conflict check, so callers pass
+    # naive UTC here. to_storage_utc is therefore an identity for those values
+    # (and still converts a tz-aware bound defensively). We deliberately do NOT
+    # use to_storage_utc_clinic in this query: that helper treats a naive input
+    # as clinic-local, which would DOUBLE-SHIFT the already-UTC values the write
+    # boundaries pass. Keeping to_storage_utc keeps storage and conflict
+    # detection on one shared naive-UTC representation. (2026-06-25 plan, Task 2.3.)
     from services.tz_utils import to_storage_utc
     start_utc = to_storage_utc(start)
     end_utc = to_storage_utc(end)
