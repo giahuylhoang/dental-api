@@ -19,6 +19,7 @@ from database.ops.models import (
     AppointmentReminder, WaitlistEntry, RecallRule, Recall,
 )
 from api.dependencies import get_authorized_clinic
+from services.tz_utils import to_storage_utc_clinic
 
 router = APIRouter(prefix="/api/v2/scheduling", tags=["v2-scheduling"])
 
@@ -35,15 +36,20 @@ ACTIVE_STATUSES = (
 # ---------------------------------------------------------------------------
 
 def _parse_dt(s: str) -> datetime:
+    """Parse an ISO-ish datetime string.
+
+    Offset-free input returns a naive datetime (interpreted downstream as
+    clinic-local wall-clock via ``to_storage_utc_clinic``). Offset-aware input
+    is returned **with its offset preserved** — never stripped — so the caller's
+    conversion honors the caller's stated zone. ``datetime.fromisoformat`` parses
+    offsets in 3.11+, so we delegate the aware branch to it."""
     for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M"):
         try:
             return datetime.strptime(s, fmt)
         except ValueError:
             pass
-    # Try ISO with timezone offset — strip tz for naive comparison
-    import re
-    s_clean = re.sub(r'[+-]\d{2}:\d{2}$', '', s).rstrip('Z')
-    return datetime.fromisoformat(s_clean)
+    # Fallback: ISO 8601 (incl. offset / 'Z'). Preserves any tzinfo present.
+    return datetime.fromisoformat(s)
 
 
 def _check_provider_conflict(db: Session, clinic_id: str, provider_id: int,
@@ -405,8 +411,14 @@ class V2AppointmentOut(BaseModel):
 
 @router.post("/appointments", response_model=V2AppointmentOut, status_code=201)
 def create_v2_appointment(body: V2AppointmentIn, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
-    start = _parse_dt(body.start_time)
-    end = _parse_dt(body.end_time)
+    # Parse on the clinic-local wall clock (naive) or as offset-aware if the
+    # caller supplied an offset. Then convert to storage naive UTC at the write
+    # boundary — the same contract the v1 router and holds use. Naive input is
+    # treated as clinic-local; aware input is honored from its own zone.
+    start_local = _parse_dt(body.start_time)
+    end_local = _parse_dt(body.end_time)
+    start = to_storage_utc_clinic(start_local, clinic)
+    end = to_storage_utc_clinic(end_local, clinic)
 
     # Validate patient
     patient = db.query(Patient).filter(Patient.id == body.patient_id, Patient.clinic_id == clinic.id).first()
@@ -418,7 +430,7 @@ def create_v2_appointment(body: V2AppointmentIn, clinic: Clinic = Depends(get_au
     if not provider:
         raise HTTPException(404, "Provider not found")
 
-    # Provider conflict
+    # Provider conflict (compare converted UTC against stored naive-UTC rows)
     if _check_provider_conflict(db, clinic.id, body.provider_id, start, end):
         raise HTTPException(409, "Provider already has an appointment during this time slot")
 
@@ -430,7 +442,7 @@ def create_v2_appointment(body: V2AppointmentIn, clinic: Clinic = Depends(get_au
         if _check_operatory_conflict(db, body.operatory_id, start, end):
             raise HTTPException(409, "Operatory already booked during this time slot")
 
-    # Create parent appointment
+    # Create parent appointment (store naive UTC)
     apt = Appointment(
         clinic_id=clinic.id,
         patient_id=body.patient_id,
@@ -452,9 +464,11 @@ def create_v2_appointment(body: V2AppointmentIn, clinic: Clinic = Depends(get_au
 
     if body.recurrence_rule:
         from dateutil.rrule import rrulestr
-        duration = end - start
+        # Generate occurrences on the clinic-local wall clock so "9am Mondays"
+        # stays 9am across DST, then convert EACH occurrence to storage UTC.
+        duration = end_local - start_local  # wall-clock delta
         try:
-            rule = rrulestr(body.recurrence_rule, dtstart=start, ignoretz=True)
+            rule = rrulestr(body.recurrence_rule, dtstart=start_local, ignoretz=True)
         except Exception as e:
             raise HTTPException(400, f"Invalid RRULE: {e}")
 
@@ -462,10 +476,12 @@ def create_v2_appointment(body: V2AppointmentIn, clinic: Clinic = Depends(get_au
         # Skip first (already created as parent)
         for occ in occurrences[1:]:
             occ_end = occ + duration
-            if _check_provider_conflict(db, clinic.id, body.provider_id, occ, occ_end):
+            occ_utc = to_storage_utc_clinic(occ, clinic)
+            occ_end_utc = to_storage_utc_clinic(occ_end, clinic)
+            if _check_provider_conflict(db, clinic.id, body.provider_id, occ_utc, occ_end_utc):
                 db.rollback()
                 raise HTTPException(409, f"Provider conflict on recurrence at {occ.isoformat()}")
-            if body.operatory_id and _check_operatory_conflict(db, body.operatory_id, occ, occ_end):
+            if body.operatory_id and _check_operatory_conflict(db, body.operatory_id, occ_utc, occ_end_utc):
                 db.rollback()
                 raise HTTPException(409, f"Operatory conflict on recurrence at {occ.isoformat()}")
             child = Appointment(
@@ -473,8 +489,8 @@ def create_v2_appointment(body: V2AppointmentIn, clinic: Clinic = Depends(get_au
                 patient_id=body.patient_id,
                 provider_id=body.provider_id,
                 service_id=body.service_id,
-                start_time=occ,
-                end_time=occ_end,
+                start_time=occ_utc,
+                end_time=occ_end_utc,
                 reason_note=body.reason,
                 status=AppointmentStatus.SCHEDULED,
             )
@@ -484,7 +500,7 @@ def create_v2_appointment(body: V2AppointmentIn, clinic: Clinic = Depends(get_au
                 db.add(AppointmentResource(appointment_id=child.id, operatory_id=body.operatory_id))
             generated_count += 1
 
-        last_occ = occurrences[-1] if occurrences else start
+        last_occ = occurrences[-1] if occurrences else start_local
         rec = AppointmentRecurrence(
             clinic_id=clinic.id,
             parent_appointment_id=apt.id,
@@ -551,8 +567,10 @@ def reschedule_v2_appointment(
     if not apt:
         raise HTTPException(404, "Appointment not found")
 
-    new_start = body.start_time
-    new_end = body.end_time
+    # body.start_time/end_time arrive already parsed by Pydantic (naive or
+    # aware). Convert to storage naive UTC before conflict checks + insert.
+    new_start = to_storage_utc_clinic(body.start_time, clinic)
+    new_end = to_storage_utc_clinic(body.end_time, clinic)
 
     if _check_provider_conflict(db, clinic.id, apt.provider_id, new_start, new_end, exclude_id=apt_id):
         raise HTTPException(409, "Provider conflict at new time")
@@ -661,8 +679,8 @@ def add_to_waitlist(body: WaitlistIn, clinic: Clinic = Depends(get_authorized_cl
     entry = WaitlistEntry(
         clinic_id=clinic.id,
         patient_id=body.patient_id,
-        requested_window_start=_parse_dt(body.requested_window_start),
-        requested_window_end=_parse_dt(body.requested_window_end),
+        requested_window_start=to_storage_utc_clinic(_parse_dt(body.requested_window_start), clinic),
+        requested_window_end=to_storage_utc_clinic(_parse_dt(body.requested_window_end), clinic),
         provider_pref=body.provider_pref,
         service_id=body.service_id,
         priority=body.priority,
@@ -699,8 +717,8 @@ def fill_waitlist_entry(
     db: Session = Depends(get_db),
 ):
     """Fill the highest-priority open waitlist entry whose window overlaps the slot."""
-    slot_s = _parse_dt(slot_start)
-    slot_e = _parse_dt(slot_end)
+    slot_s = to_storage_utc_clinic(_parse_dt(slot_start), clinic)
+    slot_e = to_storage_utc_clinic(_parse_dt(slot_end), clinic)
 
     # Find best match: window overlaps slot, highest priority, then FIFO
     entries = db.query(WaitlistEntry).filter(
