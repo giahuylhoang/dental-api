@@ -8,7 +8,7 @@ IF it were already clinic-local, producing SMS confirmations that were
 ~6 hours ahead of the real appointment time. These tests pin down the
 correct behavior so the bug doesn't regress.
 """
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -17,6 +17,7 @@ from services.tz_utils import (
     format_clinic_local,
     to_clinic_local,
     to_clinic_local_iso,
+    to_storage_utc_clinic,
 )
 
 
@@ -79,3 +80,57 @@ def test_default_tz_when_clinic_has_none(edmonton_clinic):
 def test_none_iso_passthrough(edmonton_clinic):
     """None in → None out, never an exception."""
     assert to_clinic_local_iso(None, edmonton_clinic) is None
+
+
+# ---------------------------------------------------------------------------
+# to_storage_utc_clinic — the write-side inverse of to_clinic_local.
+# Naive input is interpreted as clinic-local wall-clock; we localize to the
+# clinic tz then convert to naive UTC for storage. DST-aware.
+# ---------------------------------------------------------------------------
+
+
+def test_storage_utc_clinic_summer_localizes_to_mdt(edmonton_clinic):
+    """Naive 14:00 clinic-local in summer (MDT, -06:00) → 20:00 naive UTC."""
+    result = to_storage_utc_clinic(datetime(2026, 6, 25, 14, 0), edmonton_clinic)
+    assert result == datetime(2026, 6, 25, 20, 0)
+    assert result.tzinfo is None
+
+
+def test_storage_utc_clinic_winter_localizes_to_mst(edmonton_clinic):
+    """Naive 09:00 clinic-local in winter (MST, -07:00) → 16:00 naive UTC."""
+    result = to_storage_utc_clinic(datetime(2026, 12, 25, 9, 0), edmonton_clinic)
+    assert result == datetime(2026, 12, 25, 16, 0)
+    assert result.tzinfo is None
+
+
+def test_storage_utc_clinic_aware_input_unchanged_semantics(edmonton_clinic):
+    """Tz-aware input is converted from its own offset; clinic is irrelevant."""
+    aware = datetime(2026, 6, 25, 14, 0, tzinfo=timezone(timedelta(hours=-6)))
+    result = to_storage_utc_clinic(aware, edmonton_clinic)
+    assert result == datetime(2026, 6, 25, 20, 0)
+    assert result.tzinfo is None
+
+
+def test_storage_utc_clinic_none_clinic_falls_back_to_default():
+    """clinic=None uses DEFAULT_TZ (America/Edmonton)."""
+    result = to_storage_utc_clinic(datetime(2026, 6, 25, 14, 0), None)
+    assert result == datetime(2026, 6, 25, 20, 0)
+
+
+def test_storage_utc_clinic_non_edmonton_zone():
+    """A Vancouver clinic (same offset as Edmonton in summer here is -07:00 PDT)
+    localizes to its own zone, not Edmonton."""
+    vancouver = Clinic(id="v", name="V", timezone="America/Vancouver")
+    # 14:00 Vancouver in summer is PDT (-07:00) → 21:00 UTC.
+    result = to_storage_utc_clinic(datetime(2026, 6, 25, 14, 0), vancouver)
+    assert result == datetime(2026, 6, 25, 21, 0)
+
+
+def test_storage_utc_clinic_is_inverse_of_to_clinic_local(edmonton_clinic):
+    """Round-trip: clinic-local wall-clock → storage UTC → clinic-local."""
+    wall = datetime(2026, 6, 25, 14, 0)
+    stored = to_storage_utc_clinic(wall, edmonton_clinic)
+    back = to_clinic_local(stored, edmonton_clinic)
+    assert (back.year, back.month, back.day, back.hour, back.minute) == (
+        2026, 6, 25, 14, 0,
+    )

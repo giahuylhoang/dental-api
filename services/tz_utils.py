@@ -63,6 +63,20 @@ def to_storage_utc(ts: datetime) -> datetime:
     return ts.astimezone(timezone.utc).replace(tzinfo=None)
 
 
+def to_storage_utc_clinic(ts: datetime, clinic: Optional[Clinic]) -> datetime:
+    """Normalize a datetime to naive UTC for storage, interpreting any NAIVE
+    input as clinic-local wall-clock time (the contract every CRM/web caller
+    actually uses). Tz-aware inputs are converted from their own zone. This is
+    the write-side inverse of to_clinic_local and the function all appointment
+    write boundaries must call.
+
+    pytz requires .localize() to attach a zone to a naive datetime (NOT
+    replace(tzinfo=...), which picks the wrong historical offset)."""
+    if ts.tzinfo is None:
+        ts = _clinic_tz(clinic).localize(ts)
+    return ts.astimezone(timezone.utc).replace(tzinfo=None)
+
+
 def format_clinic_local(ts: datetime, clinic: Optional[Clinic]) -> tuple[str, str]:
     """Return (date_str, time_str) tuple ready for SMS/email templates."""
     local = to_clinic_local(ts, clinic)
