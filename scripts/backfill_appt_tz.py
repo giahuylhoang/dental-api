@@ -19,10 +19,14 @@ One-shot operation
 ------------------
 This is a ONE-SHOT operation. The `--before-created-at` cutoff (set to the
 deploy timestamp of the fixed write path for the real run) prevents touching
-rows created AFTER the fix, which are already correct UTC. BUT: re-running
-`--apply` with the SAME cutoff WILL double-shift the same pre-cutoff rows —
-DO NOT re-run it. The printed audit log is the durable record of what was
-shifted.
+rows created AFTER the fix, which are already correct UTC. Re-running `--apply`
+with the SAME cutoff is REFUSED by default: a durable audit JSON keyed by the
+normalized cutoff is written on apply, and a second apply with the same cutoff
+aborts (non-zero) unless `--force` is given. `--force` is intended only after a
+rollback and prints a loud warning (it WILL double-shift pre-cutoff rows
+otherwise). The audit file is also the durable revert record: it is written
+atomically immediately after the commit succeeds and BEFORE the post-commit
+protected-verify, so even a tripwire failure leaves a full revert record.
 
 Safety / gating
 ---------------
@@ -36,8 +40,11 @@ real database is a separate, human-gated action.
 from __future__ import annotations
 
 import argparse
+import json
+import os
+import tempfile
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from zoneinfo import ZoneInfo
 
@@ -174,21 +181,75 @@ def _verify_protected_unchanged(db: Session, snapshot: dict) -> None:
         )
 
 
+def _normalize_cutoff(dt: datetime) -> datetime:
+    """Normalize a --before-created-at cutoff to naive UTC.
+
+    `Appointment.created_at` is stored as naive UTC (``default=datetime.utcnow``).
+    A tz-aware cutoff (e.g. ``2026-06-25T00:00:00-06:00``) is converted to naive
+    UTC; a naive cutoff is kept as-is and interpreted as UTC (matching the
+    column). The returned value is always tz-naive.
+    """
+    if dt.tzinfo is not None:
+        return dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
+
+
+def _audit_path(audit_dir: str, cutoff: datetime) -> str:
+    """Filename is keyed by the (normalized, naive-UTC) cutoff so that re-running
+    --apply with the same cutoff collides with the prior audit file."""
+    safe = cutoff.isoformat().replace(":", "").replace("+", "")
+    return os.path.join(audit_dir, f"backfill_audit_{safe}.json")
+
+
+def _write_audit(audit_path: str, payload: dict) -> None:
+    """Atomically write the audit JSON (temp + os.replace)."""
+    d = os.path.dirname(os.path.abspath(audit_path)) or "."
+    fd, tmp = tempfile.mkstemp(prefix=".backfill_audit_", dir=d)
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(payload, f, indent=2, sort_keys=True)
+        os.replace(tmp, audit_path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
 def apply_backfill(
     db: Session,
     diffs: List[BackfillDiff],
     before: Optional[datetime] = None,
+    *,
+    audit_dir: str = ".",
+    run_clock=datetime.utcnow,
 ) -> None:
     """Apply the computed shift inside a single transaction.
 
     Guards (all raise RuntimeError, never ``assert`` — so ``python -O`` cannot
     strip them):
-      1. No diff may target a row whose CURRENT source is protected (defensive
+      1. ``before`` (a normalized naive-UTC cutoff) is required. The caller
+         (``--apply``) always supplies one, but this function is the last
+         defense against an unbounded / double-shifting apply.
+      2. Every diff's row must have ``created_at < before``. Any row at/after
+         the cutoff aborts the whole batch (nothing written).
+      3. No diff may target a row whose CURRENT source is protected (defensive
          against a source flip between diff and apply).
-      2. Every protected (``voice-hold``) row's (start_time, end_time) must be
+      4. Every protected (``voice-hold``) row's (start_time, end_time) must be
          byte-identical before and after the commit — a count-only check would
          miss a timestamp swap.
+
+    A durable audit JSON is written atomically IMMEDIATELY after ``db.commit()``
+    succeeds and BEFORE ``_verify_protected_unchanged``, so a post-commit
+    tripwire failure still leaves a full revert record on disk.
     """
+    if before is None:
+        raise RuntimeError(
+            "apply_backfill requires a `before` cutoff (naive UTC) — refusing "
+            "to run unbounded, which would double-shift pre-fix rows."
+        )
+
     by_id = {d.appointment_id: d for d in diffs}
     rows = (
         db.query(Appointment)
@@ -196,6 +257,14 @@ def apply_backfill(
         .all()
         if by_id else []
     )
+
+    # Enforce the cutoff on each fetched row (last defense).
+    out_of_range = [a.id for a in rows if a.created_at is not None and a.created_at >= before]
+    if out_of_range:
+        raise RuntimeError(
+            f"refusing to apply: diff rows at/after cutoff {before.isoformat()}: "
+            f"{sorted(out_of_range)}"
+        )
 
     # Defensive: refuse any diff that currently points at a protected row.
     for a in rows:
@@ -213,16 +282,40 @@ def apply_backfill(
 
     db.commit()
 
+    # Durable audit written BEFORE the post-commit protected-verify so a
+    # tripwire failure still leaves a complete revert record.
+    audit_payload = {
+        "cutoff": before.isoformat(),
+        "run_at": run_clock().isoformat(),
+        "rows": [
+            {
+                "id": a.id,
+                "source": by_id[a.id].source,
+                "clinic_tz": by_id[a.id].clinic_tz,
+                "offset_minutes": by_id[a.id].offset_minutes,
+                "start_before": _iso(by_id[a.id].start_before),
+                "start_after": _iso(by_id[a.id].start_after),
+                "end_before": _iso(by_id[a.id].end_before),
+                "end_after": _iso(by_id[a.id].end_after),
+            }
+            for a in rows
+        ],
+    }
+    _write_audit(_audit_path(audit_dir, before), audit_payload)
+
     _verify_protected_unchanged(db, protected_snapshot)
 
-    # Audit: machine-greppable per-row record.
-    cutoff_str = before.isoformat() if before else "<none — unbounded>"
-    print(f"=== audit: shifted {len(rows)} row(s); cutoff={cutoff_str} ===")
+    # Also print a machine-greppable per-row record.
+    print(f"=== audit: shifted {len(rows)} row(s); cutoff={before.isoformat()} ===")
     for a in rows:
         d = by_id[a.id]
         print(
             f"  SHIFT id={a.id} start {d.start_before} -> {d.start_after}"
         )
+
+
+def _iso(ts: Optional[datetime]) -> Optional[str]:
+    return ts.isoformat() if ts is not None else None
 
 
 def _print_summary(diffs: List[BackfillDiff], protected: int) -> None:
@@ -243,12 +336,18 @@ def _print_summary(diffs: List[BackfillDiff], protected: int) -> None:
 
 
 def _parse_iso8601(value: str) -> datetime:
+    """Parse --before-created-at and normalize to naive UTC.
+
+    A tz-aware cutoff (e.g. ``-06:00``) is converted to naive UTC; a naive
+    cutoff is kept as-is (interpreted as UTC, matching ``created_at``).
+    """
     try:
-        return datetime.fromisoformat(value)
+        dt = datetime.fromisoformat(value)
     except ValueError:
         raise argparse.ArgumentTypeError(
             f"--before-created-at must be ISO8601, got {value!r}"
         )
+    return _normalize_cutoff(dt)
 
 
 def main(argv: Optional[list] = None) -> None:
@@ -262,7 +361,21 @@ def main(argv: Optional[list] = None) -> None:
         metavar="ISO8601",
         help=(
             "only shift rows with created_at < this cutoff (set to the deploy "
-            "timestamp for the real run). REQUIRED for --apply."
+            "timestamp for the real run). REQUIRED for --apply. Tz-aware "
+            "values are normalized to naive UTC (matching created_at)."
+        ),
+    )
+    ap.add_argument(
+        "--audit-dir",
+        default=".",
+        help="directory for the durable audit JSON (default: current dir).",
+    )
+    ap.add_argument(
+        "--force",
+        action="store_true",
+        help=(
+            "override the audit-file idempotency refusal when re-applying the "
+            "SAME --before-created-at cutoff. Prints a loud warning."
         ),
     )
     args = ap.parse_args(argv)
@@ -294,8 +407,34 @@ def main(argv: Optional[list] = None) -> None:
         if not args.apply:
             print("DRY RUN — no writes. Re-run with --apply after human review.")
             return
-        apply_backfill(db, diffs, before=args.before_created_at)
+
+        cutoff = args.before_created_at
+        audit_file = _audit_path(args.audit_dir, cutoff)
+
+        # Idempotency: refuse a re-apply of an already-applied cutoff unless
+        # --force is given (re-applying would double-shift pre-cutoff rows).
+        if os.path.exists(audit_file):
+            if not args.force:
+                print(
+                    f"ERROR: cutoff {cutoff.isoformat()} was already applied "
+                    f"(audit file exists: {audit_file}). Re-running --apply "
+                    f"with the SAME cutoff would DOUBLE-SHIFT the pre-cutoff "
+                    f"rows. To override (e.g. after a rollback), pass --force. "
+                    f"Aborting.",
+                    flush=True,
+                )
+                raise SystemExit(2)
+            print(
+                f"WARNING: --force given — re-applying cutoff "
+                f"{cutoff.isoformat()} and OVERWRITING {audit_file}. This "
+                f"will DOUBLE-SHIFT pre-cutoff rows unless they were rolled "
+                f"back first.",
+                flush=True,
+            )
+
+        apply_backfill(db, diffs, before=cutoff, audit_dir=args.audit_dir)
         print(f"APPLIED — shifted {len(diffs)} row(s); protected rows unchanged.")
+        print(f"AUDIT: {audit_file}")
     finally:
         db.close()
 

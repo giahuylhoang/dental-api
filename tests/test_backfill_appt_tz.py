@@ -4,7 +4,11 @@ These exercise the DST-aware, source-scoped offset logic on the SQLite fixture.
 NO production database is touched here — the script's prod run (backup, dry-run,
 --apply) is a separately gated step and is intentionally NOT executed.
 """
-from datetime import datetime, time
+import json
+import os
+from datetime import datetime, time, timezone
+
+import pytest
 
 from database.models import (
     Appointment,
@@ -91,11 +95,11 @@ def test_diffs_compute_dst_correct_after_values(db_session):
     assert by_id["a-van"].start_after == datetime(2026, 6, 25, 21, 0)
 
 
-def test_apply_backfill_shifts_candidates_and_protects_voice_hold(db_session):
+def test_apply_backfill_shifts_candidates_and_protects_voice_hold(db_session, tmp_path):
     _seed(db_session)
     protected_before = count_protected(db_session)
     diffs = compute_backfill_diffs(db_session)
-    apply_backfill(db_session, diffs)
+    apply_backfill(db_session, diffs, before=datetime(2026, 7, 1, 0, 0), audit_dir=str(tmp_path))
 
     summer = db_session.query(Appointment).filter_by(id="a-summer").one()
     winter = db_session.query(Appointment).filter_by(id="a-winter").one()
@@ -142,36 +146,48 @@ def test_cutoff_excludes_post_cutoff_candidate_row(db_session):
     assert "a-winter" in ids
 
 
-def test_cutoff_pre_cutoff_candidate_is_shifted(db_session):
+def test_cutoff_pre_cutoff_candidate_is_shifted(db_session, tmp_path):
     _seed(db_session)
     _set_created(db_session, "a-summer", datetime(2026, 6, 1, 0, 0))
     _set_created(db_session, "a-winter", datetime(2026, 6, 1, 0, 0))
     _set_created(db_session, "a-van", datetime(2026, 6, 1, 0, 0))
 
     diffs = compute_backfill_diffs(db_session, before=CUTOFF)
-    apply_backfill(db_session, diffs, before=CUTOFF)
+    apply_backfill(db_session, diffs, before=CUTOFF, audit_dir=str(tmp_path))
 
     summer = db_session.query(Appointment).filter_by(id="a-summer").one()
     assert summer.start_time == datetime(2026, 6, 25, 20, 0)
 
 
-def test_apply_without_before_created_at_errors(db_session):
-    # --apply without --before-created-at must fail loudly (SystemExit, non-zero).
-    with __import__("pytest").raises(SystemExit):
+def test_apply_without_before_created_at_errors(db_session, monkeypatch):
+    # --apply without --before-created-at must fail loudly (SystemExit, non-zero)
+    # AND must never reach a DB write path.
+    def _no_write(*a, **kw):
+        raise AssertionError("apply_backfill must not be reached without --before-created-at")
+
+    import scripts.backfill_appt_tz as mod
+
+    monkeypatch.setattr(mod, "apply_backfill", _no_write)
+    monkeypatch.setattr(
+        "database.connection.SessionLocal",
+        lambda: (_ for _ in ()).throw(AssertionError("SessionLocal must not be touched")),
+    )
+    with pytest.raises(SystemExit) as exc:
         main(["--apply"])
+    assert exc.value.code != 0
 
 
-def test_diff_targeting_currently_protected_row_raises_runtime_error(db_session):
+def test_diff_targeting_currently_protected_row_raises_runtime_error(db_session, tmp_path):
     _seed(db_session)
     diffs = compute_backfill_diffs(db_session)
     # Simulate a source flip between diff and apply: retarget a diff at the
     # protected voice-hold row.
     diffs[0].appointment_id = "a-voice"
     with __import__("pytest").raises(RuntimeError):
-        apply_backfill(db_session, diffs)
+        apply_backfill(db_session, diffs, before=datetime(2026, 7, 1, 0, 0), audit_dir=str(tmp_path))
 
 
-def test_protected_row_tamper_detected_after_apply(db_session):
+def test_protected_row_tamper_detected_after_apply(db_session, tmp_path):
     """If a protected row's timestamp changes between snapshot and verify
     (e.g. a concurrent writer), the tripwire raises RuntimeError."""
     _seed(db_session)
@@ -194,5 +210,170 @@ def test_protected_row_tamper_detected_after_apply(db_session):
 
     diffs = compute_backfill_diffs(db_session)
     with __import__("pytest").raises(RuntimeError):
-        apply_backfill(db_session, diffs)
+        apply_backfill(db_session, diffs, before=datetime(2026, 7, 1, 0, 0), audit_dir=str(tmp_path))
+
+
+# ---------------------------------------------------------------------------
+# Task 4 round 2: UTC-normalize cutoff, enforce in apply, durable audit file.
+# ---------------------------------------------------------------------------
+
+from scripts.backfill_appt_tz import _normalize_cutoff, _audit_path  # noqa: E402
+
+
+# --- Fix 1: cutoff normalization to naive UTC ------------------------------
+
+
+def test_normalize_cutoff_aware_converts_to_naive_utc():
+    # 2026-06-25T00:00:00-06:00 (MDT) == 2026-06-25T06:00:00 UTC
+    aware = datetime.fromisoformat("2026-06-25T00:00:00-06:00")
+    out = _normalize_cutoff(aware)
+    assert out.tzinfo is None
+    assert out == datetime(2026, 6, 25, 6, 0, 0)
+
+
+def test_normalize_cutoff_naive_passes_through():
+    naive = datetime(2026, 6, 25, 6, 0, 0)
+    out = _normalize_cutoff(naive)
+    assert out.tzinfo is None
+    assert out == naive
+
+
+# --- Fix 2: apply_backfill enforces the cutoff -----------------------------
+
+
+def test_apply_backfill_requires_before_not_none(db_session):
+    _seed(db_session)
+    diffs = compute_backfill_diffs(db_session)
+    with pytest.raises(RuntimeError):
+        apply_backfill(db_session, diffs, before=None)
+
+
+def test_apply_backfill_refuses_post_cutoff_diff(db_session):
+    """A diff whose row is at/after the cutoff must not be written; the whole
+    batch is refused with a RuntimeError listing the offending id."""
+    _seed(db_session)
+    # a-summer created AFTER the cutoff.
+    _set_created(db_session, "a-summer", datetime(2026, 6, 25, 23, 0))
+    _set_created(db_session, "a-winter", datetime(2026, 6, 1, 0, 0))
+    _set_created(db_session, "a-van", datetime(2026, 6, 1, 0, 0))
+
+    before = datetime(2026, 6, 24, 0, 0)
+    # Mix a post-cutoff diff (a-summer) into the batch.
+    diffs = compute_backfill_diffs(db_session)  # unfiltered: includes a-summer
+    assert any(d.appointment_id == "a-summer" for d in diffs)
+
+    summer_before = db_session.query(Appointment).filter_by(id="a-summer").one().start_time
+    with pytest.raises(RuntimeError) as exc:
+        apply_backfill(db_session, diffs, before=before)
+    assert "a-summer" in str(exc.value)
+    # Nothing written.
+    assert db_session.query(Appointment).filter_by(id="a-summer").one().start_time == summer_before
+    assert db_session.query(Appointment).filter_by(id="a-winter").one().start_time == datetime(2026, 12, 25, 9, 0)
+
+
+# --- Fix 3+4: durable audit file as idempotency marker ---------------------
+
+
+def _apply_via_main(monkeypatch, db_session, tmp_path, before_iso, force=False):
+    """Drive `main` against the SQLite session + tmp audit dir."""
+    import scripts.backfill_appt_tz as mod
+
+    monkeypatch.setattr("database.connection.SessionLocal", lambda: db_session)
+    argv = ["--apply", "--before-created-at", before_iso, "--audit-dir", str(tmp_path)]
+    if force:
+        argv.append("--force")
+    main(argv)
+
+
+def test_apply_writes_audit_file_with_start_and_end_and_cutoff(db_session, monkeypatch, tmp_path):
+    _seed(db_session)
+    _set_created(db_session, "a-summer", datetime(2026, 6, 1, 0, 0))
+    _set_created(db_session, "a-winter", datetime(2026, 6, 1, 0, 0))
+    _set_created(db_session, "a-van", datetime(2026, 6, 1, 0, 0))
+
+    before_iso = "2026-06-24T00:00:00"
+    _apply_via_main(monkeypatch, db_session, tmp_path, before_iso)
+
+    audit_path = _audit_path(tmp_path, _normalize_cutoff(datetime.fromisoformat(before_iso)))
+    assert os.path.exists(audit_path), f"audit file missing at {audit_path}"
+    data = json.loads(open(audit_path).read())
+
+    assert data["cutoff"] == "2026-06-24T00:00:00"
+    by_id = {e["id"]: e for e in data["rows"]}
+    assert set(by_id) == {"a-summer", "a-winter", "a-van"}
+    # Full start + end before/after present.
+    summer = by_id["a-summer"]
+    assert summer["start_before"].startswith("2026-06-25T14:00")
+    assert summer["start_after"].startswith("2026-06-25T20:00")
+    assert summer["end_before"].startswith("2026-06-25T15:00")
+    assert summer["end_after"].startswith("2026-06-25T21:00")
+    assert summer["source"] is None
+    assert summer["clinic_tz"] == "America/Edmonton"
+    assert summer["offset_minutes"] == -360
+    assert "run_at" in data
+
+
+def test_second_apply_with_same_cutoff_is_refused(db_session, monkeypatch, tmp_path, capsys):
+    _seed(db_session)
+    for aid in ("a-summer", "a-winter", "a-van"):
+        _set_created(db_session, aid, datetime(2026, 6, 1, 0, 0))
+
+    before_iso = "2026-06-24T00:00:00"
+    _apply_via_main(monkeypatch, db_session, tmp_path, before_iso)  # first run ok
+    audit_path = _audit_path(tmp_path, _normalize_cutoff(datetime.fromisoformat(before_iso)))
+    assert os.path.exists(audit_path)
+
+    # Second run with same cutoff must refuse (audit exists).
+    with pytest.raises(SystemExit) as exc:
+        _apply_via_main(monkeypatch, db_session, tmp_path, before_iso)
+    assert exc.value.code != 0
+    out = capsys.readouterr().out
+    assert "already" in out.lower() or "refus" in out.lower()
+
+
+def test_force_overrides_and_rewrites_audit(db_session, monkeypatch, tmp_path):
+    _seed(db_session)
+    for aid in ("a-summer", "a-winter", "a-van"):
+        _set_created(db_session, aid, datetime(2026, 6, 1, 0, 0))
+
+    before_iso = "2026-06-24T00:00:00"
+    _apply_via_main(monkeypatch, db_session, tmp_path, before_iso)
+    _apply_via_main(monkeypatch, db_session, tmp_path, before_iso, force=True)  # no raise
+    audit_path = _audit_path(tmp_path, _normalize_cutoff(datetime.fromisoformat(before_iso)))
+    assert os.path.exists(audit_path)
+    data = json.loads(open(audit_path).read())
+    assert len(data["rows"]) == 3
+
+
+def test_audit_file_written_before_protected_verify(db_session, monkeypatch, tmp_path):
+    """If the post-commit protected-verify trips, the audit file must already
+    exist on disk with the committed shifts (full revert record)."""
+    _seed(db_session)
+    for aid in ("a-summer", "a-winter", "a-van"):
+        _set_created(db_session, aid, datetime(2026, 6, 1, 0, 0))
+
+    import scripts.backfill_appt_tz as mod
+
+    real_verify = mod._verify_protected_unchanged
+
+    def failing_verify(db, snapshot):
+        # Assert audit file already written before this (would-be) tripwire.
+        before_iso = "2026-06-24T00:00:00"
+        audit_path = _audit_path(tmp_path, _normalize_cutoff(datetime.fromisoformat(before_iso)))
+        assert os.path.exists(audit_path), "audit file must precede protected-verify"
+        raise RuntimeError("simulated protected-verify failure")
+
+    monkeypatch.setattr(mod, "_verify_protected_unchanged", failing_verify)
+    monkeypatch.setattr("database.connection.SessionLocal", lambda: db_session)
+
+    with pytest.raises(RuntimeError):
+        main(["--apply", "--before-created-at", "2026-06-24T00:00:00",
+              "--audit-dir", str(tmp_path)])
+
+    before_iso = "2026-06-24T00:00:00"
+    audit_path = _audit_path(tmp_path, _normalize_cutoff(datetime.fromisoformat(before_iso)))
+    assert os.path.exists(audit_path)
+    data = json.loads(open(audit_path).read())
+    assert len(data["rows"]) == 3
+
 
