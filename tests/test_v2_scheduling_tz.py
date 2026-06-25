@@ -196,6 +196,53 @@ def test_v2_v1_conflict_parity(client, db_session):
     assert r2.status_code == 409, r2.text
 
 
+def test_v2_calendar_includes_late_evening_local_appt_and_serializes_local(client, db_session):
+    """The v2 calendar read must (a) filter on UTC bounds so a late-evening local
+    appointment (stored on the NEXT UTC day) still falls inside a clinic-local day
+    window, and (b) serialize times back as clinic-local wall-clock.
+
+    Seed an appt at 23:00 Edmonton/MDT on 2026-07-15 (== naive UTC
+    2026-07-16T05:00). A clinic-local day window 2026-07-15T00:00 -> 2026-07-16T00:00
+    must still return it (on the buggy code the stored UTC 16th falls outside the
+    naive 15th window), and its start_time must serialize as the clinic-local
+    23:00, not UTC 05:00."""
+    patient, provider = _seed(db_session)
+
+    # Create via v1 so start_time lands as naive UTC 2026-07-16T05:00.
+    create = client.post("/api/appointments", json={
+        "patient_id": patient.id,
+        "provider_id": provider.id,
+        "start_time": "2026-07-15T23:00:00",
+        "end_time": "2026-07-15T23:30:00",
+        "patient_name": "LateLocal",
+        "service_name": "S",
+        "reason": "",
+    }, headers={"X-Clinic-Id": DEFAULT_CLINIC_ID})
+    assert create.status_code in (200, 201), create.text
+
+    # Confirm the storage contract: naive UTC 2026-07-16T05:00.
+    row = db_session.query(Appointment).filter(
+        Appointment.clinic_id == DEFAULT_CLINIC_ID,
+        Appointment.patient_id == patient.id,
+    ).one()
+    assert row.start_time == datetime(2026, 7, 16, 5, 0, 0), row.start_time
+
+    resp = client.get(
+        "/api/v2/scheduling/calendar",
+        params={"start": "2026-07-15T00:00:00", "end": "2026-07-16T00:00:00"},
+        headers={"X-Clinic-Id": DEFAULT_CLINIC_ID},
+    )
+    assert resp.status_code == 200, resp.text
+    rows = resp.json()
+    matching = [r for r in rows if r["id"] == row.id]
+    assert matching, "late-evening local appt was dropped from the clinic-local day window"
+    apt = matching[0]
+    # Clinic-local wall clock, not stored UTC.
+    assert apt["start_time"].startswith("2026-07-15T23:00"), apt["start_time"]
+    assert apt["end_time"].startswith("2026-07-15T23:30"), apt["end_time"]
+    assert not apt["start_time"].startswith("2026-07-16T05:00"), apt["start_time"]
+
+
 def test_v2_reschedule_stores_naive_utc(client, db_session):
     patient, provider = _seed(db_session)
 

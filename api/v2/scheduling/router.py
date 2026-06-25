@@ -617,8 +617,12 @@ def get_calendar(
     clinic: Clinic = Depends(get_authorized_clinic),
     db: Session = Depends(get_db),
 ):
-    start_dt = _parse_dt(start)
-    end_dt = _parse_dt(end)
+    # Request bounds arrive as clinic-local wall-clock; convert to naive UTC
+    # before comparing against the UTC-stored start_time so a late-evening
+    # local appt (stored on the next UTC day) is not dropped from a local day
+    # window.
+    start_dt = to_storage_utc_clinic(_parse_dt(start), clinic)
+    end_dt = to_storage_utc_clinic(_parse_dt(end), clinic)
 
     q = db.query(Appointment).filter(
         Appointment.clinic_id == clinic.id,
@@ -642,8 +646,8 @@ def get_calendar(
             "id": a.id,
             "patient_id": a.patient_id,
             "provider_id": a.provider_id,
-            "start_time": a.start_time.isoformat(),
-            "end_time": a.end_time.isoformat(),
+            "start_time": to_clinic_local(a.start_time, clinic).isoformat(),
+            "end_time": to_clinic_local(a.end_time, clinic).isoformat(),
             "status": a.status.value,
         }
         for a in apts
