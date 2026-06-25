@@ -19,7 +19,7 @@ from database.ops.models import (
     AppointmentReminder, WaitlistEntry, RecallRule, Recall,
 )
 from api.dependencies import get_authorized_clinic
-from services.tz_utils import to_storage_utc_clinic
+from services.tz_utils import to_clinic_local, to_storage_utc_clinic
 
 router = APIRouter(prefix="/api/v2/scheduling", tags=["v2-scheduling"])
 
@@ -466,9 +466,14 @@ def create_v2_appointment(body: V2AppointmentIn, clinic: Clinic = Depends(get_au
         from dateutil.rrule import rrulestr
         # Generate occurrences on the clinic-local wall clock so "9am Mondays"
         # stays 9am across DST, then convert EACH occurrence to storage UTC.
-        duration = end_local - start_local  # wall-clock delta
+        # Canonical clinic-local wall clock of the anchor, regardless of the
+        # caller's input zone. Generating from this keeps parent + children on
+        # the same clinic-local time across DST and across cross-zone aware input.
+        start_wall = to_clinic_local(start, clinic).replace(tzinfo=None)
+        end_wall = to_clinic_local(end, clinic).replace(tzinfo=None)
+        duration = end_wall - start_wall            # wall-clock delta
         try:
-            rule = rrulestr(body.recurrence_rule, dtstart=start_local, ignoretz=True)
+            rule = rrulestr(body.recurrence_rule, dtstart=start_wall, ignoretz=True)
         except Exception as e:
             raise HTTPException(400, f"Invalid RRULE: {e}")
 
@@ -500,7 +505,7 @@ def create_v2_appointment(body: V2AppointmentIn, clinic: Clinic = Depends(get_au
                 db.add(AppointmentResource(appointment_id=child.id, operatory_id=body.operatory_id))
             generated_count += 1
 
-        last_occ = occurrences[-1] if occurrences else start_local
+        last_occ = occurrences[-1] if occurrences else start_wall
         rec = AppointmentRecurrence(
             clinic_id=clinic.id,
             parent_appointment_id=apt.id,

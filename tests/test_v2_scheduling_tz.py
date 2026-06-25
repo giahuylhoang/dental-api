@@ -128,6 +128,45 @@ def test_v2_recurrence_children_store_naive_utc(client, db_session):
     assert [r.end_time for r in rows] == [e.replace(hour=21) for e in expected]
 
 
+def test_v2_recurrence_cross_zone_aware_input_keeps_clinic_local_wall_clock(client, db_session):
+    """Cross-zone aware input must anchor recurrence on the CLINIC-local wall
+    clock, not the caller's submitted wall clock.
+
+    Input 2026-07-15T14:00:00-05:00 == 19:00 UTC == 13:00 Edmonton/MDT. The
+    parent stores 19:00 UTC (13:00 Edmonton). Children must also sit at 13:00
+    Edmonton (19:00 UTC) on successive days — sharing the parent's clinic-local
+    wall time. On the buggy code the children derive from naive 14:00 and land
+    at 20:00 UTC (14:00 Edmonton), one hour off from the parent."""
+    patient, provider = _seed(db_session)
+
+    resp = client.post("/api/v2/scheduling/appointments", json={
+        "start_time": "2026-07-15T14:00:00-05:00",
+        "end_time": "2026-07-15T15:00:00-05:00",
+        "patient_id": patient.id,
+        "provider_id": provider.id,
+        "patient_name": "T",
+        "service_name": "S",
+        "recurrence_rule": "FREQ=DAILY;COUNT=3",
+    }, headers={"X-Clinic-Id": DEFAULT_CLINIC_ID})
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["generated_count"] == 3
+
+    rows = db_session.query(Appointment).filter(
+        Appointment.clinic_id == DEFAULT_CLINIC_ID,
+        Appointment.patient_id == patient.id,
+    ).order_by(Appointment.start_time).all()
+    assert len(rows) == 3
+    # 13:00 Edmonton/MDT (UTC-6) == 19:00 UTC on each day; parent + children
+    # share the same clinic-local wall clock (13:00).
+    expected = [
+        datetime(2026, 7, 15, 19, 0, 0),
+        datetime(2026, 7, 16, 19, 0, 0),
+        datetime(2026, 7, 17, 19, 0, 0),
+    ]
+    assert [r.start_time for r in rows] == expected, [r.start_time for r in rows]
+    assert [r.end_time for r in rows] == [e.replace(hour=20) for e in expected]
+
+
 def test_v2_v1_conflict_parity(client, db_session):
     """A v2-created appt at 14:00 local must conflict with a v1-created appt at
     the same wall time — proves both now share one naive-UTC representation."""
