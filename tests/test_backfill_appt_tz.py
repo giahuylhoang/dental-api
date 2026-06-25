@@ -345,6 +345,27 @@ def test_force_overrides_and_rewrites_audit(db_session, monkeypatch, tmp_path):
     assert len(data["rows"]) == 3
 
 
+def test_apply_backfill_refuses_null_created_at_diff(db_session, tmp_path):
+    """A diff whose row has created_at IS NULL cannot be proven pre-cutoff, so
+    the whole batch is refused (RuntimeError) and the row is NOT shifted."""
+    _seed(db_session)
+    # a-summer has undatable created_at (NULL); the others are pre-cutoff.
+    _set_created(db_session, "a-summer", None)
+    _set_created(db_session, "a-winter", datetime(2026, 6, 1, 0, 0))
+    _set_created(db_session, "a-van", datetime(2026, 6, 1, 0, 0))
+
+    before = datetime(2026, 6, 24, 0, 0)
+    diffs = compute_backfill_diffs(db_session)  # unfiltered: includes a-summer
+    assert any(d.appointment_id == "a-summer" for d in diffs)
+
+    summer_before = db_session.query(Appointment).filter_by(id="a-summer").one().start_time
+    with pytest.raises(RuntimeError) as exc:
+        apply_backfill(db_session, diffs, before=before, audit_dir=str(tmp_path))
+    assert "a-summer" in str(exc.value)
+    # Row must NOT have been shifted.
+    assert db_session.query(Appointment).filter_by(id="a-summer").one().start_time == summer_before
+
+
 def test_audit_file_written_before_protected_verify(db_session, monkeypatch, tmp_path):
     """If the post-commit protected-verify trips, the audit file must already
     exist on disk with the committed shifts (full revert record)."""

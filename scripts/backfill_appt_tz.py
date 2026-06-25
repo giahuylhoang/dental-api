@@ -258,12 +258,13 @@ def apply_backfill(
         if by_id else []
     )
 
-    # Enforce the cutoff on each fetched row (last defense).
-    out_of_range = [a.id for a in rows if a.created_at is not None and a.created_at >= before]
+    # Enforce the cutoff on each fetched row (last defense). A NULL created_at
+    # cannot be proven pre-cutoff, so it is treated as out-of-range (refused).
+    out_of_range = [a.id for a in rows if a.created_at is None or a.created_at >= before]
     if out_of_range:
         raise RuntimeError(
-            f"refusing to apply: diff rows at/after cutoff {before.isoformat()}: "
-            f"{sorted(out_of_range)}"
+            f"refusing to apply: diff rows undatable or at/after cutoff {before.isoformat()} "
+            f"(created_at NULL or >= cutoff): {sorted(out_of_range)}"
         )
 
     # Defensive: refuse any diff that currently points at a protected row.
