@@ -1,6 +1,7 @@
 """Clinical router: patient extensions, clinical notes, denture cases."""
 import hashlib
 import os
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, List
@@ -20,6 +21,7 @@ from database.v1_1.lifecycle import (
     get_status, set_status, promote_if_complete, PATIENT_STATUSES,
 )
 from api.dependencies import get_authorized_clinic
+from services.storage import get_storage_backend
 
 router = APIRouter(prefix="/api/v2/clinical", tags=["clinical"])
 
@@ -266,11 +268,48 @@ class DocumentOut(BaseModel):
     patient_id: str
     kind: str
     storage_url: str
+    storage_backend: Optional[str] = None
+    original_name: Optional[str] = None
     content_sha256: str
     mime: Optional[str] = None
     size_bytes: Optional[int] = None
     uploaded_by: Optional[str] = None
     created_at: Optional[datetime] = None
+
+
+ALLOWED_DOC_MIME = {"image/jpeg", "image/png", "image/heic", "application/pdf"}
+MAX_DOC_BYTES = 25 * 1024 * 1024  # 25 MB
+
+_EXT_BY_MIME = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/heic": ".heic",
+    "application/pdf": ".pdf",
+}
+
+
+class DocUploadRequestIn(BaseModel):
+    filename: str
+    mime: str
+    size_bytes: int
+    kind: str = "other"
+
+
+class DocUploadTicketOut(BaseModel):
+    upload_url: str
+    storage_key: str
+    storage_backend: str
+
+
+class DocCompleteIn(BaseModel):
+    storage_key: str
+    kind: str = "other"
+    original_name: Optional[str] = None
+    uploaded_by: Optional[str] = None
+
+
+class DocDownloadOut(BaseModel):
+    download_url: str
 
 
 class NoteIn(BaseModel):
@@ -459,21 +498,90 @@ def list_documents(patient_id: str, clinic: Clinic = Depends(get_authorized_clin
     ).all()
 
 
-@router.post("/patients/{patient_id}/documents", response_model=DocumentOut, status_code=201)
+@router.post("/patients/{patient_id}/documents", response_model=DocumentOut, status_code=201, deprecated=True)
 def add_document(patient_id: str, body: DocumentIn, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
+    # Deprecated: trusted client-supplied metadata. Use request-upload → complete instead.
+    raise HTTPException(status_code=410, detail="Use documents/request-upload then documents/complete")
+
+
+@router.post("/patients/{patient_id}/documents/request-upload", response_model=DocUploadTicketOut)
+def request_document_upload(patient_id: str, body: DocUploadRequestIn, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
     _get_patient(patient_id, clinic, db)
-    # Dedup on sha256
+    if body.mime not in ALLOWED_DOC_MIME:
+        raise HTTPException(status_code=400, detail="Unsupported file type")
+    if body.size_bytes <= 0 or body.size_bytes > MAX_DOC_BYTES:
+        raise HTTPException(status_code=400, detail="File too large")
+    ext = _EXT_BY_MIME.get(body.mime, Path(body.filename).suffix or "")
+    storage_key = f"{clinic.id}/patients/{patient_id}/{uuid.uuid4().hex}{ext}"
+    storage = get_storage_backend()
+    upload_url = storage.signed_put_url(storage_key, content_type=body.mime, max_bytes=body.size_bytes)
+    backend_name = "gcs" if os.getenv("GCS_BUCKET", "").strip() else "local"
+    return DocUploadTicketOut(upload_url=upload_url, storage_key=storage_key, storage_backend=backend_name)
+
+
+@router.post("/patients/{patient_id}/documents/complete", response_model=DocumentOut, status_code=201)
+def complete_document_upload(patient_id: str, body: DocCompleteIn, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
+    _get_patient(patient_id, clinic, db)
+    prefix = f"{clinic.id}/patients/{patient_id}/"
+    if not body.storage_key.startswith(prefix):
+        raise HTTPException(status_code=400, detail="storage_key outside patient prefix")
+
+    storage = get_storage_backend()
+    info = storage.stat(body.storage_key)
+    if info is None:
+        raise HTTPException(status_code=400, detail="Uploaded object not found")
+
+    size = int(info["size"])
+    if size <= 0 or size > MAX_DOC_BYTES:
+        storage.delete(body.storage_key)
+        raise HTTPException(status_code=400, detail="File too large")
+
+    data = storage.read_bytes(body.storage_key)
+    sha = hashlib.sha256(data).hexdigest()
+    mime = info.get("content_type")
+    if mime is not None and mime not in ALLOWED_DOC_MIME:
+        storage.delete(body.storage_key)
+        raise HTTPException(status_code=400, detail="Unsupported file type")
+
+    backend_name = "gcs" if os.getenv("GCS_BUCKET", "").strip() else "local"
+
     existing = db.query(Document).filter(
         Document.clinic_id == clinic.id,
-        Document.content_sha256 == body.content_sha256,
+        Document.patient_id == patient_id,
+        Document.content_sha256 == sha,
     ).first()
     if existing:
+        storage.delete(body.storage_key)  # new bytes duplicate an existing doc; don't leak them
         return existing
-    obj = Document(clinic_id=clinic.id, patient_id=patient_id, **body.model_dump())
-    db.add(obj)
+
+    doc = Document(
+        clinic_id=clinic.id,
+        patient_id=patient_id,
+        kind=body.kind,
+        storage_url=body.storage_key,
+        storage_backend=backend_name,
+        original_name=body.original_name,
+        content_sha256=sha,
+        mime=mime,
+        size_bytes=size,
+        uploaded_by=body.uploaded_by,
+    )
+    db.add(doc)
     db.commit()
-    db.refresh(obj)
-    return obj
+    db.refresh(doc)
+    return doc
+
+
+@router.get("/documents/{document_id}/download", response_model=DocDownloadOut)
+def get_document_download_url(document_id: str, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
+    doc = db.query(Document).filter(
+        Document.id == document_id,
+        Document.clinic_id == clinic.id,
+    ).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    url = get_storage_backend().signed_get_url(doc.storage_url)
+    return DocDownloadOut(download_url=url)
 
 
 # ---------------------------------------------------------------------------
