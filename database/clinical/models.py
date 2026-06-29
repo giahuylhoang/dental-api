@@ -119,13 +119,20 @@ class Document(Base):
     patient_id = Column(String, ForeignKey("patients.id"), nullable=False)
     kind = Column(String, nullable=False)           # photo|xray|consent|other
     storage_url = Column(Text, nullable=False)
+    storage_backend = Column(String, nullable=False, default="gcs")  # 'gcs'|'local'
+    original_name = Column(String, nullable=True)
     content_sha256 = Column(String, nullable=False)
     mime = Column(String, nullable=True)
     size_bytes = Column(Integer, nullable=True)
     uploaded_by = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    __table_args__ = (UniqueConstraint("clinic_id", "content_sha256", name="uq_doc_clinic_sha"),)
+    __table_args__ = (
+        UniqueConstraint(
+            "clinic_id", "patient_id", "content_sha256",
+            name="uq_doc_clinic_patient_sha",
+        ),
+    )
 
 
 class ClinicalNote(Base):
@@ -142,6 +149,23 @@ class ClinicalNote(Base):
     soap_plan = Column(Text, nullable=True)
     locked_at = Column(DateTime, nullable=True)
     supersedes_id = Column(String, ForeignKey("clinical_notes.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class PatientNote(Base):
+    """Free-text CRM note attached to a patient (append-style, editable/deletable).
+
+    Distinct from ClinicalNote (which is SOAP-structured, appointment-linked and
+    lockable). This is the lightweight "who said what when" CRM jot.
+    """
+    __tablename__ = "patient_notes"
+
+    id = Column(String, primary_key=True, default=_uuid)
+    clinic_id = Column(String, ForeignKey("clinics.id"), nullable=False)
+    patient_id = Column(String, ForeignKey("patients.id"), nullable=False)
+    author_id = Column(String, nullable=True)
+    body = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -292,3 +316,7 @@ Index("ix_lab_cases_denture_case", LabCase.denture_case_id)
 Index("ix_treatment_plans_patient_status", TreatmentPlan.patient_id, TreatmentPlan.status)
 Index("ix_documents_patient_kind", Document.patient_id, Document.kind)
 Index("ix_patient_insurance_patient_primary", PatientInsurance.patient_id, PatientInsurance.is_primary)
+Index(
+    "ix_patient_notes_clinic_patient_created",
+    PatientNote.clinic_id, PatientNote.patient_id, PatientNote.created_at,
+)
