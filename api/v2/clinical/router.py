@@ -13,7 +13,7 @@ from database.connection import get_db
 from database.models import Clinic, Patient
 from database.clinical.models import (
     PatientMedicalHistory, PatientInsurance, PatientConsent, Document,
-    ClinicalNote, DentureCase, DentureCaseEvent,
+    ClinicalNote, DentureCase, DentureCaseEvent, PatientNote,
 )
 from database.v1_1.models import ToothChartEntry, DentureCaseImplant
 from database.v1_1.lifecycle import (
@@ -335,10 +335,29 @@ class DentureCaseOut(BaseModel):
     notes: Optional[str] = None
 
 
+class PatientNoteIn(BaseModel):
+    body: str
+    author_id: Optional[str] = None
+
+
+class PatientNotePatch(BaseModel):
+    body: str
+
+
+class PatientNoteOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    clinic_id: str
+    patient_id: str
+    author_id: Optional[str] = None
+    body: str
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
 def _get_patient(patient_id: str, clinic: Clinic, db: Session) -> Patient:
     p = db.query(Patient).filter(
         Patient.id == patient_id,
@@ -537,6 +556,57 @@ def list_notes(patient_id: Optional[str] = None, clinic: Clinic = Depends(get_au
     if patient_id:
         q = q.filter(ClinicalNote.patient_id == patient_id)
     return q.all()
+
+
+# ---------------------------------------------------------------------------
+# Patient CRM notes (lightweight, editable, append-style)
+# ---------------------------------------------------------------------------
+
+@router.post("/patients/{patient_id}/notes", response_model=PatientNoteOut, status_code=201)
+def create_patient_note(patient_id: str, body: PatientNoteIn, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
+    _get_patient(patient_id, clinic, db)
+    obj = PatientNote(clinic_id=clinic.id, patient_id=patient_id, **body.model_dump())
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+
+@router.get("/patients/{patient_id}/notes", response_model=List[PatientNoteOut])
+def list_patient_notes(patient_id: str, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
+    _get_patient(patient_id, clinic, db)
+    return db.query(PatientNote).filter(
+        PatientNote.patient_id == patient_id,
+        PatientNote.clinic_id == clinic.id,
+    ).order_by(PatientNote.created_at.desc(), PatientNote.id.desc()).all()
+
+
+@router.patch("/patient-notes/{note_id}", response_model=PatientNoteOut)
+def patch_patient_note(note_id: str, body: PatientNotePatch, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
+    note = db.query(PatientNote).filter(
+        PatientNote.id == note_id,
+        PatientNote.clinic_id == clinic.id,
+    ).first()
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+    note.body = body.body
+    note.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(note)
+    return note
+
+
+@router.delete("/patient-notes/{note_id}", status_code=204)
+def delete_patient_note(note_id: str, clinic: Clinic = Depends(get_authorized_clinic), db: Session = Depends(get_db)):
+    note = db.query(PatientNote).filter(
+        PatientNote.id == note_id,
+        PatientNote.clinic_id == clinic.id,
+    ).first()
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+    db.delete(note)
+    db.commit()
+    return None
 
 
 # ---------------------------------------------------------------------------
